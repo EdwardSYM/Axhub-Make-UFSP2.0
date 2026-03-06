@@ -66,7 +66,7 @@ function ColorSwatch({
 function ColorsSection() {
   return (
     <div>
-      <h2 style={{ fontSize: '24px', fontWeight: 500, marginBottom: '24px' }}>色彩系统 (Colors)</h2>
+      <h2 style={{ fontSize: '24px', fontWeight: 500, marginTop: 0, marginBottom: '24px' }}>色彩系统 (Colors)</h2>
 
       <div style={{ marginBottom: '32px' }}>
         <h3 style={{ fontSize: '12px', fontWeight: 500, color: 'var(--muted-foreground)', marginBottom: '12px', textTransform: 'uppercase', letterSpacing: '0.08em' }}>
@@ -117,7 +117,7 @@ function ColorsSection() {
 function TypographySection() {
   return (
     <div>
-      <h2 style={{ fontSize: '24px', fontWeight: 500, marginBottom: '24px' }}>字体系统 (Typography)</h2>
+      <h2 style={{ fontSize: '24px', fontWeight: 500, marginTop: 0, marginBottom: '24px' }}>字体系统 (Typography)</h2>
 
       <div style={{
         backgroundColor: 'var(--card)',
@@ -158,7 +158,7 @@ function TypographySection() {
 function SpacingSection() {
   return (
     <div>
-      <h2 style={{ fontSize: '24px', fontWeight: 500, marginBottom: '24px' }}>间距 (Spacing)</h2>
+      <h2 style={{ fontSize: '24px', fontWeight: 500, marginTop: 0, marginBottom: '24px' }}>间距 (Spacing)</h2>
 
       <div>
         <h3 style={{ fontSize: '12px', fontWeight: 500, color: 'var(--muted-foreground)', marginBottom: '12px', textTransform: 'uppercase', letterSpacing: '0.08em' }}>
@@ -197,7 +197,7 @@ function SpacingSection() {
 function RadiusSection() {
   return (
     <div>
-      <h2 style={{ fontSize: '24px', fontWeight: 500, marginBottom: '24px' }}>圆角 (Radius)</h2>
+      <h2 style={{ fontSize: '24px', fontWeight: 500, marginTop: 0, marginBottom: '24px' }}>圆角 (Radius)</h2>
 
       <div>
         <h3 style={{ fontSize: '12px', fontWeight: 500, color: 'var(--muted-foreground)', marginBottom: '12px', textTransform: 'uppercase', letterSpacing: '0.08em' }}>
@@ -237,7 +237,7 @@ function RadiusSection() {
 function ShadowsSection() {
   return (
     <div>
-      <h2 style={{ fontSize: '24px', fontWeight: 500, marginBottom: '24px' }}>阴影 (Shadows)</h2>
+      <h2 style={{ fontSize: '24px', fontWeight: 500, marginTop: 0, marginBottom: '24px' }}>阴影 (Shadows)</h2>
 
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: '20px' }}>
         {[
@@ -274,7 +274,7 @@ function IconsSection() {
 
   return (
     <div>
-      <h2 style={{ fontSize: '24px', fontWeight: 500, marginBottom: '24px' }}>图标 (Icons)</h2>
+      <h2 style={{ fontSize: '24px', fontWeight: 500, marginTop: 0, marginBottom: '24px' }}>图标 (Icons)</h2>
 
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(140px, 1fr))', gap: '16px' }}>
         {[
@@ -345,7 +345,7 @@ function IconsSection() {
 function ButtonsSection() {
   return (
     <div>
-      <h2 style={{ fontSize: '24px', fontWeight: 500, marginBottom: '24px' }}>按钮 (Buttons)</h2>
+      <h2 style={{ fontSize: '24px', fontWeight: 500, marginTop: 0, marginBottom: '24px' }}>按钮 (Buttons)</h2>
 
       <div style={{ display: 'flex', gap: '12px', flexWrap: 'wrap', alignItems: 'center' }}>
         <button style={{
@@ -408,7 +408,7 @@ function ButtonsSection() {
 function CardsSection() {
   return (
     <div>
-      <h2 style={{ fontSize: '24px', fontWeight: 500, marginBottom: '24px' }}>卡片 (Cards)</h2>
+      <h2 style={{ fontSize: '24px', fontWeight: 500, marginTop: 0, marginBottom: '24px' }}>卡片 (Cards)</h2>
 
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: '24px' }}>
         <div style={{
@@ -458,7 +458,7 @@ function CardsSection() {
 function InputsSection() {
   return (
     <div>
-      <h2 style={{ fontSize: '24px', fontWeight: 500, marginBottom: '24px' }}>输入框 (Inputs)</h2>
+      <h2 style={{ fontSize: '24px', fontWeight: 500, marginTop: 0, marginBottom: '24px' }}>输入框 (Inputs)</h2>
 
       <div style={{ display: 'flex', flexDirection: 'column', gap: '16px', maxWidth: '420px' }}>
         <div>

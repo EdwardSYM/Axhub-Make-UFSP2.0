@@ -66,36 +66,36 @@ function getAllComponents() {
   const srcDir = path.resolve(__dirname, '../src');
   const components = [];
   
-  // 扫描 pages
-  const pagesDir = path.join(srcDir, 'pages');
+  // 扫描 prototypes
+  const pagesDir = path.join(srcDir, 'prototypes');
   if (fs.existsSync(pagesDir)) {
-    const pages = fs.readdirSync(pagesDir, { withFileTypes: true });
-    pages.forEach(page => {
+    const prototypes = fs.readdirSync(pagesDir, { withFileTypes: true });
+    prototypes.forEach(page => {
       if (page.isDirectory()) {
         const indexPath = path.join(pagesDir, page.name, 'index.tsx');
         if (fs.existsSync(indexPath)) {
           components.push({
             type: 'page',
             name: page.name,
-            path: `pages/${page.name}`
+            path: `prototypes/${page.name}`
           });
         }
       }
     });
   }
   
-  // 扫描 elements
-  const elementsDir = path.join(srcDir, 'elements');
+  // 扫描 components
+  const elementsDir = path.join(srcDir, 'components');
   if (fs.existsSync(elementsDir)) {
-    const elements = fs.readdirSync(elementsDir, { withFileTypes: true });
-    elements.forEach(element => {
+    const components = fs.readdirSync(elementsDir, { withFileTypes: true });
+    components.forEach(element => {
       if (element.isDirectory()) {
         const indexPath = path.join(elementsDir, element.name, 'index.tsx');
         if (fs.existsSync(indexPath)) {
           components.push({
             type: 'element',
             name: element.name,
-            path: `elements/${element.name}`
+            path: `components/${element.name}`
           });
         }
       }

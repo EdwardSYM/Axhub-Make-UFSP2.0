@@ -15,8 +15,8 @@ export function handleSpecHtml(req: IncomingMessage, res: ServerResponse, specTe
 
     console.log('[虚拟HTML] 文档请求:', normalized.originalUrl, '→', normalized.normalizedUrl);
 
-    // 处理 pages/elements/themes 的 spec 请求
-    if (['elements', 'pages', 'themes'].includes(type)) {
+    // 处理 prototypes/components/themes 的 spec 请求
+    if (['components', 'prototypes', 'themes'].includes(type)) {
       let basePath: string;
       let specMdPath: string;
       let prdMdPath: string;
@@ -35,7 +35,7 @@ export function handleSpecHtml(req: IncomingMessage, res: ServerResponse, specTe
         prdMdPath = path.join(basePath, 'prd.md');
       }
 
-      const typeLabel = type === 'elements' ? 'Element' : type === 'pages' ? 'Page' : 'Theme';
+      const typeLabel = type === 'components' ? 'Component' : type === 'prototypes' ? 'Prototype' : 'Theme';
 
       console.log('[虚拟HTML] 检查文档文件:', { specMdPath, prdMdPath });
       console.log('[虚拟HTML] 文件存在:', {
@@ -102,10 +102,10 @@ export function handleSpecHtml(req: IncomingMessage, res: ServerResponse, specTe
       }
     }
 
-    // 处理 /assets/docs/* 的 spec 请求
-    if (type === 'assets-docs') {
+    // 处理 /docs/* 的 spec 请求
+    if (type === 'docs') {
       const decodedDocName = decodeURIComponent(name);
-      const mdPath = path.resolve(process.cwd(), 'assets/docs', decodedDocName + '.md');
+      const mdPath = path.resolve(process.cwd(), 'src/docs', decodedDocName + '.md');
 
       console.log('[虚拟HTML] 检查 docs markdown 文件:', mdPath, '存在:', fs.existsSync(mdPath));
 
@@ -126,33 +126,6 @@ export function handleSpecHtml(req: IncomingMessage, res: ServerResponse, specTe
         return true;
       } else {
         console.log('[虚拟HTML] ❌ docs markdown 不存在:', mdPath);
-      }
-    }
-
-    // 处理 /assets/libraries/* 的 spec 请求
-    if (type === 'assets-libraries') {
-      const decodedLibraryName = decodeURIComponent(name);
-      const mdPath = path.resolve(process.cwd(), 'assets/libraries', decodedLibraryName + '.md');
-
-      console.log('[虚拟HTML] 检查 library markdown 文件:', mdPath, '存在:', fs.existsSync(mdPath));
-
-      if (fs.existsSync(mdPath)) {
-        const title = `Library: ${decodedLibraryName || 'Index'}`;
-        const specMdUrl = `/api/libraries/${encodeURIComponent(decodedLibraryName + '.md')}`;
-
-        let html = specTemplate.replace(/\{\{TITLE\}\}/g, title);
-        html = html.replace(/\{\{SPEC_URL\}\}/g, specMdUrl);
-        html = html.replace(/\{\{DOCS_CONFIG\}\}/g, '[]');
-        html = html.replace(/\{\{MULTI_DOC\}\}/g, 'false');
-
-        console.log('[虚拟HTML] ✅ 返回 Library 虚拟 HTML:', normalized.normalizedUrl);
-
-        res.setHeader('Content-Type', 'text/html; charset=utf-8');
-        res.statusCode = 200;
-        res.end(html);
-        return true;
-      } else {
-        console.log('[虚拟HTML] ❌ library markdown 不存在:', mdPath);
       }
     }
   }

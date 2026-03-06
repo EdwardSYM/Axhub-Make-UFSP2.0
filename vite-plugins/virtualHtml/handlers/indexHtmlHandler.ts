@@ -15,7 +15,7 @@ export function handleIndexHtml(req: IncomingMessage, res: ServerResponse, devTe
 
     console.log('[虚拟HTML] 预览请求:', normalized.originalUrl, '→', normalized.normalizedUrl);
 
-    if (['elements', 'pages', 'themes'].includes(type)) {
+    if (['components', 'prototypes', 'themes'].includes(type)) {
       const urlPath = `/${type}/${name}`;
       let tsxPath: string;
       let basePath: string;
@@ -35,7 +35,7 @@ export function handleIndexHtml(req: IncomingMessage, res: ServerResponse, devTe
       console.log('[虚拟HTML] 检查 TSX 文件:', tsxPath, '存在:', fs.existsSync(tsxPath));
 
       if (fs.existsSync(tsxPath)) {
-        const typeLabel = type === 'elements' ? 'Element' : type === 'pages' ? 'Page' : 'Theme';
+        const typeLabel = type === 'components' ? 'Component' : type === 'prototypes' ? 'Prototype' : 'Theme';
         const title = versionId
           ? `${typeLabel}: ${name} (版本: ${versionId}) - Dev Preview`
           : `${typeLabel}: ${name} - Dev Preview`;
@@ -43,8 +43,8 @@ export function handleIndexHtml(req: IncomingMessage, res: ServerResponse, devTe
         let html = devTemplate.replace(/\{\{TITLE\}\}/g, title);
 
         // 🔥 添加 <base> 标签来修正相对路径基准（重要！）
-        // 新路径格式 /pages/ref-antd 会被浏览器当作目录，导致相对路径解析错误
-        // 添加 <base href="/pages/ref-antd/"> 可以修正这个问题
+        // 新路径格式 /prototypes/ref-antd 会被浏览器当作目录，导致相对路径解析错误
+        // 添加 <base href="/prototypes/ref-antd/"> 可以修正这个问题
         const baseHref = `${urlPath}/`;
         html = html.replace('</head>', `  <base href="${baseHref}">\n  </head>`);
 
@@ -137,7 +137,7 @@ export function handleIndexHtml(req: IncomingMessage, res: ServerResponse, devTe
 
     console.log('[虚拟HTML] 旧格式请求路径:', req.url, '解析部分:', pathParts);
 
-    if (pathParts.length >= 2 && ['elements', 'pages', 'themes'].includes(pathParts[0])) {
+    if (pathParts.length >= 2 && ['components', 'prototypes', 'themes'].includes(pathParts[0])) {
       // 这种情况应该已经被标准化处理了，如果到这里说明有问题
       console.warn('[虚拟HTML] ⚠️ 未被标准化处理的路径:', req.url);
     }
@@ -145,4 +145,3 @@ export function handleIndexHtml(req: IncomingMessage, res: ServerResponse, devTe
 
   return false;
 }
-

@@ -13,18 +13,18 @@
  *
  * 使用：
  *   node scripts/check-app-ready.mjs [页面路径]
- *   例如：node scripts/check-app-ready.mjs /elements/button
- *        node scripts/check-app-ready.mjs /pages/home
+ *   例如：node scripts/check-app-ready.mjs /components/button
+ *        node scripts/check-app-ready.mjs /prototypes/home
  *   
  *   跳过构建校验：
- *   node scripts/check-app-ready.mjs --skip-build /elements/button
+ *   node scripts/check-app-ready.mjs --skip-build /components/button
  *
  * 输出（JSON）：
  * {
  *   status: "READY" | "ERROR" | "TIMEOUT",
  *   phase: "server|build|page|done",
  *   message: "...",
- *   url: "http://localhost:51720/elements/button",
+ *   url: "http://localhost:51720/components/button",
  *   errors: [...],
  *   logs: [...],
  *   buildCheck?: { status: "SUCCESS" | "FAILED" | "SKIPPED", errors: [...], logs: [...] }
@@ -32,8 +32,8 @@
  *   typeCheck?: { status: "SUCCESS" | "FAILED" | "SKIPPED", errors: [...], logs: [...] }
  *   checks?: [{ name: "lint|typecheck|build", status: "...", message: "...", errors: [...] }]
  *   homeUrl?: "http://localhost:51720"
- *   targetUrl?: "http://localhost:51720/elements/button"
- *   targetPath?: "http://localhost:51720/pages/ref-app-home/index.html"
+ *   targetUrl?: "http://localhost:51720/components/button"
+ *   targetPath?: "http://localhost:51720/prototypes/ref-app-home/index.html"
  * }
  * =====================================================
  */
@@ -44,6 +44,7 @@ import process from 'node:process'
 import fs from 'node:fs'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
+import { decodeOutput, getPreferredNpmCommand, getPreferredNpxCommand } from './utils/command-runtime.mjs'
 
 const __filename = fileURLToPath(import.meta.url)
 const __dirname = path.dirname(__filename)
@@ -56,8 +57,8 @@ const skipBuild = args.includes('--skip-build');
 const pagePath = args.find(arg => !arg.startsWith('--')) || '/';
 
 const CONFIG = {
-  devCommand: 'npm run dev',        // 启动 Vite 的命令
-  devServerInfoPath: path.resolve(__dirname, '../.dev-server-info.json'), // 开发服务器信息文件
+  devCommand: ['run', 'dev'],       // 启动 Vite 的命令参数
+  devServerInfoPath: path.resolve(__dirname, '../.axhub/make/.dev-server-info.json'), // 开发服务器信息文件
   pagePath,                         // 目标页面路径（从命令行参数获取）
   pollIntervalMs: 500,              // 页面轮询间隔
   stableCheckMs: 1000,              // 错误稳定判断时间
@@ -78,57 +79,32 @@ async function checkPageForErrors(url) {
   try {
     const res = await fetch(url, { method: 'GET' })
     const text = await res.text()
-    
-    // 尝试从 Vite 错误页面中提取错误对象
-    const errorMatch = text.match(/const\s+error\s*=\s*({[\s\S]*?})\s*\n\s*try/);
-    if (errorMatch) {
-      try {
-        // 解析错误对象（需要处理 JSON 中的特殊字符）
-        const errorJson = errorMatch[1]
-          .replace(/\\u003c/g, '<')
-          .replace(/\\u003e/g, '>')
-        const errorObj = JSON.parse(errorJson)
-        
-        // 提取关键错误信息
-        const errorInfo = []
-        if (errorObj.message) {
-          errorInfo.push(`错误: ${errorObj.message.split('\\n')[0]}`)
-        }
-        if (errorObj.frame) {
-          // 提取代码框架信息（去掉过长的内容）
-          const frameLines = errorObj.frame.split('\\n').slice(0, 6)
-          errorInfo.push('代码位置:')
-          errorInfo.push(...frameLines)
-        }
-        if (errorObj.loc && errorObj.loc.file) {
-          errorInfo.push(`文件: ${errorObj.loc.file}`)
-          errorInfo.push(`行号: ${errorObj.loc.line}:${errorObj.loc.column}`)
-        }
-        
-        return errorInfo.length > 0 ? [errorInfo.join('\n')] : []
-      } catch (e) {
-        // JSON 解析失败，尝试简单的文本提取
-        logs.push('Failed to parse error JSON, using text extraction')
-      }
-    }
-    
-    // 备用方案：检查页面内容中是否包含错误关键词
+
+    // Only treat the HTML as an error page when Vite's overlay is present.
+    // The app template includes global error handlers with object literals like
+    // `{ error: event.error }`, which would otherwise cause false positives.
+    const hasViteOverlay =
+      text.includes('vite-error-overlay') ||
+      text.includes('__vite_error_overlay__') ||
+      /\[plugin:vite:/i.test(text) ||
+      /Transform failed/i.test(text)
+
+    if (!hasViteOverlay) return []
+
     const errorPatterns = [
-      /ERROR:\s*([^\n]+)/i,
-      /SyntaxError:\s*([^\n]+)/i,
+      /\bError:\s*([^\n]+)/,
+      /\bSyntaxError:\s*([^\n]+)/,
+      /\bReferenceError:\s*([^\n]+)/,
+      /\[plugin:vite:[^\]]+\]\s*([^\n]+)/i,
       /Transform failed/i
     ]
-    
-    const foundErrors = []
+
     for (const pattern of errorPatterns) {
       const match = text.match(pattern)
-      if (match) {
-        foundErrors.push(match[1] || match[0])
-        break // 只取第一个匹配的错误
-      }
+      if (match) return [match[1] || match[0]]
     }
-    
-    return foundErrors
+
+    return ['Detected Vite error overlay but could not extract message']
   } catch (err) {
     return []
   }
@@ -145,7 +121,7 @@ async function isServerAlive(url) {
 
 /**
  * 读取开发服务器信息
- * 优先从 .dev-server-info.json 读取实际运行的端口
+ * 优先从 .axhub/make/.dev-server-info.json 读取实际运行的端口
  */
 function getServerInfo() {
   try {
@@ -158,7 +134,7 @@ function getServerInfo() {
       }
     }
   } catch (err) {
-    logs.push(`Failed to read .dev-server-info.json: ${err.message}`)
+    logs.push(`Failed to read .axhub/make/.dev-server-info.json: ${err.message}`)
   }
 
   // 如果没有端口信息，返回 null 表示需要等待服务器启动
@@ -204,14 +180,15 @@ let errorCache = new Set() // 用于去重错误信息
 /* ================= 阶段 1：启动或 attach Vite ================= */
 function startOrAttachVite() {
   logs.push('Checking Vite server...')
-  const child = spawn(CONFIG.devCommand, {
-    shell: true,
+  const npmCommand = getPreferredNpmCommand()
+  const child = spawn(npmCommand, CONFIG.devCommand, {
     stdio: ['ignore', 'pipe', 'pipe'],
-    cwd: APP_ROOT
+    cwd: APP_ROOT,
+    shell: false,
   })
 
   child.stdout.on('data', (data) => {
-    const text = data.toString().trim()
+    const text = decodeOutput(data).trim()
     if (text) logs.push(text)
     
     // 检测构建错误
@@ -222,7 +199,7 @@ function startOrAttachVite() {
   })
 
   child.stderr.on('data', (data) => {
-    const text = data.toString().trim()
+    const text = decodeOutput(data).trim()
     if (text) {
       // 过滤掉一些正常的警告信息
       if (!/deprecated|experimental/i.test(text)) {
@@ -422,8 +399,13 @@ async function runCommandCheck({ label, command, args = [], env = {}, logTag }) 
   return new Promise((resolve) => {
     const checkErrors = []
     const checkLogs = []
+    const resolvedCommand = command === 'npm'
+      ? getPreferredNpmCommand()
+      : command === 'npx'
+        ? getPreferredNpxCommand()
+        : command
 
-    const proc = spawn(command, args, {
+    const proc = spawn(resolvedCommand, args, {
       cwd: APP_ROOT,
       env: { ...process.env, ...env },
       stdio: ['ignore', 'pipe', 'pipe']
@@ -439,11 +421,11 @@ async function runCommandCheck({ label, command, args = [], env = {}, logTag }) 
     }
 
     proc.stdout.on('data', (data) => {
-      appendLog(data.toString().trim(), false)
+      appendLog(decodeOutput(data).trim(), false)
     })
 
     proc.stderr.on('data', (data) => {
-      appendLog(data.toString().trim(), true)
+      appendLog(decodeOutput(data).trim(), true)
     })
 
     proc.on('close', (code) => {
@@ -538,7 +520,7 @@ async function runTypeCheck() {
 }
 
 /**
- * 扫描并更新 entries.json
+ * 扫描并更新 .axhub/make/entries.json
  * 确保新创建的目录被包含在入口列表中
  */
 async function scanEntries() {
@@ -551,12 +533,12 @@ async function scanEntries() {
     })
     
     scanProcess.stdout.on('data', (data) => {
-      const text = data.toString().trim()
+      const text = decodeOutput(data).trim()
       if (text) logs.push(`[SCAN] ${text}`)
     })
-    
+
     scanProcess.stderr.on('data', (data) => {
-      const text = data.toString().trim()
+      const text = decodeOutput(data).trim()
       if (text) logs.push(`[SCAN ERROR] ${text}`)
     })
     
@@ -582,9 +564,10 @@ async function scanEntries() {
  * 针对指定的入口 key 执行单独构建，不是全量构建
  */
 async function runBuildCheck(entryKey) {
-  logs.push(`Starting build check for entry: ${entryKey}`)
+  const originalEntryKey = String(entryKey ?? '').trim()
+  logs.push(`Starting build check for entry: ${originalEntryKey || '(auto)'}`)
   
-  // 先扫描入口，确保 entries.json 是最新的
+  // 先扫描入口，确保 .axhub/make/entries.json 是最新的
   const scanResult = await scanEntries()
   if (!scanResult.success) {
     return {
@@ -594,20 +577,32 @@ async function runBuildCheck(entryKey) {
       logs: []
     }
   }
+
+  const resolvedEntryKey = originalEntryKey || resolveDefaultEntryKey()
+  if (!resolvedEntryKey) {
+    logs.push('Build check skipped: no entry key resolved')
+    return {
+      status: 'SKIPPED',
+      message: 'Build check skipped: no entry key resolved',
+      errors: [],
+      logs: []
+    }
+  }
   
   return new Promise((resolve) => {
     const buildErrors = []
     const buildLogs = []
+    const npxCommand = getPreferredNpxCommand()
     
     // 使用 ENTRY_KEY 环境变量触发单独构建
-    const buildProcess = spawn('npx', ['vite', 'build'], {
+    const buildProcess = spawn(npxCommand, ['vite', 'build'], {
       cwd: APP_ROOT,
-      env: { ...process.env, ENTRY_KEY: entryKey },
+      env: { ...process.env, ENTRY_KEY: resolvedEntryKey },
       stdio: ['ignore', 'pipe', 'pipe']
     })
     
     buildProcess.stdout.on('data', (data) => {
-      const text = data.toString().trim()
+      const text = decodeOutput(data).trim()
       if (text) {
         buildLogs.push(text)
         logs.push(`[BUILD] ${text}`)
@@ -615,7 +610,7 @@ async function runBuildCheck(entryKey) {
     })
     
     buildProcess.stderr.on('data', (data) => {
-      const text = data.toString().trim()
+      const text = decodeOutput(data).trim()
       if (text) {
         buildLogs.push(text)
         logs.push(`[BUILD ERROR] ${text}`)
@@ -628,18 +623,18 @@ async function runBuildCheck(entryKey) {
     
     buildProcess.on('close', (code) => {
       if (code === 0 && buildErrors.length === 0) {
-        logs.push(`Build check completed successfully for ${entryKey}`)
+        logs.push(`Build check completed successfully for ${resolvedEntryKey}`)
         resolve({
           status: 'SUCCESS',
-          message: `Build completed successfully for ${entryKey}`,
+          message: `Build completed successfully for ${resolvedEntryKey}`,
           errors: [],
           logs: buildLogs
         })
       } else {
-        logs.push(`Build check failed for ${entryKey} with exit code ${code}`)
+        logs.push(`Build check failed for ${resolvedEntryKey} with exit code ${code}`)
         resolve({
           status: 'FAILED',
-          message: `Build failed for ${entryKey} (exit code: ${code})`,
+          message: `Build failed for ${resolvedEntryKey} (exit code: ${code})`,
           errors: buildErrors.length > 0 ? buildErrors : [`Build process exited with code ${code}`],
           logs: buildLogs
         })
@@ -658,9 +653,32 @@ async function runBuildCheck(entryKey) {
   })
 }
 
+function resolveDefaultEntryKey() {
+  try {
+    const entriesPath = path.resolve(APP_ROOT, '.axhub/make/entries.json')
+    if (!fs.existsSync(entriesPath)) return null
+    const raw = JSON.parse(fs.readFileSync(entriesPath, 'utf8'))
+    const jsEntries = raw && typeof raw === 'object' ? (raw.js || {}) : {}
+    const keys = Object.keys(jsEntries || {}).filter(Boolean).sort((a, b) => a.localeCompare(b))
+    if (keys.length === 0) return null
+
+    const pickFromPrefix = (prefix) => keys.find((k) => k.startsWith(prefix))
+    return (
+      pickFromPrefix('prototypes/') ||
+      pickFromPrefix('components/') ||
+      pickFromPrefix('themes/') ||
+      keys[0] ||
+      null
+    )
+  } catch (err) {
+    logs.push(`Failed to resolve default entry key: ${err.message}`)
+    return null
+  }
+}
+
 /**
  * 从页面路径推断入口 key
- * 例如：/elements/button -> elements/button
+ * 例如：/components/button -> components/button
  */
 function getEntryKeyFromPath(pagePath) {
   // 移除开头的斜杠
@@ -679,7 +697,7 @@ async function main() {
       // 启动服务器并等待
       const viteProcess = startOrAttachVite()
       
-      // 等待 .dev-server-info.json 文件生成
+      // 等待 .axhub/make/.dev-server-info.json 文件生成
       const maxWait = 10000 // 10秒
       const startTime = Date.now()
       let newServerInfo = null

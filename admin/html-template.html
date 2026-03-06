@@ -16,7 +16,8 @@
     html,
     body {
       width: 100%;
-      height: auto;
+      min-height: 100%;
+      height: 100%;
       overflow-x: hidden;
       overflow-y: auto;
     }
@@ -25,6 +26,8 @@
       width: 100%;
       margin-left: auto;
       margin-right: auto;
+      height: 100%;
+      min-height: 100vh;
       overflow: visible;
     }
 
@@ -54,12 +57,12 @@
   <script>
     // 判断是否为元素演示页面（在 body 加载后执行）
     (function () {
-      if (document.body && window.location.pathname.includes('/elements/')) {
+      if (document.body && window.location.pathname.includes('/components/')) {
         document.body.classList.add('is-element-page');
       } else if (!document.body) {
         // 如果 body 还没加载，等待 DOMContentLoaded
         document.addEventListener('DOMContentLoaded', function () {
-          if (window.location.pathname.includes('/elements/')) {
+          if (window.location.pathname.includes('/components/')) {
             document.body.classList.add('is-element-page');
           }
         });
@@ -101,4 +104,3 @@
 </body>
 
 </html>
-

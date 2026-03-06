@@ -81,8 +81,8 @@
 1. **用户指定规范** → 严格遵循用户提供的设计规范文档
 2. **主题内 `DESIGN-SPEC.md`** → 使用主题自带的设计规范
 3. **内置设计指导** → 根据业务场景选择：
-   - 管理后台/ToB/效率化 → `/assets/docs/设计指导（简约）.md`
-   - 落地页/ToC/App → `/assets/docs/设计指导（风格化）.md`
+   - 管理后台/ToB/效率化 → `/skills/default-design-guide-minimal/SKILL.md`
+   - 落地页/ToC/App → `/skills/default-design-guide-stylized/SKILL.md`
 
 ### 3. 弥补缺失事项
 
@@ -92,10 +92,10 @@
 
 | 资源类型 | 触发条件 | 参考文档或内容 |
 |---------|---------|---------|
-| **图表库** | 需要数据可视化 且 用户未指定图表库 且 项目中无现有图表方案 | `/assets/docs/default-chart-libraries.md` |
-| **图标库** | 需要图标 且 用户未指定图标库 且 主题中无自定义图标系统 | `/assets/docs/default-icon-libraries.md` |
-| **字体** | 需要自定义字体 且 用户未提供字体方案 且 主题中无字体定义 | `/assets/docs/default-font-combinations.md` |
-| **动画库** | 页面动画处数 > 5 且 用户未指定动画方案 且 主题中无自定义动画系统 | `/assets/docs/default-animation-libraries.md` |
+| **图表库** | 需要数据可视化 且 用户未指定图表库 且 项目中无现有图表方案 | `/skills/default-resource-recommendations/references/default-chart-libraries.md` |
+| **图标库** | 需要图标 且 用户未指定图标库 且 主题中无自定义图标系统 | `/skills/default-resource-recommendations/references/default-icon-libraries.md` |
+| **字体** | 需要自定义字体 且 用户未提供字体方案 且 主题中无字体定义 | `/skills/default-resource-recommendations/references/default-font-combinations.md` |
+| **动画库** | 页面动画处数 > 5 且 用户未指定动画方案 且 主题中无自定义动画系统 | `/skills/default-resource-recommendations/references/default-animation-libraries.md` |
 | **图片** | 需要图片/插图 且 用户未提供图片资源 且 Agent 无法生成 | 优先级：Unsplash → Pexels → Pixabay → Picsum |
 
 **重要**：不要一次性加载所有默认推荐文档，严格按触发条件按需查阅。
@@ -148,7 +148,6 @@
 ### 1. 技术栈选择
 
 - 默认：Tailwind CSS V4
-- 传统 CSS：使用 BEM 命名 + 组件前缀（避免冲突）
 
 ### 2. 可访问性要求
 

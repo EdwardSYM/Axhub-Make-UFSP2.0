@@ -25,7 +25,7 @@ node scripts/ai-studio-converter.mjs "temp/my-ai-studio-project" my-page
 ```
 
 **脚本会自动完成**：
-- 完整复制 AI Studio 项目到 `src/pages/[页面名]/`
+- 完整复制 AI Studio 项目到 `src/prototypes/[页面名]/`
 - 分析项目结构（Import Map、自定义样式、依赖等）
 - 生成 AI 工作文档（`.ai-studio-tasks.md`）
 - 生成详细数据（`.ai-studio-analysis.json`）
@@ -95,7 +95,7 @@ ai-studio-project/
  * 
  * 参考资料：
  * - /rules/development-standards.md
- * - /assets/libraries/tailwind-css.md
+ * - /skills/default-resource-recommendations/SKILL.md
  */
 
 import './style.css';
@@ -146,7 +146,7 @@ export default function App() {
  * 
  * 参考资料：
  * - /rules/development-standards.md
- * - /assets/libraries/tailwind-css.md
+ * - /skills/default-resource-recommendations/SKILL.md
  */
 
 import './style.css';
@@ -230,7 +230,7 @@ pnpm add [识别到的依赖列表]
 转换完成后运行验收脚本：
 
 ```bash
-node scripts/check-app-ready.mjs /pages/[页面名]
+node scripts/check-app-ready.mjs /prototypes/[页面名]
 ```
 
 **验收要求**：
@@ -264,7 +264,7 @@ pnpm add [依赖名称]
 
 - **开发规范**：`/rules/development-standards.md`
 - **调试指南**：`/rules/debugging-guide.md`
-- **Tailwind CSS**：`/assets/libraries/tailwind-css.md`
+- **Tailwind CSS**：`/skills/default-resource-recommendations/SKILL.md`
 
 ## 详细转换流程（供参考）
 

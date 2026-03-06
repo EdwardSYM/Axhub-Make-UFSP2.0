@@ -8,6 +8,7 @@ import { handleEntriesApi } from './handlers/entriesApiHandler';
 import { handleSpecHtml } from './handlers/specHtmlHandler';
 import { handleIndexHtml } from './handlers/indexHtmlHandler';
 import { handleAssetsRequest } from './handlers/assetsHandler';
+import { handleDocImageAssets } from './handlers/docImageAssetsHandler';
 import { handleBuildRequest } from './handlers/buildHandler';
 import { handleDocsMarkdown } from './handlers/docsMarkdownHandler';
 import { handleTextReplaceCount } from './handlers/textReplaceCountHandler';
@@ -106,6 +107,9 @@ export function virtualHtmlPlugin(): Plugin {
 
         // Handle entries API
         if (handleEntriesApi(req, res)) return;
+
+        // Handle markdown-relative document images (assets/images/*)
+        if (handleDocImageAssets(req, res)) return;
 
         // Handle docs markdown files
         if (handleDocsMarkdown(req, res)) return;

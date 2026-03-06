@@ -1,0 +1,74 @@
+{
+  "version": 1,
+  "updatedAt": "2026-03-05T09:12:44.033Z",
+  "prototypes": [
+    {
+      "id": "folder-1771647506379-zzmigx",
+      "kind": "folder",
+      "title": "演示原型",
+      "children": [
+        {
+          "id": "item-prototypes-ref-antd",
+          "kind": "item",
+          "title": "Antd 电商后台",
+          "itemKey": "prototypes/ref-antd"
+        },
+        {
+          "id": "item-prototypes-ref-app-home",
+          "kind": "item",
+          "title": "健身 App 首页",
+          "itemKey": "prototypes/ref-app-home"
+        }
+      ]
+    }
+  ],
+  "components": [
+    {
+      "id": "item-components-ref-line-chart",
+      "kind": "item",
+      "title": "ECharts 折线图",
+      "itemKey": "components/ref-line-chart"
+    },
+    {
+      "id": "item-components-ref-button",
+      "kind": "item",
+      "title": "按钮元素",
+      "itemKey": "components/ref-button"
+    },
+    {
+      "id": "item-components-side-menu",
+      "kind": "item",
+      "title": "侧边菜单",
+      "itemKey": "components/side-menu"
+    }
+  ],
+  "docs": [
+    {
+      "id": "folder-1772009037892-gyrfpg",
+      "kind": "folder",
+      "title": "演示文档",
+      "children": [
+        {
+          "id": "item-docs----------lite-prd----md",
+          "kind": "item",
+          "title": "售后诉求一键提取",
+          "itemKey": "docs/售后诉求一键提取.md"
+        },
+        {
+          "id": "item-docs-------------md",
+          "kind": "item",
+          "title": "评审工作台需求文档",
+          "itemKey": "docs/评审工作台需求文档.md"
+        }
+      ]
+    }
+  ],
+  "themes": [
+    "antd-new",
+    "trae-design",
+    "firecrawl"
+  ],
+  "data": [
+    "orders"
+  ]
+}

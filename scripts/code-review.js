@@ -4,8 +4,8 @@
  * 代码检查命令行工具
  * 
  * 使用方法：
- * node scripts/code-review.js pages/landing-page
- * node scripts/code-review.js elements/button
+ * node scripts/code-review.js prototypes/landing-page
+ * node scripts/code-review.js components/button
  * 
  * 或者在 package.json 中添加脚本：
  * "review": "node scripts/code-review.js"
@@ -19,8 +19,8 @@ const targetPath = process.argv[2];
 if (!targetPath) {
   console.error('❌ 错误：缺少路径参数');
   console.log('\n使用方法：');
-  console.log('  node scripts/code-review.js pages/landing-page');
-  console.log('  node scripts/code-review.js elements/button');
+  console.log('  node scripts/code-review.js prototypes/landing-page');
+  console.log('  node scripts/code-review.js components/button');
   process.exit(1);
 }
 

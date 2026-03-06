@@ -2,19 +2,22 @@ import { spawnSync } from 'child_process';
 import fs from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
+import { scanProjectEntries, writeEntriesManifestAtomic } from '../vite-plugins/utils/entriesManifestCore.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
 const workspaceRoot = path.resolve(__dirname, '..');
-const entriesPath = path.resolve(workspaceRoot, 'entries.json');
+const entriesPath = path.resolve(workspaceRoot, '.axhub/make/entries.json');
 
+// Always rescan before build to keep entries manifest fresh and deterministic.
+const scanned = scanProjectEntries(workspaceRoot, ['components', 'prototypes', 'themes']);
+const entries = writeEntriesManifestAtomic(workspaceRoot, scanned);
 if (!fs.existsSync(entriesPath)) {
-  console.error('entries.json 不存在，请先运行 npm run prebuild 或 npm run build。');
+  console.error('.axhub/make/entries.json 写入失败，无法继续构建。');
   process.exit(1);
 }
 
-const entries = JSON.parse(fs.readFileSync(entriesPath, 'utf8'));
 const jsEntries = entries.js || {};
 const entryKeys = Object.keys(jsEntries);
 
@@ -43,6 +46,3 @@ for (const key of entryKeys) {
 }
 
 console.log('\n所有入口构建完成 ✅');
-
-
-

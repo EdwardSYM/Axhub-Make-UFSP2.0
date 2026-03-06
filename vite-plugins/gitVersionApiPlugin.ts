@@ -112,7 +112,7 @@ export function gitVersionApiPlugin(): Plugin {
           if (pathname === '/api/git/history' && req.method === 'GET') {
             if (!checkGitAvailable(res)) return;
             
-            const targetPath = url.searchParams.get('path'); // e.g., 'pages/home' or 'elements/button'
+            const targetPath = url.searchParams.get('path'); // e.g., 'prototypes/home' or 'components/button'
             
             if (!targetPath) {
               sendJSON(res, 400, { error: 'Missing path parameter' });

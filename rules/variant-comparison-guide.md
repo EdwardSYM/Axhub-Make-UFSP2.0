@@ -301,6 +301,6 @@ AI: 我为您准备了 3 种页面布局方案：
 ## 🔗 相关文档
 
 - `src/common/VariantSwitcher.tsx` - 组件实现代码
-- `src/pages/ref-variant-switcher-demo/` - 演示页面
-- `requirements-alignment.md` - 需求对齐规则
+- `src/prototypes/ref-variant-switcher-demo/` - 演示页面
+- `skills/third-party/brainstorming/SKILL.md` - 需求对齐规则
 - `development-standards.md` - 开发标准

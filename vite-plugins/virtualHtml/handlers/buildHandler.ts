@@ -2,14 +2,29 @@ import type { IncomingMessage, ServerResponse } from 'http';
 import fs from 'fs';
 import path from 'path';
 import { execaSync } from 'execa';
+import { readEntriesManifest } from '../../utils/entriesManifest';
 
 export function handleBuildRequest(req: IncomingMessage, res: ServerResponse): boolean {
   if (req.url && req.url.startsWith('/build/') && req.url.endsWith('.js')) {
     const urlPath = req.url.replace('/build/', '').replace('.js', '');
-    const entriesPath = path.resolve(process.cwd(), 'entries.json');
-    const entriesData = JSON.parse(fs.readFileSync(entriesPath, 'utf8'));
+    const projectRoot = process.cwd();
+    const directEntryPath = path.resolve(projectRoot, 'src', urlPath, 'index.tsx');
+    let hasEntry = fs.existsSync(directEntryPath);
 
-    if (entriesData.js[urlPath]) {
+    if (!hasEntry) {
+      try {
+        const manifest = readEntriesManifest(projectRoot);
+        const item = manifest.items?.[urlPath];
+        if (item?.js) {
+          const manifestEntryPath = path.resolve(projectRoot, item.js);
+          hasEntry = fs.existsSync(manifestEntryPath);
+        }
+      } catch {
+        hasEntry = false;
+      }
+    }
+
+    if (hasEntry) {
       console.log(`\n🔨 开始构建: ${urlPath}`);
 
       try {

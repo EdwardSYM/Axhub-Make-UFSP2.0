@@ -7,12 +7,12 @@ import path from 'path';
  * 基于文件相对路径生成，保证构建间稳定不变
  * 
  * 生成的 ID 格式：{项目名}-{目录类型}-{项目名称}-{16位哈希}
- * 例如：axhub-make-pages-demo-antd-a1b2c3d4e5f6g7h8
+ * 例如：axhub-make-prototypes-demo-antd-a1b2c3d4e5f6g7h8
  * 
  * 规则：
  * - 忽略 index.tsx 中的 index 部分（因为都是同一个，没有意义）
  * - 使用项目目录名（如 axhub-make）
- * - 根据 elements 和 pages 目录区分
+ * - 根据 components 和 prototypes 目录区分
  * - 加上文件项目名称
  */
 export function injectStablePageIds(): Plugin {
@@ -38,26 +38,26 @@ export function injectStablePageIds(): Plugin {
         .digest('hex')
         .slice(0, 16);
       
-      // 解析路径：src/pages/demo-antd/index.tsx 或 src/elements/demo-button/index.tsx
-      // 目标格式：axhub-make-pages-demo-antd 或 axhub-make-elements-demo-button
+      // 解析路径：src/prototypes/demo-antd/index.tsx 或 src/components/demo-button/index.tsx
+      // 目标格式：axhub-make-prototypes-demo-antd 或 axhub-make-components-demo-button
       // 规则：忽略 index.tsx 中的 index 部分，使用目录名作为项目名称
       const pathParts = relativePath
         .replace(/^src\//, '')  // 移除 src/ 前缀
         .replace(/\.(tsx|jsx)$/, '')  // 移除文件扩展名
         .split('/');
       
-      // 查找 pages 或 elements 目录
-      const categoryIndex = pathParts.findIndex(part => part === 'pages' || part === 'elements');
+      // 查找 prototypes 或 components 目录
+      const categoryIndex = pathParts.findIndex(part => part === 'prototypes' || part === 'components');
       
       let readableId: string;
       
       if (categoryIndex >= 0 && categoryIndex < pathParts.length - 1) {
-        // 找到目录类型（pages 或 elements）
+        // 找到目录类型（prototypes 或 components）
         const category = pathParts[categoryIndex];
         // 获取项目名称（category 后面的第一个非 index 部分）
-        // 例如：pages/demo-antd/index -> demo-antd
-        //       pages/demo-antd/some-file -> demo-antd
-        //       pages/index -> '' (空，使用降级方案)
+        // 例如：prototypes/demo-antd/index -> demo-antd
+        //       prototypes/demo-antd/some-file -> demo-antd
+        //       prototypes/index -> '' (空，使用降级方案)
         let itemName = '';
         
         // 从 category 后面开始查找项目名称

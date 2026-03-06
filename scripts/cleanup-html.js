@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 
 /**
- * 清理所有 elements 和 pages 目录下的 index.html 文件
+ * 清理所有 components 和 prototypes 目录下的 index.html 文件
  * 因为现在使用统一的模板自动生成
  */
 
@@ -13,8 +13,8 @@ const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
 const srcDir = path.resolve(__dirname, '../src');
-const elementsDir = path.join(srcDir, 'elements');
-const pagesDir = path.join(srcDir, 'pages');
+const elementsDir = path.join(srcDir, 'components');
+const pagesDir = path.join(srcDir, 'prototypes');
 
 let removedCount = 0;
 

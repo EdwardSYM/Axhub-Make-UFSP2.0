@@ -99,10 +99,10 @@ export function handleTextReplace(req: IncomingMessage, res: ServerResponse): bo
         }
 
         const pathParts = targetPath.split('/').filter(Boolean);
-        if (pathParts.length < 2 || !['elements', 'pages'].includes(pathParts[0])) {
+        if (pathParts.length < 2 || !['components', 'prototypes'].includes(pathParts[0])) {
           res.statusCode = 400;
           res.setHeader('Content-Type', 'application/json');
-          res.end(JSON.stringify({ error: 'Invalid path format. Expected: elements/xxx or pages/xxx' }));
+          res.end(JSON.stringify({ error: 'Invalid path format. Expected: components/xxx or prototypes/xxx' }));
           return;
         }
 

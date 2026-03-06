@@ -22,8 +22,8 @@
   // 获取当前页面路径
   function getCurrentPath() {
     const pathname = window.location.pathname;
-    // 从 /pages/xxx.html 或 /elements/xxx.html 提取路径
-    const match = pathname.match(/\/(pages|elements)\/([^.]+)/);
+    // 从 /prototypes/xxx.html 或 /components/xxx.html 提取路径
+    const match = pathname.match(/\/(prototypes|components)\/([^.]+)/);
     return match ? `${match[1]}/${match[2]}` : null;
   }
   

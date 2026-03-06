@@ -1,0 +1,367 @@
+/**
+ * @name 健身 App 首页样式
+ * 页面视觉与布局样式
+ */
+
+.demo-app-home-container {
+    background-color: #121212;
+    color: #ffffff;
+    height: 100vh;
+    max-height: 100dvh;
+    min-height: 100vh;
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, 'Open Sans', 'Helvetica Neue', sans-serif;
+    position: relative;
+    overflow: hidden;
+    max-width: 420px;
+    margin: 0 auto;
+    display: flex;
+    flex-direction: column;
+}
+
+.demo-app-home-scroll-content {
+    flex: 1;
+    min-height: 0;
+    overflow-y: auto;
+    overflow-x: hidden;
+    padding-bottom: calc(112px + env(safe-area-inset-bottom));
+    -webkit-overflow-scrolling: touch;
+    scrollbar-width: none;
+    -ms-overflow-style: none;
+}
+
+.demo-app-home-scroll-content::-webkit-scrollbar {
+    width: 0;
+    height: 0;
+    display: none;
+}
+
+/* 头部区域 */
+.demo-app-home-header {
+    padding: 24px 20px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    background: linear-gradient(180deg, rgba(18, 18, 18, 0.9) 0%, rgba(18, 18, 18, 0) 100%);
+    position: sticky;
+    top: 0;
+    z-index: 10;
+}
+
+.demo-app-home-greeting {
+    font-size: 24px;
+    font-weight: 700;
+    margin: 0;
+}
+
+.demo-app-home-greeting span {
+    color: #a6ff00;
+    /* 霓虹绿 */
+}
+
+.demo-app-home-avatar {
+    width: 40px;
+    height: 40px;
+    border-radius: 50%;
+    background-color: #333;
+    border: 2px solid #a6ff00;
+    overflow: hidden;
+}
+
+.demo-app-home-avatar img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+}
+
+/* 统计卡片区域 */
+.demo-app-home-stats {
+    display: flex;
+    gap: 12px;
+    padding: 0 20px;
+    margin-bottom: 24px;
+    overflow-x: auto;
+    scrollbar-width: none;
+    /* Firefox */
+}
+
+.demo-app-home-stats::-webkit-scrollbar {
+    display: none;
+    /* Chrome/Safari */
+}
+
+.demo-app-home-stat-card {
+    background-color: #1e1e1e;
+    border-radius: 16px;
+    padding: 16px;
+    min-width: 100px;
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
+    transition: transform 0.2s;
+}
+
+.demo-app-home-stat-card:active {
+    transform: scale(0.98);
+}
+
+.demo-app-home-stat-icon {
+    font-size: 20px;
+    margin-bottom: 8px;
+    color: #a6ff00;
+}
+
+.demo-app-home-stat-value {
+    font-size: 20px;
+    font-weight: 700;
+    margin-bottom: 4px;
+}
+
+.demo-app-home-stat-label {
+    font-size: 12px;
+    color: #888;
+}
+
+/* 今日计划 */
+.demo-app-home-section {
+    padding: 0 20px;
+    margin-bottom: 24px;
+}
+
+.demo-app-home-section-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 16px;
+}
+
+.demo-app-home-section-title {
+    font-size: 18px;
+    font-weight: 600;
+    margin: 0;
+}
+
+.demo-app-home-section-more {
+    font-size: 14px;
+    color: #a6ff00;
+    cursor: pointer;
+}
+
+.demo-app-home-plan-card {
+    background: linear-gradient(135deg, #2c2c2c 0%, #1e1e1e 100%);
+    border-radius: 20px;
+    padding: 20px;
+    display: flex;
+    align-items: center;
+    gap: 16px;
+    margin-bottom: 16px;
+    position: relative;
+    overflow: hidden;
+}
+
+.demo-app-home-plan-card::after {
+    content: '';
+    position: absolute;
+    top: 0;
+    right: 0;
+    width: 100px;
+    height: 100%;
+    background: linear-gradient(90deg, transparent, rgba(166, 255, 0, 0.05));
+    pointer-events: none;
+}
+
+.demo-app-home-plan-progress {
+    position: relative;
+    width: 60px;
+    height: 60px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.demo-app-home-plan-progress svg {
+    transform: rotate(-90deg);
+    width: 60px;
+    height: 60px;
+}
+
+.demo-app-home-plan-progress circle {
+    fill: none;
+    stroke-width: 6;
+    stroke-linecap: round;
+}
+
+.demo-app-home-plan-progress-bg {
+    stroke: #333;
+}
+
+.demo-app-home-plan-progress-bar {
+    stroke: #a6ff00;
+    stroke-dasharray: 157;
+    /* 2 * PI * 25 */
+    transition: stroke-dashoffset 0.5s ease;
+}
+
+.demo-app-home-plan-icon {
+    position: absolute;
+    font-size: 20px;
+}
+
+.demo-app-home-plan-info {
+    flex: 1;
+}
+
+.demo-app-home-plan-title {
+    font-size: 16px;
+    font-weight: 600;
+    margin-bottom: 4px;
+}
+
+.demo-app-home-plan-subtitle {
+    font-size: 13px;
+    color: #888;
+}
+
+.demo-app-home-plan-action {
+    background-color: #a6ff00;
+    color: #000;
+    border: none;
+    width: 36px;
+    height: 36px;
+    border-radius: 12px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 20px;
+    cursor: pointer;
+    font-weight: bold;
+}
+
+/* 推荐课程 */
+.demo-app-home-course-list {
+    display: flex;
+    gap: 16px;
+    overflow-x: auto;
+    padding-bottom: 10px;
+    scrollbar-width: none;
+}
+
+.demo-app-home-course-list::-webkit-scrollbar {
+    display: none;
+}
+
+.demo-app-home-course-card {
+    min-width: 240px;
+    height: 160px;
+    border-radius: 16px;
+    position: relative;
+    overflow: hidden;
+    cursor: pointer;
+}
+
+.demo-app-home-course-bg {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    transition: transform 0.3s;
+}
+
+.demo-app-home-course-card:hover .demo-app-home-course-bg {
+    transform: scale(1.05);
+}
+
+.demo-app-home-course-overlay {
+    position: absolute;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    padding: 16px;
+    background: linear-gradient(0deg, rgba(0, 0, 0, 0.8) 0%, rgba(0, 0, 0, 0) 100%);
+}
+
+.demo-app-home-course-tag {
+    background-color: #a6ff00;
+    color: #000;
+    font-size: 10px;
+    font-weight: 700;
+    padding: 2px 6px;
+    border-radius: 4px;
+    display: inline-block;
+    margin-bottom: 4px;
+}
+
+.demo-app-home-course-title {
+    font-size: 16px;
+    font-weight: 600;
+    margin-bottom: 4px;
+}
+
+.demo-app-home-course-meta {
+    font-size: 12px;
+    color: #ccc;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+/* 底部导航 */
+.demo-app-home-tab-bar {
+    position: relative;
+    background-color: #1e1e1e;
+    padding: 8px 24px calc(16px + env(safe-area-inset-bottom));
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    border-top: 1px solid #333;
+    z-index: 30;
+    box-sizing: border-box;
+    flex-shrink: 0;
+}
+
+.demo-app-home-tab-item {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 2px;
+    color: #666;
+    cursor: pointer;
+    transition: color 0.2s;
+}
+
+.demo-app-home-tab-item.active {
+    color: #a6ff00;
+}
+
+.demo-app-home-tab-icon {
+    font-size: 24px;
+}
+
+.demo-app-home-tab-label {
+    font-size: 10px;
+    font-weight: 500;
+}
+
+/* 浮动按钮 */
+.demo-app-home-fab {
+    position: absolute;
+    bottom: calc(92px + env(safe-area-inset-bottom));
+    right: 20px;
+    width: 56px;
+    height: 56px;
+    border-radius: 28px;
+    background-color: #a6ff00;
+    color: #000;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 24px;
+    box-shadow: 0 4px 16px rgba(166, 255, 0, 0.4);
+    cursor: pointer;
+    z-index: 40;
+    transition: transform 0.2s;
+}
+
+.demo-app-home-fab:active {
+    transform: scale(0.9);
+}

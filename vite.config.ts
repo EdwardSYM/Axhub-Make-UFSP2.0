@@ -2,8 +2,10 @@ import { defineConfig } from 'vite';
 import type { Plugin } from 'vite';
 import fs from 'fs';
 import path from 'path';
-import { exec } from 'child_process';
-import { networkInterfaces } from 'os';
+import { spawnSync } from 'child_process';
+import { networkInterfaces, tmpdir } from 'os';
+import formidable from 'formidable';
+import archiver from 'archiver';
 import react from '@vitejs/plugin-react';
 import tailwindcss from '@tailwindcss/vite';
 import { forceInlineDynamicImportsOff } from './vite-plugins/forceInlineDynamicImportsOff';
@@ -20,6 +22,13 @@ import { autoDebugPlugin } from './vite-plugins/autoDebugPlugin';
 import { configApiPlugin } from './vite-plugins/configApiPlugin';
 import { aiCliPlugin } from './vite-plugins/aiCliPlugin';
 import { gitVersionApiPlugin } from './vite-plugins/gitVersionApiPlugin';
+import { readEntriesManifest, scanProjectEntries, writeEntriesManifestAtomic } from './vite-plugins/utils/entriesManifest';
+
+const MAKE_STATE_DIR = path.join('.axhub', 'make');
+const MAKE_CONFIG_RELATIVE_PATH = path.join(MAKE_STATE_DIR, 'axhub.config.json');
+const MAKE_DEV_SERVER_INFO_RELATIVE_PATH = path.join(MAKE_STATE_DIR, '.dev-server-info.json');
+const MAKE_ENTRIES_RELATIVE_PATH = path.join(MAKE_STATE_DIR, 'entries.json');
+const AXURE_BRIDGE_BASE_URL = 'http://localhost:32767';
 
 /**
  * ⚠️ 运行时配置注入说明
@@ -63,6 +72,31 @@ function getRequestPathname(req: any): string {
   }
 }
 
+function streamDirectoryAsZip(res: any, sourceDir: string, fileName: string) {
+  res.setHeader('Content-Type', 'application/zip');
+  res.setHeader('Content-Disposition', `attachment; filename="${fileName}"`);
+
+  const archive = archiver('zip', { zlib: { level: 9 } });
+
+  archive.on('warning', (warning: any) => {
+    console.warn('[download-dist-plugin] ZIP warning:', warning);
+  });
+
+  archive.on('error', (error: any) => {
+    console.error('[download-dist-plugin] ZIP error:', error);
+    if (!res.headersSent) {
+      res.statusCode = 500;
+      res.end(JSON.stringify({ error: `Failed to create zip: ${error.message}` }));
+      return;
+    }
+    res.destroy(error);
+  });
+
+  archive.pipe(res);
+  archive.directory(sourceDir, false);
+  void archive.finalize();
+}
+
 /**
  * 局域网访问控制插件
  * 根据 allowLAN 配置决定是否允许非本地 IP 访问
@@ -74,7 +108,7 @@ function lanAccessControlPlugin(): Plugin {
     name: 'lan-access-control',
     configResolved(config: any) {
       // 在配置解析时读取 allowLAN 设置
-      const configPath = path.resolve(__dirname, 'axhub.config.json');
+      const configPath = path.resolve(__dirname, MAKE_CONFIG_RELATIVE_PATH);
       
       if (fs.existsSync(configPath)) {
         try {
@@ -189,7 +223,7 @@ function writeDevServerInfoPlugin(): Plugin {
           const actualPort = server.httpServer?.address()?.port || server.config.server?.port || 5173;
           
           // 读取用户配置的 host（用于浏览器显示）
-          const configPath = path.resolve(__dirname, 'axhub.config.json');
+          const configPath = path.resolve(__dirname, MAKE_CONFIG_RELATIVE_PATH);
           let displayHost = 'localhost'; // 默认显示 localhost
           if (fs.existsSync(configPath)) {
             try {
@@ -207,10 +241,11 @@ function writeDevServerInfoPlugin(): Plugin {
             timestamp: new Date().toISOString()
           };
           
-          const infoPath = path.resolve(__dirname, '.dev-server-info.json');
+          const infoPath = path.resolve(__dirname, MAKE_DEV_SERVER_INFO_RELATIVE_PATH);
+          fs.mkdirSync(path.dirname(infoPath), { recursive: true });
           fs.writeFileSync(infoPath, JSON.stringify(devServerInfo, null, 2), 'utf8');
           
-          console.log('\n✅ Dev server info written to .dev-server-info.json');
+          console.log(`\n✅ Dev server info written to ${MAKE_DEV_SERVER_INFO_RELATIVE_PATH}`);
           console.log(`   Local:   http://${displayHost}:${actualPort}`);
           console.log(`   Network: http://${localIP}:${actualPort}\n`);
         } catch (error) {
@@ -240,7 +275,7 @@ function serveAdminPlugin(): Plugin {
   let projectPrefix = '';
   if (appsMatch) {
     // 在 apps/xxx/ 结构下，说明是混合项目
-    // 需要找到包含 entries.json 的项目目录（通常是主项目）
+    // 需要找到包含 .axhub/make/entries.json 的项目目录（通常是主项目）
     const rootDir = currentDir.split(/[\/\\]apps[\/\\]/)[0];
     const appsDir = path.join(rootDir, 'apps');
     
@@ -248,7 +283,7 @@ function serveAdminPlugin(): Plugin {
       const appFolders = fs.readdirSync(appsDir);
       for (const folder of appFolders) {
         const folderPath = path.join(appsDir, folder);
-        const entriesPath = path.join(folderPath, 'entries.json');
+        const entriesPath = path.join(folderPath, MAKE_ENTRIES_RELATIVE_PATH);
         if (fs.existsSync(entriesPath)) {
           projectPrefix = `apps/${folder}/`;
           break;
@@ -375,50 +410,24 @@ function serveAdminPlugin(): Plugin {
           }
         }
 
-        // 处理 /assets/docs/*/spec.html 请求（文档预览）
-        if (pathname && pathname.match(/^\/assets\/docs\/[^/]+\/spec\.html$/)) {
-          const encodedDocName = pathname.match(/^\/assets\/docs\/([^/]+)\/spec\.html$/)?.[1];
-          if (encodedDocName) {
-            const specTemplatePath = path.join(adminDir, 'spec-template.html');
-            if (fs.existsSync(specTemplatePath)) {
-              let html = fs.readFileSync(specTemplatePath, 'utf8');
-              // 解码文档名并添加 .md 扩展名
-              const docName = decodeURIComponent(encodedDocName);
-              const docFileName = docName.endsWith('.md') ? docName : `${docName}.md`;
-              // 替换 spec.html 中的占位符 - 使用 API 路径
-              const specUrl = `/api/docs/${encodeURIComponent(docFileName)}`;
-              html = html.replace(/\{\{SPEC_URL\}\}/g, specUrl);
-              html = html.replace(/\{\{TITLE\}\}/g, docName);
-              html = html.replace(/\{\{MULTI_DOC\}\}/g, 'false');
-              html = html.replace(/\{\{DOCS_CONFIG\}\}/g, '[]');
-              // 注入项目路径配置和局域网 IP
-              html = html.replace('</head>', `${injectScript}\n</head>`);
-              res.setHeader('Content-Type', 'text/html; charset=utf-8');
-              res.end(html);
-              return;
-            }
-          }
-        }
-
-        // 处理 /assets/libraries/*/spec.html 请求（前端库预览）
-        if (pathname && pathname.match(/^\/assets\/libraries\/[^/]+\/spec\.html$/)) {
-          const libraryName = pathname.match(/^\/assets\/libraries\/([^/]+)\/spec\.html$/)?.[1];
-          if (libraryName) {
-            const specTemplatePath = path.join(adminDir, 'spec-template.html');
-            if (fs.existsSync(specTemplatePath)) {
-              let html = fs.readFileSync(specTemplatePath, 'utf8');
-              // 替换 spec.html 中的占位符 - 使用 API 路径
-              const specUrl = `/api/libraries/${libraryName}.md`;
-              html = html.replace(/\{\{SPEC_URL\}\}/g, specUrl);
-              html = html.replace(/\{\{TITLE\}\}/g, libraryName);
-              html = html.replace(/\{\{MULTI_DOC\}\}/g, 'false');
-              html = html.replace(/\{\{DOCS_CONFIG\}\}/g, '[]');
-              // 注入项目路径配置和局域网 IP
-              html = html.replace('</head>', `${injectScript}\n</head>`);
-              res.setHeader('Content-Type', 'text/html; charset=utf-8');
-              res.end(html);
-              return;
-            }
+        // 处理 /docs/* 和 /docs/*/spec.html 请求（文档预览）
+        const encodedDocName = pathname?.match(/^\/docs\/([^/]+)(?:\/spec\.html)?$/)?.[1];
+        if (encodedDocName) {
+          const specTemplatePath = path.join(adminDir, 'spec-template.html');
+          if (fs.existsSync(specTemplatePath)) {
+            let html = fs.readFileSync(specTemplatePath, 'utf8');
+            const docName = decodeURIComponent(encodedDocName);
+            const docFileName = docName.endsWith('.md') ? docName : `${docName}.md`;
+            const specUrl = `/api/docs/${encodeURIComponent(docFileName)}`;
+            html = html.replace(/\{\{SPEC_URL\}\}/g, specUrl);
+            html = html.replace(/\{\{TITLE\}\}/g, docName);
+            html = html.replace(/\{\{MULTI_DOC\}\}/g, 'false');
+            html = html.replace(/\{\{DOCS_CONFIG\}\}/g, '[]');
+            // 注入项目路径配置和局域网 IP
+            html = html.replace('</head>', `${injectScript}\n</head>`);
+            res.setHeader('Content-Type', 'text/html; charset=utf-8');
+            res.end(html);
+            return;
           }
         }
         
@@ -460,36 +469,89 @@ function downloadDistPlugin(): Plugin {
             console.warn('Failed to read project name from package.json:', e);
           }
 
-          res.setHeader('Content-Type', 'application/zip');
-          res.setHeader('Content-Disposition', `attachment; filename="${projectName}-dist.zip"`);
-
-          // Use zip command (available on macOS/Linux)
-          const child = exec(`cd "${distDir}" && zip -r - .`, { maxBuffer: 1024 * 1024 * 50 });
-
-          if (child.stdout) {
-            child.stdout.pipe(res);
-          } else {
-            res.statusCode = 500;
-            res.end(JSON.stringify({ error: 'Failed to create zip stream' }));
-          }
-
-          child.stderr?.on('data', (data: any) => {
-            console.error(`zip stderr: ${data}`);
-          });
-
-          child.on('error', (error: any) => {
-            console.error('Download dist error:', error);
-            if (!res.headersSent) {
-              res.statusCode = 500;
-              res.end(JSON.stringify({ error: error.message }));
-            }
-          });
+          streamDirectoryAsZip(res, distDir, `${projectName}-dist.zip`);
         } catch (e: any) {
           console.error('Download dist error:', e);
           if (!res.headersSent) {
             res.statusCode = 500;
             res.end(JSON.stringify({ error: e.message }));
           }
+        }
+      });
+    }
+  };
+}
+
+// 提供 /api/axure-bridge/* 端点的插件（服务端转发到本地 Axure Bridge）
+function axureBridgeProxyPlugin(): Plugin {
+  return {
+    name: 'axure-bridge-proxy-plugin',
+    configureServer(server: any) {
+      server.middlewares.use(async (req: any, res: any, next: any) => {
+        const pathname = getRequestPathname(req);
+        const isAvailableRoute = req.method === 'GET' && pathname === '/api/axure-bridge/available';
+        const isCopyRoute = req.method === 'POST' && pathname === '/api/axure-bridge/copyaxvg';
+
+        if (!isAvailableRoute && !isCopyRoute) {
+          return next();
+        }
+
+        try {
+          let upstreamResponse: any;
+
+          if (isAvailableRoute) {
+            upstreamResponse = await fetch(`${AXURE_BRIDGE_BASE_URL}/available`, {
+              method: 'GET',
+            });
+          } else {
+            let body: any = {};
+            try {
+              body = await readJsonBody(req);
+            } catch (error: any) {
+              res.statusCode = 400;
+              res.setHeader('Content-Type', 'application/json; charset=utf-8');
+              res.end(JSON.stringify({ error: error?.message || 'Invalid JSON body' }));
+              return;
+            }
+
+            upstreamResponse = await fetch(`${AXURE_BRIDGE_BASE_URL}/copyaxvg`, {
+              method: 'POST',
+              headers: {
+                'Content-Type': 'application/json',
+              },
+              body: JSON.stringify(body ?? {}),
+            });
+          }
+
+          const contentType = String(upstreamResponse.headers.get('content-type') || '').toLowerCase();
+          const responseText = await upstreamResponse.text();
+
+          res.statusCode = upstreamResponse.status;
+          res.setHeader('Cache-Control', 'no-store');
+
+          if (contentType.includes('application/json')) {
+            res.setHeader('Content-Type', 'application/json; charset=utf-8');
+            res.end(responseText || '{}');
+            return;
+          }
+
+          if (responseText) {
+            try {
+              const parsed = JSON.parse(responseText);
+              res.setHeader('Content-Type', 'application/json; charset=utf-8');
+              res.end(JSON.stringify(parsed));
+              return;
+            } catch {
+              // 非 JSON 文本按原样透传
+            }
+          }
+
+          res.setHeader('Content-Type', 'text/plain; charset=utf-8');
+          res.end(responseText);
+        } catch (error: any) {
+          res.statusCode = 502;
+          res.setHeader('Content-Type', 'application/json; charset=utf-8');
+          res.end(JSON.stringify({ error: error?.message || 'Axure Bridge unavailable' }));
         }
       });
     }
@@ -525,28 +587,907 @@ function versionApiPlugin(): Plugin {
   };
 }
 
+function readJsonBody(req: any): Promise<any> {
+  return new Promise((resolve, reject) => {
+    const chunks: Buffer[] = [];
+    req.on('data', (chunk: Buffer) => chunks.push(chunk));
+    req.on('end', () => {
+      try {
+        const raw = Buffer.concat(chunks).toString('utf8');
+        resolve(raw ? JSON.parse(raw) : {});
+      } catch {
+        reject(new Error('Invalid JSON body'));
+      }
+    });
+    req.on('error', reject);
+  });
+}
+
+function sanitizeDocBaseName(input: string) {
+  return input
+    .trim()
+    .replace(/\.md$/i, '')
+    .replace(/[\\/:*?"<>|]/g, '-')
+    .replace(/\s+/g, '-')
+    .replace(/-+/g, '-')
+    .replace(/^-|-$/g, '');
+}
+
+const SPEC_DOC_IMAGE_MAX_FILE_SIZE = 5 * 1024 * 1024; // 5MB
+const SPEC_DOC_IMAGE_ALLOWED_EXTENSIONS = new Set([
+  '.png',
+  '.jpg',
+  '.jpeg',
+  '.gif',
+  '.webp',
+  '.svg',
+]);
+const SPEC_DOC_IMAGE_MIME_TO_EXTENSION: Record<string, string> = {
+  'image/png': '.png',
+  'image/jpeg': '.jpg',
+  'image/gif': '.gif',
+  'image/webp': '.webp',
+  'image/svg+xml': '.svg',
+};
+
+function safeDecodeURIComponent(input: string): string {
+  try {
+    return decodeURIComponent(input);
+  } catch {
+    return input;
+  }
+}
+
+function isPathInside(baseDir: string, targetPath: string): boolean {
+  const relative = path.relative(baseDir, targetPath);
+  return relative !== '..' && !relative.startsWith(`..${path.sep}`) && !path.isAbsolute(relative);
+}
+
+function resolveDocumentPathFromDocUrl(docUrl: string, host?: string): { docPath: string } | { status: number; error: string } {
+  let pathname = '';
+  try {
+    pathname = new URL(docUrl, `http://${host || 'localhost'}`).pathname;
+  } catch {
+    return { status: 400, error: 'Invalid docUrl' };
+  }
+
+  const srcRoot = path.resolve(__dirname, 'src');
+  const docsRoot = path.resolve(srcRoot, 'docs');
+
+  if (pathname.startsWith('/api/docs/')) {
+    const encodedDocName = pathname.slice('/api/docs/'.length);
+    if (!encodedDocName) {
+      return { status: 400, error: 'Missing document name in docUrl' };
+    }
+
+    const decodedDocName = safeDecodeURIComponent(encodedDocName);
+    const docPath = path.resolve(docsRoot, decodedDocName);
+    if (!isPathInside(docsRoot, docPath)) {
+      return { status: 403, error: 'Forbidden path' };
+    }
+    return { docPath };
+  }
+
+  if (pathname.startsWith('/docs/')) {
+    const rawDocPath = pathname.slice('/docs/'.length);
+    if (!rawDocPath) {
+      return { status: 400, error: 'Missing document name in docUrl' };
+    }
+
+    const decodedDocPath = safeDecodeURIComponent(rawDocPath);
+    const normalizedDocPath = decodedDocPath.toLowerCase().endsWith('.md')
+      ? decodedDocPath
+      : `${decodedDocPath}.md`;
+    const docPath = path.resolve(docsRoot, normalizedDocPath);
+    if (!isPathInside(docsRoot, docPath)) {
+      return { status: 403, error: 'Forbidden path' };
+    }
+    return { docPath };
+  }
+
+  const specMatch = pathname.match(/^\/(components|prototypes|themes)\/([^/]+)\/(spec|prd)\.md$/i);
+  if (specMatch) {
+    const entryType = specMatch[1].toLowerCase();
+    const entryName = safeDecodeURIComponent(specMatch[2]);
+    const docName = `${specMatch[3].toLowerCase()}.md`;
+    const entryRoot = path.resolve(srcRoot, entryType);
+    const docPath = path.resolve(entryRoot, entryName, docName);
+
+    if (!isPathInside(entryRoot, docPath)) {
+      return { status: 403, error: 'Forbidden path' };
+    }
+    return { docPath };
+  }
+
+  return { status: 400, error: 'Unsupported docUrl path' };
+}
+
+function sanitizeImageUploadFileName(originalName: string, mimeType?: string): string {
+  const normalizedMimeType = String(mimeType || '').toLowerCase();
+  const extensionByMime = SPEC_DOC_IMAGE_MIME_TO_EXTENSION[normalizedMimeType] || '';
+  const rawExt = path.extname(originalName || '').toLowerCase();
+  const extension = SPEC_DOC_IMAGE_ALLOWED_EXTENSIONS.has(rawExt)
+    ? rawExt
+    : (SPEC_DOC_IMAGE_ALLOWED_EXTENSIONS.has(extensionByMime) ? extensionByMime : '.png');
+
+  const rawBaseName = path.basename(originalName || '', path.extname(originalName || '')).trim();
+  const safeBaseName = (rawBaseName || `image-${Date.now().toString(36)}`)
+    .replace(/[\\/:*?"<>|]/g, '-')
+    .replace(/\s+/g, '-')
+    .replace(/-+/g, '-')
+    .replace(/^-|-$/g, '') || `image-${Date.now().toString(36)}`;
+
+  return `${safeBaseName}${extension}`;
+}
+
+function resolveUniqueFilePath(directoryPath: string, fileName: string): string {
+  const ext = path.extname(fileName);
+  const baseName = path.basename(fileName, ext);
+
+  let index = 1;
+  let candidateName = fileName;
+  let candidatePath = path.join(directoryPath, candidateName);
+
+  while (fs.existsSync(candidatePath)) {
+    index += 1;
+    candidateName = `${baseName}-${index}${ext}`;
+    candidatePath = path.join(directoryPath, candidateName);
+  }
+
+  return candidatePath;
+}
+
+function createManualDocTemplate(displayName: string) {
+  return `# ${displayName}
+
+## 概述
+请在此补充文档目标、范围与背景信息。
+
+## 详细内容
+请在此继续编写正文。
+`;
+}
+
+const DOC_IMPORT_MAX_FILE_SIZE = 30 * 1024 * 1024; // 30MB per file
+const DOC_IMPORT_MAX_FILE_COUNT = 30;
+const DOC_IMPORT_MAX_TOTAL_SIZE = 150 * 1024 * 1024; // 150MB per request
+
+const DOC_IMPORT_SUPPORTED_EXTENSIONS = new Set([
+  '.md',
+  '.txt',
+  '.pdf',
+  '.docx',
+  '.pptx',
+  '.xlsx',
+  '.csv',
+  '.json',
+  '.html',
+  '.xml',
+]);
+
+type MarkitdownCommandCandidate = {
+  command: string;
+  args: string[];
+  commandSource: string;
+};
+
+type PythonRuntimeProbe = {
+  command: string;
+  available: boolean;
+  versionText: string;
+  major: number;
+  minor: number;
+  meetsRequirement: boolean;
+};
+
+type MarkitdownResolvedCommand = {
+  installed: boolean;
+  command?: string;
+  args?: string[];
+  commandSource: string;
+  version: string;
+  installHints: string[];
+  error: string;
+};
+
+const MARKITDOWN_MIN_PYTHON_MAJOR = 3;
+const MARKITDOWN_MIN_PYTHON_MINOR = 10;
+
+const MARKITDOWN_DIRECT_COMMAND_CANDIDATE: MarkitdownCommandCandidate = {
+  command: 'markitdown',
+  args: [],
+  commandSource: 'markitdown',
+};
+
+const MARKITDOWN_PYTHON_COMMAND_CANDIDATES = [
+  'python3.12',
+  'python3.11',
+  'python3.10',
+  'python3',
+  'python',
+];
+
+function parsePythonVersionText(versionText: string): { major: number; minor: number } | null {
+  const match = versionText.match(/Python\s+(\d+)\.(\d+)/i);
+  if (!match) return null;
+  return {
+    major: Number(match[1] || 0),
+    minor: Number(match[2] || 0),
+  };
+}
+
+function isPythonVersionSupported(major: number, minor: number): boolean {
+  if (major > MARKITDOWN_MIN_PYTHON_MAJOR) return true;
+  if (major < MARKITDOWN_MIN_PYTHON_MAJOR) return false;
+  return minor >= MARKITDOWN_MIN_PYTHON_MINOR;
+}
+
+function probePythonRuntime(command: string): PythonRuntimeProbe {
+  const versionAttempt = spawnSync(command, ['--version'], {
+    encoding: 'utf8',
+    timeout: 8000,
+    maxBuffer: 1024 * 1024,
+  });
+  if (versionAttempt.error || versionAttempt.status !== 0) {
+    return {
+      command,
+      available: false,
+      versionText: '',
+      major: 0,
+      minor: 0,
+      meetsRequirement: false,
+    };
+  }
+
+  const versionText = String(versionAttempt.stdout || versionAttempt.stderr || '').trim();
+  const parsedVersion = parsePythonVersionText(versionText);
+  const major = parsedVersion?.major || 0;
+  const minor = parsedVersion?.minor || 0;
+  return {
+    command,
+    available: true,
+    versionText,
+    major,
+    minor,
+    meetsRequirement: isPythonVersionSupported(major, minor),
+  };
+}
+
+function buildMarkitdownInstallHints(preferredPythonCommand?: string): string[] {
+  if (preferredPythonCommand) {
+    return [
+      `${preferredPythonCommand} -m pip install -U markitdown`,
+    ];
+  }
+
+  return [
+    'brew install python@3.11',
+    'python3.11 -m pip install -U markitdown',
+  ];
+}
+
+function isCommandWorking(candidate: MarkitdownCommandCandidate): {
+  success: boolean;
+  version: string;
+  details: string;
+} {
+  const versionAttempt = spawnSync(
+    candidate.command,
+    [...candidate.args, '--version'],
+    { encoding: 'utf8', timeout: 8000, maxBuffer: 1024 * 1024 },
+  );
+  const versionOutput = String(versionAttempt.stdout || versionAttempt.stderr || '').trim();
+  if (!versionAttempt.error && versionAttempt.status === 0) {
+    return {
+      success: true,
+      version: versionOutput || 'unknown',
+      details: '',
+    };
+  }
+
+  const helpAttempt = spawnSync(
+    candidate.command,
+    [...candidate.args, '--help'],
+    { encoding: 'utf8', timeout: 8000, maxBuffer: 1024 * 1024 },
+  );
+  const helpOutput = String(helpAttempt.stdout || helpAttempt.stderr || '').trim();
+  if (!helpAttempt.error && helpAttempt.status === 0) {
+    return {
+      success: true,
+      version: versionOutput || 'available',
+      details: '',
+    };
+  }
+
+  return {
+    success: false,
+    version: '',
+    details: [versionOutput, helpOutput].filter(Boolean).join('\n'),
+  };
+}
+
+function resolveMarkitdownCommand(): MarkitdownResolvedCommand {
+  const directCommandResult = isCommandWorking(MARKITDOWN_DIRECT_COMMAND_CANDIDATE);
+  if (directCommandResult.success) {
+    return {
+      installed: true,
+      command: MARKITDOWN_DIRECT_COMMAND_CANDIDATE.command,
+      args: MARKITDOWN_DIRECT_COMMAND_CANDIDATE.args,
+      commandSource: MARKITDOWN_DIRECT_COMMAND_CANDIDATE.commandSource,
+      version: directCommandResult.version,
+      installHints: [],
+      error: '',
+    };
+  }
+
+  const pythonRuntimeProbes = MARKITDOWN_PYTHON_COMMAND_CANDIDATES
+    .map((command) => probePythonRuntime(command))
+    .filter((probe, index, allProbes) => allProbes.findIndex((item) => item.command === probe.command) === index);
+  const supportedPythonRuntimes = pythonRuntimeProbes.filter((probe) => probe.available && probe.meetsRequirement);
+  const preferredPythonCommand = supportedPythonRuntimes[0]?.command;
+
+  let sawLegacyPackage = false;
+  let sawModuleMissing = false;
+
+  for (const pythonRuntime of supportedPythonRuntimes) {
+    const pythonCandidate: MarkitdownCommandCandidate = {
+      command: pythonRuntime.command,
+      args: ['-m', 'markitdown'],
+      commandSource: `${pythonRuntime.command} -m markitdown`,
+    };
+    const candidateResult = isCommandWorking(pythonCandidate);
+    if (candidateResult.success) {
+      return {
+        installed: true,
+        command: pythonCandidate.command,
+        args: pythonCandidate.args,
+        commandSource: pythonCandidate.commandSource,
+        version: candidateResult.version,
+        installHints: [],
+        error: '',
+      };
+    }
+
+    const details = candidateResult.details || '';
+    if (/markitdown\.__main__|cannot be directly executed/i.test(details)) {
+      sawLegacyPackage = true;
+    } else if (/No module named markitdown/i.test(details)) {
+      sawModuleMissing = true;
+    }
+  }
+
+  if (supportedPythonRuntimes.length === 0) {
+    const availableVersions = pythonRuntimeProbes
+      .filter((probe) => probe.available)
+      .map((probe) => `${probe.command} (${probe.versionText || 'unknown'})`)
+      .join(', ');
+    return {
+      installed: false,
+      commandSource: 'unavailable',
+      version: '',
+      installHints: buildMarkitdownInstallHints(),
+      error: availableVersions
+        ? `markitdown 需要 Python 3.10+。当前仅检测到：${availableVersions}`
+        : 'markitdown 需要 Python 3.10+。当前未检测到可用的 Python 运行时。',
+    };
+  }
+
+  if (sawLegacyPackage) {
+    return {
+      installed: false,
+      commandSource: 'unavailable',
+      version: '',
+      installHints: buildMarkitdownInstallHints(preferredPythonCommand),
+      error: '检测到旧版 markitdown（例如 0.0.1a1），该版本没有 CLI 入口。请在 Python 3.10+ 环境重新安装最新版。',
+    };
+  }
+
+  if (sawModuleMissing) {
+    return {
+      installed: false,
+      commandSource: 'unavailable',
+      version: '',
+      installHints: buildMarkitdownInstallHints(preferredPythonCommand),
+      error: `未在 ${preferredPythonCommand || 'Python 3.10+'} 环境中检测到 markitdown，请先安装后重试。`,
+    };
+  }
+
+  return {
+    installed: false,
+    commandSource: 'unavailable',
+    version: '',
+    installHints: buildMarkitdownInstallHints(preferredPythonCommand),
+    error: 'markitdown 不可用，请安装后重试。',
+  };
+}
+
+function sanitizeImportFileBaseName(fileName: string): string {
+  return String(fileName || '')
+    .trim()
+    .replace(/\.[^/.]+$/, '')
+    .replace(/[\\/:*?"<>|]/g, '-')
+    .replace(/\s+/g, '-')
+    .replace(/-+/g, '-')
+    .replace(/^-|-$/g, '');
+}
+
+function resolveUniqueMarkdownPath(docsDir: string, baseName: string) {
+  const safeBaseName = sanitizeImportFileBaseName(baseName) || `doc-${Date.now().toString(36)}`;
+  let fileName = `${safeBaseName}.md`;
+  let nextPath = path.join(docsDir, fileName);
+  let suffix = 1;
+  while (fs.existsSync(nextPath)) {
+    fileName = `${safeBaseName}-${suffix}.md`;
+    nextPath = path.join(docsDir, fileName);
+    suffix += 1;
+  }
+  return { fileName, absolutePath: nextPath };
+}
+
+function convertFileToMarkdownWithMarkitdown(params: {
+  command: string;
+  args: string[];
+  sourcePath: string;
+}): { success: true; content: string } | { success: false; error: string } {
+  const tempDir = fs.mkdtempSync(path.join(tmpdir(), 'axhub-doc-import-'));
+  const outputPath = path.join(tempDir, 'output.md');
+  try {
+    const result = spawnSync(
+      params.command,
+      [...params.args, params.sourcePath, '-o', outputPath],
+      {
+        encoding: 'utf8',
+        timeout: 120000,
+        maxBuffer: 1024 * 1024 * 20,
+      },
+    );
+
+    if (result.error) {
+      return {
+        success: false,
+        error: result.error.message || 'markitdown execution failed',
+      };
+    }
+
+    if (result.status !== 0) {
+      const stderr = String(result.stderr || '').trim();
+      const stdout = String(result.stdout || '').trim();
+      const details = stderr || stdout || `exit code ${result.status}`;
+      return {
+        success: false,
+        error: `markitdown convert failed: ${details}`,
+      };
+    }
+
+    if (!fs.existsSync(outputPath)) {
+      return {
+        success: false,
+        error: 'markitdown did not produce output file',
+      };
+    }
+
+    const content = fs.readFileSync(outputPath, 'utf8');
+    return {
+      success: true,
+      content,
+    };
+  } finally {
+    fs.rmSync(tempDir, { recursive: true, force: true });
+  }
+}
+
+function docsImportApiPlugin(): Plugin {
+  return {
+    name: 'docs-import-api-plugin',
+    configureServer(server: any) {
+      server.middlewares.use((req: any, res: any, next: any) => {
+        const pathname = getRequestPathname(req);
+        const docsDir = path.resolve(__dirname, 'src/docs');
+
+        if (pathname === '/api/docs/import/markitdown-status') {
+          if (req.method !== 'GET') {
+            res.statusCode = 405;
+            res.setHeader('Content-Type', 'application/json; charset=utf-8');
+            res.end(JSON.stringify({ error: 'Method not allowed' }));
+            return;
+          }
+
+          const resolved = resolveMarkitdownCommand();
+          res.statusCode = 200;
+          res.setHeader('Content-Type', 'application/json; charset=utf-8');
+          res.end(JSON.stringify({
+            installed: resolved.installed,
+            commandSource: resolved.commandSource,
+            version: resolved.version,
+            installHints: resolved.installHints,
+            error: resolved.error,
+          }));
+          return;
+        }
+
+        if (pathname !== '/api/docs/import' && pathname !== '/api/docs/import/') {
+          return next();
+        }
+
+        if (req.method !== 'POST') {
+          res.statusCode = 405;
+          res.setHeader('Content-Type', 'application/json; charset=utf-8');
+          res.end(JSON.stringify({ error: 'Method not allowed' }));
+          return;
+        }
+
+        const uploadDir = path.resolve(__dirname, 'temp', 'docs-import');
+        fs.mkdirSync(uploadDir, { recursive: true });
+        fs.mkdirSync(docsDir, { recursive: true });
+
+        const form = formidable({
+          uploadDir,
+          keepExtensions: true,
+          multiples: true,
+          maxFileSize: DOC_IMPORT_MAX_FILE_SIZE,
+        });
+
+        form.parse(req, async (error: any, _fields: any, files: any) => {
+          if (error) {
+            res.statusCode = 400;
+            res.setHeader('Content-Type', 'application/json; charset=utf-8');
+            res.end(JSON.stringify({ error: error?.message || 'Failed to parse upload payload' }));
+            return;
+          }
+
+          const normalizeFiles = (value: any): any[] => {
+            if (!value) return [];
+            return Array.isArray(value) ? value : [value];
+          };
+
+          const uploadedFiles = normalizeFiles(files?.files).length > 0
+            ? normalizeFiles(files?.files)
+            : normalizeFiles(files?.file);
+
+          if (uploadedFiles.length === 0) {
+            res.statusCode = 400;
+            res.setHeader('Content-Type', 'application/json; charset=utf-8');
+            res.end(JSON.stringify({ error: 'Missing files' }));
+            return;
+          }
+
+          if (uploadedFiles.length > DOC_IMPORT_MAX_FILE_COUNT) {
+            res.statusCode = 413;
+            res.setHeader('Content-Type', 'application/json; charset=utf-8');
+            res.end(JSON.stringify({
+              error: `Too many files. Maximum ${DOC_IMPORT_MAX_FILE_COUNT} files per import.`,
+            }));
+            return;
+          }
+
+          const totalSize = uploadedFiles.reduce(
+            (sum, file) => sum + Number(file?.size || 0),
+            0,
+          );
+          if (totalSize > DOC_IMPORT_MAX_TOTAL_SIZE) {
+            res.statusCode = 413;
+            res.setHeader('Content-Type', 'application/json; charset=utf-8');
+            res.end(JSON.stringify({
+              error: `Total payload too large. Maximum ${Math.floor(DOC_IMPORT_MAX_TOTAL_SIZE / 1024 / 1024)}MB.`,
+            }));
+            return;
+          }
+
+          const markitdown = resolveMarkitdownCommand();
+          const results: Array<{
+            originalName: string;
+            extension: string;
+            success: boolean;
+            mode: 'direct-md' | 'markitdown';
+            savedName?: string;
+            savedPath?: string;
+            error?: string;
+          }> = [];
+
+          for (const file of uploadedFiles) {
+            const tempPath = String(file?.filepath || file?.path || '').trim();
+            const originalName = String(
+              file?.originalFilename || file?.name || file?.newFilename || 'unnamed-file',
+            ).trim();
+            const extension = path.extname(originalName || tempPath).toLowerCase();
+            const safeOriginalName = originalName || path.basename(tempPath) || 'unnamed-file';
+
+            const cleanupTempFile = () => {
+              if (!tempPath) return;
+              try {
+                if (fs.existsSync(tempPath)) {
+                  fs.unlinkSync(tempPath);
+                }
+              } catch {
+                // ignore cleanup errors
+              }
+            };
+
+            if (!tempPath || !fs.existsSync(tempPath)) {
+              results.push({
+                originalName: safeOriginalName,
+                extension,
+                success: false,
+                mode: extension === '.md' ? 'direct-md' : 'markitdown',
+                error: 'Uploaded file is missing from temporary storage',
+              });
+              cleanupTempFile();
+              continue;
+            }
+
+            if (!DOC_IMPORT_SUPPORTED_EXTENSIONS.has(extension)) {
+              results.push({
+                originalName: safeOriginalName,
+                extension,
+                success: false,
+                mode: extension === '.md' ? 'direct-md' : 'markitdown',
+                error: `Unsupported file extension: ${extension || 'unknown'}`,
+              });
+              cleanupTempFile();
+              continue;
+            }
+
+            const baseName = sanitizeImportFileBaseName(safeOriginalName)
+              || `doc-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 6)}`;
+            const target = resolveUniqueMarkdownPath(docsDir, baseName);
+            if (!target.absolutePath.startsWith(docsDir)) {
+              results.push({
+                originalName: safeOriginalName,
+                extension,
+                success: false,
+                mode: extension === '.md' ? 'direct-md' : 'markitdown',
+                error: 'Forbidden target path',
+              });
+              cleanupTempFile();
+              continue;
+            }
+
+            if (extension === '.md') {
+              try {
+                fs.copyFileSync(tempPath, target.absolutePath);
+                results.push({
+                  originalName: safeOriginalName,
+                  extension,
+                  success: true,
+                  mode: 'direct-md',
+                  savedName: target.fileName,
+                  savedPath: `src/docs/${target.fileName}`,
+                });
+              } catch (copyError: any) {
+                results.push({
+                  originalName: safeOriginalName,
+                  extension,
+                  success: false,
+                  mode: 'direct-md',
+                  error: copyError?.message || 'Failed to save markdown file',
+                });
+              } finally {
+                cleanupTempFile();
+              }
+              continue;
+            }
+
+            if (!markitdown.installed || !markitdown.command || !markitdown.args) {
+              results.push({
+                originalName: safeOriginalName,
+                extension,
+                success: false,
+                mode: 'markitdown',
+                error: markitdown.error || 'markitdown is not installed. Only .md files can be imported now.',
+              });
+              cleanupTempFile();
+              continue;
+            }
+
+            const conversion = convertFileToMarkdownWithMarkitdown({
+              command: markitdown.command,
+              args: markitdown.args,
+              sourcePath: tempPath,
+            });
+
+            if (!conversion.success) {
+              results.push({
+                originalName: safeOriginalName,
+                extension,
+                success: false,
+                mode: 'markitdown',
+                error: conversion.error,
+              });
+              cleanupTempFile();
+              continue;
+            }
+
+            try {
+              fs.writeFileSync(target.absolutePath, conversion.content, 'utf8');
+              results.push({
+                originalName: safeOriginalName,
+                extension,
+                success: true,
+                mode: 'markitdown',
+                savedName: target.fileName,
+                savedPath: `src/docs/${target.fileName}`,
+              });
+            } catch (writeError: any) {
+              results.push({
+                originalName: safeOriginalName,
+                extension,
+                success: false,
+                mode: 'markitdown',
+                error: writeError?.message || 'Failed to write converted markdown',
+              });
+            } finally {
+              cleanupTempFile();
+            }
+          }
+
+          const successCount = results.filter((item) => item.success).length;
+          const failedCount = results.length - successCount;
+          const hasSuccess = successCount > 0;
+
+          res.statusCode = hasSuccess ? 200 : 400;
+          res.setHeader('Content-Type', 'application/json; charset=utf-8');
+          res.end(JSON.stringify({
+            success: failedCount === 0,
+            successCount,
+            failedCount,
+            commandSource: markitdown.commandSource,
+            markitdownInstalled: markitdown.installed,
+            markitdownError: markitdown.error,
+            results,
+          }));
+        });
+      });
+    },
+  };
+}
+
 // 提供 /api/docs 端点的插件
 function docsApiPlugin(): Plugin {
   return {
     name: 'docs-api-plugin',
     configureServer(server: any) {
-      server.middlewares.use((req: any, res: any, next: any) => {
+      server.middlewares.use(async (req: any, res: any, next: any) => {
         const pathname = getRequestPathname(req);
-        if (!pathname.startsWith('/api/docs') && !pathname.startsWith('/api/libraries')) {
+        if (!pathname.startsWith('/api/docs')) {
           return next();
         }
+        const docsDir = path.resolve(__dirname, 'src/docs');
 
-        // DELETE /api/docs/:name - 删除文档
-        if (req.method === 'DELETE' && pathname.startsWith('/api/docs/')) {
+        // POST /api/docs/manual-create - 手动创建文档
+        if (
+          req.method === 'POST' &&
+          (pathname === '/api/docs/manual-create' || pathname === '/api/docs/manual-create/' || pathname === '/manual-create')
+        ) {
           try {
-            const docName = pathname.replace('/api/docs/', '');
+            const body = await readJsonBody(req);
+            const displayName = String(body?.displayName || '').trim();
+            const fileNameInput = String(body?.fileName || body?.displayName || '').trim();
+
+            if (!displayName) {
+              res.statusCode = 400;
+              res.setHeader('Content-Type', 'application/json; charset=utf-8');
+              res.end(JSON.stringify({ error: 'Missing displayName' }));
+              return;
+            }
+
+            fs.mkdirSync(docsDir, { recursive: true });
+
+            const fallbackBase = `doc-${Date.now().toString(36)}`;
+            const sanitizedBase = sanitizeDocBaseName(fileNameInput || displayName) || fallbackBase;
+            let baseName = sanitizedBase;
+            let suffix = 2;
+            while (fs.existsSync(path.join(docsDir, `${baseName}.md`))) {
+              baseName = `${sanitizedBase}-${suffix}`;
+              suffix += 1;
+            }
+
+            const docFileName = `${baseName}.md`;
+            const docPath = path.join(docsDir, docFileName);
+
+            if (!docPath.startsWith(docsDir)) {
+              res.statusCode = 403;
+              res.setHeader('Content-Type', 'application/json; charset=utf-8');
+              res.end(JSON.stringify({ error: 'Forbidden' }));
+              return;
+            }
+
+            fs.writeFileSync(docPath, createManualDocTemplate(displayName), 'utf8');
+
+            res.statusCode = 201;
+            res.setHeader('Content-Type', 'application/json; charset=utf-8');
+            res.end(JSON.stringify({
+              success: true,
+              name: docFileName,
+              displayName,
+              path: `src/docs/${docFileName}`,
+            }));
+          } catch (error: any) {
+            console.error('Error manual creating doc:', error);
+            res.statusCode = 500;
+            res.setHeader('Content-Type', 'application/json; charset=utf-8');
+            res.end(JSON.stringify({ error: error?.message || 'Create doc failed' }));
+          }
+          return;
+        }
+
+        // POST /api/docs/:name/copy - 复制文档
+        if (req.method === 'POST' && pathname.startsWith('/api/docs/') && pathname.endsWith('/copy')) {
+          try {
+            const encodedDocName = pathname.slice('/api/docs/'.length, -'/copy'.length);
+            const docName = decodeURIComponent(encodedDocName);
             if (!docName) {
               res.statusCode = 400;
               res.end(JSON.stringify({ error: 'Missing document name' }));
               return;
             }
 
-            const docsDir = path.resolve(__dirname, 'assets/docs');
+            const sourcePath = path.join(docsDir, docName);
+            if (!sourcePath.startsWith(docsDir)) {
+              res.statusCode = 403;
+              res.end(JSON.stringify({ error: 'Forbidden' }));
+              return;
+            }
+            if (!fs.existsSync(sourcePath)) {
+              res.statusCode = 404;
+              res.end(JSON.stringify({ error: 'Document not found' }));
+              return;
+            }
+
+            const sourceDir = path.dirname(sourcePath);
+            const ext = path.extname(sourcePath);
+            const sourceBaseName = path.basename(sourcePath, ext);
+            const safeBaseName = sanitizeDocBaseName(sourceBaseName) || sourceBaseName;
+            const candidateBase = `${safeBaseName}-copy`;
+
+            let nextBaseName = candidateBase;
+            let suffix = 2;
+            let nextName = `${nextBaseName}${ext}`;
+            let nextPath = path.join(sourceDir, nextName);
+            while (fs.existsSync(nextPath)) {
+              nextBaseName = `${candidateBase}${suffix}`;
+              nextName = `${nextBaseName}${ext}`;
+              nextPath = path.join(sourceDir, nextName);
+              suffix += 1;
+            }
+
+            if (!nextPath.startsWith(docsDir)) {
+              res.statusCode = 403;
+              res.end(JSON.stringify({ error: 'Forbidden' }));
+              return;
+            }
+
+            fs.copyFileSync(sourcePath, nextPath);
+
+            const relativeName = path.relative(docsDir, nextPath).split(path.sep).join('/');
+            const relativeDisplayName = relativeName.replace(/\.[^./\\]+$/u, '');
+
+            res.statusCode = 201;
+            res.setHeader('Content-Type', 'application/json; charset=utf-8');
+            res.end(JSON.stringify({
+              success: true,
+              name: relativeName,
+              displayName: relativeDisplayName,
+              path: `src/docs/${relativeName}`,
+            }));
+          } catch (error: any) {
+            console.error('Error copying doc:', error);
+            res.statusCode = 500;
+            res.setHeader('Content-Type', 'application/json; charset=utf-8');
+            res.end(JSON.stringify({ error: error?.message || 'Copy doc failed' }));
+          }
+          return;
+        }
+
+        // DELETE /api/docs/:name - 删除文档
+        if (req.method === 'DELETE' && pathname.startsWith('/api/docs/')) {
+          try {
+            const encodedDocName = pathname.replace('/api/docs/', '');
+            const docName = decodeURIComponent(encodedDocName);
+            if (!docName) {
+              res.statusCode = 400;
+              res.end(JSON.stringify({ error: 'Missing document name' }));
+              return;
+            }
             const docPath = path.join(docsDir, docName);
 
             // 安全检查
@@ -574,160 +1515,95 @@ function docsApiPlugin(): Plugin {
           return;
         }
 
-        // DELETE /api/libraries/:name - 删除前端库
-        if (req.method === 'DELETE' && pathname.startsWith('/api/libraries/')) {
+        if (req.method === 'PUT' && pathname.startsWith('/api/docs/')) {
           try {
-            const libraryName = pathname.replace('/api/libraries/', '');
-            if (!libraryName) {
+            const encodedDocName = pathname.replace('/api/docs/', '');
+            if (!encodedDocName) {
               res.statusCode = 400;
-              res.end(JSON.stringify({ error: 'Missing library name' }));
+              res.end(JSON.stringify({ error: 'Missing document name' }));
               return;
             }
 
-            const librariesDir = path.resolve(__dirname, 'assets/libraries');
-            const libraryPath = path.join(librariesDir, `${libraryName}.md`);
+            const bodyData = await readJsonBody(req);
+            const hasContentUpdate = typeof bodyData?.content === 'string';
+            let newBaseName = String(bodyData?.newBaseName || '').trim();
+            const hasRename = Boolean(newBaseName);
+            if (!hasContentUpdate && !hasRename) {
+              res.statusCode = 400;
+              res.end(JSON.stringify({ error: 'Missing content or newBaseName parameter' }));
+              return;
+            }
+            if (hasRename && /[/\\:*?"<>|]/.test(newBaseName)) {
+              res.statusCode = 400;
+              res.end(JSON.stringify({ error: 'Invalid newBaseName format' }));
+              return;
+            }
 
-            // 安全检查
-            if (!libraryPath.startsWith(librariesDir)) {
+            const docName = decodeURIComponent(encodedDocName);
+            const oldPath = path.join(docsDir, docName);
+            if (!oldPath.startsWith(docsDir)) {
               res.statusCode = 403;
               res.end(JSON.stringify({ error: 'Forbidden' }));
               return;
             }
-
-            if (!fs.existsSync(libraryPath)) {
+            if (!fs.existsSync(oldPath)) {
               res.statusCode = 404;
-              res.end(JSON.stringify({ error: 'Library not found' }));
+              res.end(JSON.stringify({ error: 'Document not found' }));
               return;
             }
 
-            fs.unlinkSync(libraryPath);
-            res.statusCode = 200;
-            res.setHeader('Content-Type', 'application/json');
-            res.end(JSON.stringify({ success: true }));
-          } catch (error: any) {
-            console.error('Error deleting library:', error);
-            res.statusCode = 500;
-            res.end(JSON.stringify({ error: error.message }));
-          }
-          return;
-        }
-
-        if (req.method === 'PUT' && pathname.startsWith('/api/docs/')) {
-          const encodedDocName = pathname.replace('/api/docs/', '');
-          if (!encodedDocName) {
-            res.statusCode = 400;
-            res.end(JSON.stringify({ error: 'Missing document name' }));
-            return;
-          }
-
-          const chunks: Buffer[] = [];
-          req.on('data', (chunk: Buffer) => chunks.push(chunk));
-          req.on('end', () => {
-            try {
-              let bodyData: any = {};
-              try {
-                const bodyText = Buffer.concat(chunks).toString('utf8');
-                bodyData = bodyText ? JSON.parse(bodyText) : {};
-              } catch (e) {
-                res.statusCode = 400;
-                res.end(JSON.stringify({ error: 'Invalid JSON body' }));
-                return;
+            let finalPath = oldPath;
+            if (hasRename) {
+              const ext = path.extname(oldPath);
+              if (ext && newBaseName.toLowerCase().endsWith(ext.toLowerCase())) {
+                newBaseName = newBaseName.slice(0, -ext.length).trim();
               }
-
-              const newBaseName = String(bodyData?.newBaseName || '').trim();
-              if (!newBaseName) {
-                res.statusCode = 400;
-                res.end(JSON.stringify({ error: 'Missing newBaseName parameter' }));
-                return;
-              }
-              if (/[/\\:*?"<>|]/.test(newBaseName)) {
+              const safeBaseName = sanitizeDocBaseName(newBaseName);
+              if (!safeBaseName) {
                 res.statusCode = 400;
                 res.end(JSON.stringify({ error: 'Invalid newBaseName format' }));
                 return;
               }
 
-              const docName = decodeURIComponent(encodedDocName);
-              const docsDir = path.resolve(__dirname, 'assets/docs');
-              const oldPath = path.join(docsDir, docName);
-
-              if (!oldPath.startsWith(docsDir)) {
-                res.statusCode = 403;
-                res.end(JSON.stringify({ error: 'Forbidden' }));
-                return;
-              }
-              if (!fs.existsSync(oldPath)) {
-                res.statusCode = 404;
-                res.end(JSON.stringify({ error: 'Document not found' }));
-                return;
-              }
-
-              const ext = path.extname(oldPath);
-              const newFileName = `${newBaseName}${ext}`;
-              const newPath = path.join(docsDir, newFileName);
+              const oldDir = path.dirname(oldPath);
+              const newFileName = `${safeBaseName}${ext}`;
+              const newPath = path.join(oldDir, newFileName);
 
               if (!newPath.startsWith(docsDir)) {
                 res.statusCode = 403;
                 res.end(JSON.stringify({ error: 'Forbidden' }));
                 return;
               }
-              if (fs.existsSync(newPath)) {
+              if (newPath !== oldPath && fs.existsSync(newPath)) {
                 res.statusCode = 400;
                 res.end(JSON.stringify({ error: '目标文件已存在' }));
                 return;
               }
 
-              fs.renameSync(oldPath, newPath);
-
-              res.setHeader('Content-Type', 'application/json');
-              res.end(JSON.stringify({ success: true, name: newFileName }));
-            } catch (error: any) {
-              console.error('Error renaming doc:', error);
-              res.statusCode = 500;
-              res.end(JSON.stringify({ error: error.message }));
+              if (newPath !== oldPath) {
+                fs.renameSync(oldPath, newPath);
+              }
+              finalPath = newPath;
             }
-          });
+
+            if (hasContentUpdate) {
+              fs.writeFileSync(finalPath, String(bodyData.content), 'utf8');
+            }
+
+            const relativeName = path.relative(docsDir, finalPath).split(path.sep).join('/');
+            res.setHeader('Content-Type', 'application/json');
+            res.end(JSON.stringify({ success: true, name: relativeName }));
+          } catch (error: any) {
+            console.error('Error updating doc:', error);
+            res.statusCode = 500;
+            res.end(JSON.stringify({ error: error.message }));
+          }
           return;
         }
 
         // GET 请求处理
         if (req.method !== 'GET') {
           return next();
-        }
-
-        // 处理 /api/libraries/:name.md 端点用于获取单个前端库内容
-        if (pathname.startsWith('/api/libraries/') && pathname !== '/api/libraries' && pathname !== '/api/libraries/') {
-          try {
-            const encodedLibraryFile = pathname.replace('/api/libraries/', '');
-            if (!encodedLibraryFile) {
-              return next();
-            }
-
-            // 解码 URL 编码的文件名
-            const libraryFile = decodeURIComponent(encodedLibraryFile);
-            const librariesDir = path.resolve(__dirname, 'assets/libraries');
-            const libraryPath = path.join(librariesDir, libraryFile);
-
-            // 安全检查：确保路径在 assets/libraries 目录内
-            if (!libraryPath.startsWith(librariesDir)) {
-              res.statusCode = 403;
-              res.end(JSON.stringify({ error: 'Forbidden' }));
-              return;
-            }
-
-            if (fs.existsSync(libraryPath)) {
-              const content = fs.readFileSync(libraryPath, 'utf8');
-              res.setHeader('Content-Type', 'text/markdown; charset=utf-8');
-              res.end(content);
-            } else {
-              res.statusCode = 404;
-              res.end(JSON.stringify({ error: 'Library not found' }));
-            }
-          } catch (error: any) {
-            console.error('Error loading library:', error);
-            res.statusCode = 500;
-            res.end(JSON.stringify({ error: error.message }));
-          }
-          return;
         }
 
         // 处理 /api/docs/:name 端点用于获取单个文档内容
@@ -740,11 +1616,10 @@ function docsApiPlugin(): Plugin {
 
             // 解码 URL 编码的文件名
             const docName = decodeURIComponent(encodedDocName);
-            const docsDir = path.resolve(__dirname, 'assets/docs');
             // 直接使用文件名（已包含扩展名）
             const docPath = path.join(docsDir, docName);
 
-            // 安全检查：确保路径在 assets/docs 目录内
+            // 安全检查：确保路径在 src/docs 目录内
             if (!docPath.startsWith(docsDir)) {
               res.statusCode = 403;
               res.end(JSON.stringify({ error: 'Forbidden' }));
@@ -780,29 +1655,37 @@ function docsApiPlugin(): Plugin {
         // 处理 /api/docs 端点用于获取文档列表
         if (pathname === '/api/docs' || pathname === '/api/docs/') {
           try {
-            const docsDir = path.resolve(__dirname, 'assets/docs');
             const docs: any[] = [];
             // 支持的文档格式
             const supportedExtensions = ['.md', '.csv', '.json', '.yaml', '.yml', '.txt'];
 
             if (fs.existsSync(docsDir)) {
-              const items = fs.readdirSync(docsDir, { withFileTypes: true });
-              
-              items.forEach(item => {
-                // 读取支持的文件格式
-                if (item.isFile()) {
-                  const ext = path.extname(item.name);
-                  if (supportedExtensions.includes(ext)) {
-                    // 保留完整文件名（包含扩展名）
-                    docs.push({
-                      name: item.name,
-                      displayName: item.name
-                    });
+              const walkDocsDir = (dirPath: string) => {
+                const items = fs.readdirSync(dirPath, { withFileTypes: true });
+                items.forEach((item) => {
+                  const fullPath = path.join(dirPath, item.name);
+                  if (item.isDirectory()) {
+                    walkDocsDir(fullPath);
+                    return;
                   }
-                }
-              });
+                  if (!item.isFile()) {
+                    return;
+                  }
+                  const ext = path.extname(item.name).toLowerCase();
+                  if (!supportedExtensions.includes(ext)) {
+                    return;
+                  }
+                  const relativePath = path.relative(docsDir, fullPath).split(path.sep).join('/');
+                  docs.push({
+                    name: relativePath,
+                    displayName: relativePath,
+                  });
+                });
+              };
+              walkDocsDir(docsDir);
             }
 
+            docs.sort((a, b) => String(a.name || '').localeCompare(String(b.name || '')));
             res.setHeader('Content-Type', 'application/json');
             res.end(JSON.stringify(docs));
           } catch (error: any) {
@@ -813,60 +1696,64 @@ function docsApiPlugin(): Plugin {
           return;
         }
 
-        // 处理 /api/libraries 端点用于获取前端库列表
-        if (pathname === '/api/libraries' || pathname === '/api/libraries/') {
-          try {
-            const librariesDir = path.resolve(__dirname, 'assets/libraries');
-            const libraries: any[] = [];
+        next();
+      });
+    }
+  };
+}
 
-            if (fs.existsSync(librariesDir)) {
-              const items = fs.readdirSync(librariesDir, { withFileTypes: true });
-              
-              items.forEach(item => {
-                // 只读取 .md 文件
-                if (item.isFile() && item.name.endsWith('.md')) {
-                  const name = item.name.replace('.md', '');
-                  const filePath = path.join(librariesDir, item.name);
-                  const content = fs.readFileSync(filePath, 'utf8');
-                  
-                  // 尝试从文件内容中提取标题
-                  let displayName = name;
-                  const titleMatch = content.match(/^#\s+(.+)$/m);
-                  if (titleMatch) {
-                    displayName = titleMatch[1].trim();
-                  }
-
-                  // 提取第一段作为描述
-                  let description = '';
-                  const lines = content.split('\n');
-                  for (let i = 0; i < lines.length; i++) {
-                    const line = lines[i].trim();
-                    if (line && !line.startsWith('#')) {
-                      description = line;
-                      break;
-                    }
-                  }
-
-                  libraries.push({
-                    name,
-                    displayName,
-                    description
-                  });
-                }
-              });
-            }
-
-            res.setHeader('Content-Type', 'application/json');
-            res.end(JSON.stringify(libraries));
-          } catch (error: any) {
-            console.error('Error loading libraries:', error);
-            res.statusCode = 500;
-            res.end(JSON.stringify({ error: error.message }));
-          }
-          return;
+// 提供 /api/templates 端点的插件
+function templatesApiPlugin(): Plugin {
+  return {
+    name: 'templates-api-plugin',
+    configureServer(server: any) {
+      server.middlewares.use((req: any, res: any, next: any) => {
+        const pathname = getRequestPathname(req);
+        if (req.method !== 'GET' || (pathname !== '/api/templates' && pathname !== '/api/templates/')) {
+          return next();
         }
 
-        next();
+        try {
+          const templatesDir = path.resolve(__dirname, 'assets/templates');
+          const templates: Array<{ name: string; displayName: string }> = [];
+
+          if (fs.existsSync(templatesDir)) {
+            const walkTemplatesDir = (dirPath: string) => {
+              const entries = fs.readdirSync(dirPath, { withFileTypes: true });
+              entries.forEach((entry) => {
+                if (!entry || entry.name.startsWith('.')) {
+                  return;
+                }
+
+                const fullPath = path.join(dirPath, entry.name);
+                if (entry.isDirectory()) {
+                  walkTemplatesDir(fullPath);
+                  return;
+                }
+
+                if (!entry.isFile()) {
+                  return;
+                }
+
+                const relativePath = path.relative(templatesDir, fullPath).split(path.sep).join('/');
+                templates.push({
+                  name: relativePath,
+                  displayName: relativePath,
+                });
+              });
+            };
+
+            walkTemplatesDir(templatesDir);
+          }
+
+          templates.sort((a, b) => String(a.name || '').localeCompare(String(b.name || '')));
+          res.setHeader('Content-Type', 'application/json');
+          res.end(JSON.stringify(templates));
+        } catch (error: any) {
+          console.error('Error loading templates:', error);
+          res.statusCode = 500;
+          res.end(JSON.stringify({ error: error.message }));
+        }
       });
     }
   };
@@ -910,7 +1797,7 @@ function uploadDocsApiPlugin(): Plugin {
               return;
             }
 
-            const docsDir = path.resolve(__dirname, 'assets/docs');
+            const docsDir = path.resolve(__dirname, 'src/docs');
             fs.mkdirSync(docsDir, { recursive: true });
 
             const saved: string[] = [];
@@ -965,7 +1852,7 @@ function sourceApiPlugin(): Plugin {
 
         try {
           const url = new URL(req.url, `http://${req.headers.host}`);
-          const targetPath = url.searchParams.get('path'); // e.g., 'pages/ref-app-home' or 'elements/button'
+          const targetPath = url.searchParams.get('path'); // e.g., 'prototypes/ref-app-home' or 'components/button'
 
           if (!targetPath) {
             res.statusCode = 400;
@@ -998,6 +1885,210 @@ function sourceApiPlugin(): Plugin {
           res.statusCode = 500;
           res.end(JSON.stringify({ error: e.message }));
         }
+      });
+    }
+  };
+}
+
+function specDocApiPlugin(): Plugin {
+  return {
+    name: 'spec-doc-api-plugin',
+    configureServer(server: any) {
+      server.middlewares.use((req: any, res: any, next: any) => {
+        const pathname = getRequestPathname(req);
+        if (req.method === 'POST' && pathname === '/api/spec-doc/upload-image') {
+          const uploadDir = path.resolve(__dirname, 'temp', 'spec-doc-images');
+          fs.mkdirSync(uploadDir, { recursive: true });
+
+          const form = formidable({
+            uploadDir,
+            keepExtensions: true,
+            multiples: false,
+            maxFileSize: SPEC_DOC_IMAGE_MAX_FILE_SIZE,
+          });
+
+          form.parse(req, (parseError: any, fields: any, files: any) => {
+            const removeTempFile = (tempPath: string) => {
+              if (!tempPath) return;
+              try {
+                if (fs.existsSync(tempPath)) {
+                  fs.unlinkSync(tempPath);
+                }
+              } catch {
+                // ignore cleanup errors
+              }
+            };
+
+            if (parseError) {
+              res.statusCode = 400;
+              res.setHeader('Content-Type', 'application/json; charset=utf-8');
+              res.end(JSON.stringify({ error: parseError?.message || 'Failed to parse multipart payload' }));
+              return;
+            }
+
+            const docUrlField = Array.isArray(fields?.docUrl) ? fields.docUrl[0] : fields?.docUrl;
+            const docUrl = String(docUrlField || '').trim();
+            if (!docUrl) {
+              res.statusCode = 400;
+              res.setHeader('Content-Type', 'application/json; charset=utf-8');
+              res.end(JSON.stringify({ error: 'Missing docUrl' }));
+              return;
+            }
+
+            const uploadedFileValue = files?.file ?? files?.files;
+            const uploadedFile = Array.isArray(uploadedFileValue) ? uploadedFileValue[0] : uploadedFileValue;
+            if (!uploadedFile) {
+              res.statusCode = 400;
+              res.setHeader('Content-Type', 'application/json; charset=utf-8');
+              res.end(JSON.stringify({ error: 'Missing file' }));
+              return;
+            }
+
+            const tempPath = String(uploadedFile?.filepath || uploadedFile?.path || '').trim();
+            if (!tempPath || !fs.existsSync(tempPath)) {
+              res.statusCode = 400;
+              res.setHeader('Content-Type', 'application/json; charset=utf-8');
+              res.end(JSON.stringify({ error: 'Uploaded file is missing from temporary storage' }));
+              return;
+            }
+
+            try {
+              const resolved = resolveDocumentPathFromDocUrl(docUrl, req.headers.host);
+              if ('status' in resolved) {
+                res.statusCode = resolved.status;
+                res.setHeader('Content-Type', 'application/json; charset=utf-8');
+                res.end(JSON.stringify({ error: resolved.error }));
+                return;
+              }
+
+              if (!fs.existsSync(resolved.docPath)) {
+                res.statusCode = 404;
+                res.setHeader('Content-Type', 'application/json; charset=utf-8');
+                res.end(JSON.stringify({ error: 'Document not found' }));
+                return;
+              }
+
+              const originalName = String(
+                uploadedFile?.originalFilename || uploadedFile?.newFilename || uploadedFile?.name || path.basename(tempPath),
+              ).trim();
+              const mimeType = String(uploadedFile?.mimetype || uploadedFile?.type || '').toLowerCase();
+              const originalExt = path.extname(originalName).toLowerCase();
+              const extByMime = SPEC_DOC_IMAGE_MIME_TO_EXTENSION[mimeType] || '';
+              const normalizedExt = SPEC_DOC_IMAGE_ALLOWED_EXTENSIONS.has(originalExt)
+                ? originalExt
+                : extByMime;
+
+              if (!mimeType.startsWith('image/') && !SPEC_DOC_IMAGE_ALLOWED_EXTENSIONS.has(originalExt)) {
+                res.statusCode = 400;
+                res.setHeader('Content-Type', 'application/json; charset=utf-8');
+                res.end(JSON.stringify({ error: 'Only image files are allowed' }));
+                return;
+              }
+              if (!normalizedExt || !SPEC_DOC_IMAGE_ALLOWED_EXTENSIONS.has(normalizedExt)) {
+                res.statusCode = 400;
+                res.setHeader('Content-Type', 'application/json; charset=utf-8');
+                res.end(JSON.stringify({ error: 'Unsupported image type' }));
+                return;
+              }
+
+              const docDir = path.dirname(resolved.docPath);
+              const imagesDir = path.join(docDir, 'assets', 'images');
+              fs.mkdirSync(imagesDir, { recursive: true });
+
+              const safeFileName = sanitizeImageUploadFileName(
+                originalName || `image${normalizedExt}`,
+                mimeType,
+              );
+              const finalPath = resolveUniqueFilePath(imagesDir, safeFileName);
+              if (!isPathInside(imagesDir, finalPath)) {
+                res.statusCode = 403;
+                res.setHeader('Content-Type', 'application/json; charset=utf-8');
+                res.end(JSON.stringify({ error: 'Forbidden path' }));
+                return;
+              }
+
+              fs.copyFileSync(tempPath, finalPath);
+
+              const relativePath = path.relative(__dirname, finalPath).split(path.sep).join('/');
+              res.statusCode = 200;
+              res.setHeader('Content-Type', 'application/json; charset=utf-8');
+              res.end(JSON.stringify({
+                success: true,
+                url: `assets/images/${path.basename(finalPath)}`,
+                path: relativePath,
+              }));
+            } catch (error: any) {
+              console.error('Error uploading spec doc image:', error);
+              res.statusCode = 500;
+              res.setHeader('Content-Type', 'application/json; charset=utf-8');
+              res.end(JSON.stringify({ error: error?.message || 'Image upload failed' }));
+            } finally {
+              removeTempFile(tempPath);
+            }
+          });
+          return;
+        }
+
+        if (req.method !== 'POST' || pathname !== '/api/spec-doc/save') {
+          return next();
+        }
+
+        const chunks: Buffer[] = [];
+        req.on('data', (chunk: Buffer) => chunks.push(chunk));
+        req.on('end', () => {
+          try {
+            const bodyText = Buffer.concat(chunks).toString('utf8');
+            const body = bodyText ? JSON.parse(bodyText) : {};
+            const docUrl = typeof body?.docUrl === 'string' ? body.docUrl : '';
+            const content = typeof body?.content === 'string' ? body.content : '';
+
+            if (!docUrl) {
+              res.statusCode = 400;
+              res.setHeader('Content-Type', 'application/json; charset=utf-8');
+              res.end(JSON.stringify({ error: 'Missing docUrl' }));
+              return;
+            }
+
+            const resolved = resolveDocumentPathFromDocUrl(docUrl, req.headers.host);
+            if ('status' in resolved) {
+              res.statusCode = resolved.status;
+              res.setHeader('Content-Type', 'application/json; charset=utf-8');
+              res.end(JSON.stringify({ error: resolved.error }));
+              return;
+            }
+
+            const srcRoot = path.resolve(__dirname, 'src');
+            const relativeToSrc = path.relative(srcRoot, resolved.docPath).split(path.sep).join('/');
+            const [entryType] = relativeToSrc.split('/');
+            const fileName = path.basename(resolved.docPath).toLowerCase();
+            const isAllowedEntryType = ['components', 'prototypes', 'themes'].includes(entryType || '');
+            const isSpecFile = fileName === 'spec.md' || fileName === 'prd.md';
+            if (!isAllowedEntryType || !isSpecFile) {
+              res.statusCode = 400;
+              res.setHeader('Content-Type', 'application/json; charset=utf-8');
+              res.end(JSON.stringify({ error: 'Only spec.md/prd.md under components/prototypes/themes can be saved' }));
+              return;
+            }
+
+            if (!fs.existsSync(resolved.docPath)) {
+              res.statusCode = 404;
+              res.setHeader('Content-Type', 'application/json; charset=utf-8');
+              res.end(JSON.stringify({ error: 'Document not found' }));
+              return;
+            }
+
+            fs.writeFileSync(resolved.docPath, content, 'utf8');
+
+            res.statusCode = 200;
+            res.setHeader('Content-Type', 'application/json; charset=utf-8');
+            res.end(JSON.stringify({ success: true, path: `/${relativeToSrc}` }));
+          } catch (error: any) {
+            console.error('Error saving spec doc:', error);
+            res.statusCode = 500;
+            res.setHeader('Content-Type', 'application/json; charset=utf-8');
+            res.end(JSON.stringify({ error: error?.message || 'Save failed' }));
+          }
+        });
       });
     }
   };
@@ -1062,22 +2153,6 @@ function unsetReferenceApiPlugin(): Plugin {
             }
 
             fs.renameSync(srcDir, newSrcDir);
-
-            // Update entries.json
-            const entriesPath = path.resolve(__dirname, 'entries.json');
-            if (fs.existsSync(entriesPath)) {
-              const entries = JSON.parse(fs.readFileSync(entriesPath, 'utf8'));
-              // Update the key in entries
-              // e.g., 'elements/ref-button' -> 'elements/button'
-              const oldKey = targetPath; // e.g., 'elements/ref-button'
-              const newKey = targetPath.replace(/\/ref-/, '/'); // e.g., 'elements/button'
-              
-              if (entries.js && entries.js[oldKey]) {
-                entries.js[newKey] = entries.js[oldKey];
-                delete entries.js[oldKey];
-                fs.writeFileSync(entriesPath, JSON.stringify(entries, null, 2));
-              }
-            }
 
             res.statusCode = 200;
             res.end(JSON.stringify({ success: true }));
@@ -1294,9 +2369,16 @@ function themesApiPlugin(): Plugin {
               if (item.isDirectory()) {
                 const themeDir = path.join(themesDir, item.name);
                 const designTokenPath = path.join(themeDir, 'designToken.json');
+                const globalsPath = path.join(themeDir, 'globals.css');
+                const designSpecPath = path.join(themeDir, 'DESIGN-SPEC.md');
+                const indexTsxPath = path.join(themeDir, 'index.tsx');
                 let displayName = item.name;
+                const hasDesignToken = fs.existsSync(designTokenPath);
+                const hasGlobals = fs.existsSync(globalsPath);
+                const hasDesignSpec = fs.existsSync(designSpecPath);
+                const hasIndexTsx = fs.existsSync(indexTsxPath);
 
-                if (fs.existsSync(designTokenPath)) {
+                if (hasDesignToken) {
                   try {
                     const designToken = JSON.parse(fs.readFileSync(designTokenPath, 'utf8'));
                     if (designToken && designToken.name) {
@@ -1311,7 +2393,6 @@ function themesApiPlugin(): Plugin {
                 let description = '';
                 let hasDoc = false;
                 const readmePath = path.join(themeDir, 'README.md');
-                const designSpecPath = path.join(themeDir, 'DESIGN-SPEC.md');
 
                 if (fs.existsSync(readmePath)) {
                   try {
@@ -1337,7 +2418,11 @@ function themesApiPlugin(): Plugin {
                   name: item.name,
                   displayName: displayName,
                   description,
-                  hasDoc
+                  hasDoc,
+                  hasDesignToken,
+                  hasGlobals,
+                  hasDesignSpec,
+                  hasIndexTsx,
                 });
               }
             });
@@ -1356,21 +2441,21 @@ function themesApiPlugin(): Plugin {
 }
 
 // 读取配置文件
-const configPath = path.resolve(__dirname, 'axhub.config.json');
+const configPath = path.resolve(__dirname, MAKE_CONFIG_RELATIVE_PATH);
 let axhubConfig: any = { server: { host: 'localhost', allowLAN: true } };
 if (fs.existsSync(configPath)) {
   try {
     axhubConfig = JSON.parse(fs.readFileSync(configPath, 'utf8'));
   } catch (e) {
-    console.warn('Failed to parse axhub.config.json, using defaults:', e);
+    console.warn(`Failed to parse ${MAKE_CONFIG_RELATIVE_PATH}, using defaults:`, e);
   }
 }
 
-const entriesPath = path.resolve(__dirname, 'entries.json');
-let entries = { js: {}, html: {} };
-if (fs.existsSync(entriesPath)) {
-  entries = JSON.parse(fs.readFileSync(entriesPath, 'utf8'));
-}
+writeEntriesManifestAtomic(
+  __dirname,
+  scanProjectEntries(__dirname, ['components', 'prototypes', 'themes']),
+);
+const entries = readEntriesManifest(__dirname);
 
 const entryKey = process.env.ENTRY_KEY;
 const jsEntries = entries.js as Record<string, string>;
@@ -1381,7 +2466,7 @@ let rollupInput: Record<string, string> = htmlEntries;
 
 if (hasSingleEntry) {
   if (!jsEntries[entryKey as string]) {
-    throw new Error(`ENTRY_KEY=${entryKey} 未在 entries.json 中找到对应入口文件。请确保目录 src/${entryKey} 存在且包含 index.tsx 文件。`);
+    throw new Error(`ENTRY_KEY=${entryKey} 未在 ${MAKE_ENTRIES_RELATIVE_PATH} 中找到对应入口文件。请确保目录 src/${entryKey} 存在且包含 index.tsx 文件。`);
   }
   rollupInput = { [entryKey as string]: jsEntries[entryKey as string] };
 }
@@ -1394,14 +2479,18 @@ const config: any = {
     lanAccessControlPlugin(), // 局域网访问控制（必须在最前面）
     writeDevServerInfoPlugin(), // 写入开发服务器信息
     serveAdminPlugin(), // 服务 admin 目录（需要在最前面）
+    axureBridgeProxyPlugin(), // 提供 /api/axure-bridge/* 端点
     injectStablePageIds(), // 注入稳定 ID（所有模式都启用）
     virtualHtmlPlugin(),
     websocketPlugin(),
     versionApiPlugin(), // 提供 /api/version 端点
     downloadDistPlugin(), // 提供 /api/download-dist 端点
+    docsImportApiPlugin(), // 提供 /api/docs/import 端点
     docsApiPlugin(), // 提供 /api/docs 端点
+    templatesApiPlugin(), // 提供 /api/templates 端点
     uploadDocsApiPlugin(),
     sourceApiPlugin(), // 提供 /api/source 端点
+    specDocApiPlugin(), // 提供 /api/spec-doc/save 端点
     unsetReferenceApiPlugin(), // 提供 /api/unset-reference 端点
     themesApiPlugin(), // 提供 /api/themes 端点
     fileSystemApiPlugin(),
@@ -1474,7 +2563,7 @@ const config: any = {
     // HMR 配置
     hmr: {
       // 禁用 Vite 的错误覆盖层（Error Overlay）
-      // 原因：项目使用多入口架构（pages、elements 等），Vite 的 Error Overlay 会在所有打开的页面上显示错误
+      // 原因：项目使用多入口架构（prototypes、components 等），Vite 的 Error Overlay 会在所有打开的页面上显示错误
       // 这导致用户在访问页面 A 时，如果页面 B 出现构建错误，错误会跨页面显示在页面 A 上，造成困扰
       // 解决方案：禁用 Vite 的 Error Overlay，使用 dev-template.html 中已实现的自定义错误捕获和显示系统
       // 优点：避免跨页面错误显示，保持错误提示的页面隔离性，风险最小
@@ -1533,7 +2622,11 @@ const config: any = {
   test: {
     globals: true,
     environment: 'node',
-    include: ['tests/**/*.test.ts', 'tests/**/*.test.tsx'],
+    include: [
+      'tests/**/*.test.ts',
+      'tests/**/*.test.tsx',
+      'vite-plugins/**/*.test.ts',
+    ],
     root: '.',
   }
 };

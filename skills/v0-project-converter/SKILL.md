@@ -25,7 +25,7 @@ node scripts/v0-converter.mjs "temp/my-v0-project" my-page
 ```
 
 **脚本会自动完成**：
-- 完整复制 V0 项目到 `src/pages/[页面名]/`
+- 完整复制 V0 项目到 `src/prototypes/[页面名]/`
 - 分析项目结构（路径别名、Next.js 代码等）
 - 生成 AI 工作文档（`.v0-tasks.md`）
 - 生成详细数据（`.v0-analysis.json`）
@@ -54,7 +54,7 @@ node scripts/v0-converter.mjs "temp/my-v0-project" my-page
  * 
  * 参考资料：
  * - /rules/development-standards.md
- * - /assets/libraries/tailwind-css.md
+ * - /skills/default-resource-recommendations/SKILL.md
  */
 
 import './style.css';
@@ -157,7 +157,7 @@ import { cn } from "../../lib/utils"
 转换完成后运行验收脚本：
 
 ```bash
-node scripts/check-app-ready.mjs /pages/[页面名]
+node scripts/check-app-ready.mjs /prototypes/[页面名]
 ```
 
 **验收要求**：
@@ -191,4 +191,4 @@ pnpm add [依赖名称]
 
 - **开发规范**：`/rules/development-standards.md`
 - **调试指南**：`/rules/debugging-guide.md`
-- **Tailwind CSS**：`/assets/libraries/tailwind-css.md`
+- **Tailwind CSS**：`/skills/default-resource-recommendations/SKILL.md`

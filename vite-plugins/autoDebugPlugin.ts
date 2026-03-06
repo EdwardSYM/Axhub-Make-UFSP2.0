@@ -43,7 +43,7 @@ export function autoDebugPlugin(): Plugin {
                 type: 'export',
                 severity: 'error',
                 message: 'Component must be exported with "export default"',
-                suggestion: 'Add "export default Component" at the end of the file'
+                suggestion: 'Add "export default <ComponentName>" at the end of the file'
               });
             }
 
@@ -382,7 +382,7 @@ export function autoDebugPlugin(): Plugin {
               issues.push({
                 type: 'export',
                 message: 'Missing export default',
-                suggestion: 'Add "export default Component" at the end'
+                suggestion: 'Add "export default <ComponentName>" at the end'
               });
             }
 
@@ -428,7 +428,7 @@ function parseTypeScriptErrors(stderr: string, targetPath: string): any[] {
   const lines = stderr.split('\n');
   
   lines.forEach(line => {
-    // 匹配格式: src/pages/xxx/index.tsx(10,5): error TS2322: ...
+    // 匹配格式: src/prototypes/xxx/index.tsx(10,5): error TS2322: ...
     const match = line.match(/src\/(.+?)\((\d+),(\d+)\):\s*(error|warning)\s+TS\d+:\s*(.+)/);
     if (match && match[1].includes(targetPath)) {
       errors.push({

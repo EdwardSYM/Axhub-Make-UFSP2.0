@@ -1,6 +1,6 @@
 ---
 name: axure-prototype-workflow
-description: 使用本项目MCP 提取 Axure 原型资产、生成主题/数据/文档、还原页面与生成业务文档的流程规范；当用户提供 Axure 原型链接或提出资产提取、页面还原、主题/数据模型/文档生成、交互引导需求时使用。
+description: 使用本项目MCP 提取 Axure 原型资产、生成主题/数据/文档、还原页面与生成业务文档的流程规范；当用户提供 Axure 原型链接或提出资产提取、原型还原、主题/数据模型/文档生成、交互引导需求时使用。
 ---
 
 # Axure 原型处理助手规范
@@ -9,8 +9,11 @@ description: 使用本项目MCP 提取 Axure 原型资产、生成主题/数据/
 
 ## 快速分流
 
-- 资产提取/主题/数据/项目文档/业务文档：`skills/axure-prototype-workflow/asset-extraction.md`
-- 页面还原/优化/视觉复刻：`skills/axure-prototype-workflow/page-restoration.md`
+- 资产提取总流程（编排入口）：`skills/axure-prototype-workflow/asset-extraction.md`
+- 主题生成规则：`skills/axure-prototype-workflow/theme-generation.md`
+- 文档生成规则：`skills/axure-prototype-workflow/doc-generation.md`
+- 数据生成规则：`skills/axure-prototype-workflow/data-generation.md`
+- 原型还原/优化/视觉复刻：`skills/axure-prototype-workflow/prototype-restoration.md`
 
 ## 通用前置（任何场景都需要）
 

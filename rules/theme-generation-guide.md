@@ -221,8 +221,8 @@ export const ButtonSection: React.FC<ComponentSectionProps> = ({ tokens }) => {
 
 | 业务场景 | 参考文档 | 判断依据 |
 |---------|---------|---------|
-| **后台管理/ToB 业务** | `/assets/docs/设计指导（简约）.md` | • 目标用户：企业员工<br>• 使用频率：高频操作<br>• 核心任务：完成工作 |
-| **落地页/App/移动端** | `/assets/docs/设计指导（风格化）.md` | • 目标用户：普通消费者<br>• 使用频率：低频浏览<br>• 核心任务：获取信息/娱乐 |
+| **后台管理/ToB 业务** | `/skills/default-design-guide-minimal/SKILL.md` | • 目标用户：企业员工<br>• 使用频率：高频操作<br>• 核心任务：完成工作 |
+| **落地页/App/移动端** | `/skills/default-design-guide-stylized/SKILL.md` | • 目标用户：普通消费者<br>• 使用频率：低频浏览<br>• 核心任务：获取信息/娱乐 |
 | **混合场景** | 按模块区分规范 | 核心功能简约，展示区域风格化 |
 
 **重要**：不要提前加载设计指导文档，仅在真正需要且无其他参考时查阅。

@@ -1,16 +1,16 @@
 ---
 name: screenshot-page-workflow
-description: 基于网页或 App 截图进行视觉分析与页面还原的流程规范；在需要截图识别、资产提取（功能/交互/业务分析）、页面代码生成与验收时使用。
+description: 基于网页或 App 截图进行视觉分析与原型还原的流程规范；在需要截图识别、资产提取（功能/交互/业务分析）、页面代码生成与验收时使用。
 ---
 
-# 截图页面还原规范
+# 截图原型还原规范
 
 本技能采用渐进披露：先判断用户需求，再只打开相关文档。
 
 ## 快速分流
 
 - 资产提取（功能/交互/业务分析）：`skills/screenshot-page-workflow/asset-extraction.md`
-- 页面还原/代码实现：`skills/screenshot-page-workflow/page-restoration.md`
+- 原型还原/代码实现：`skills/screenshot-page-workflow/prototype-restoration.md`
 
 ## 通用前置（任何场景都需要）
 

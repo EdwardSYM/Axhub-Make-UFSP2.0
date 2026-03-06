@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 
 /**
- * 为所有 elements 和 pages 生成 index.html 文件
+ * 为所有 components 和 prototypes 生成 index.html 文件
  * 使用统一的模板
  */
 
@@ -14,8 +14,8 @@ const __dirname = path.dirname(__filename);
 
 const srcDir = path.resolve(__dirname, '../src');
 const templatePath = path.join(srcDir, 'common/dev-template.html');
-const elementsDir = path.join(srcDir, 'elements');
-const pagesDir = path.join(srcDir, 'pages');
+const elementsDir = path.join(srcDir, 'components');
+const pagesDir = path.join(srcDir, 'prototypes');
 
 let generatedCount = 0;
 
@@ -46,9 +46,9 @@ function generateHtmlFiles(dir, type) {
       if (fs.existsSync(tsxPath)) {
         // 生成标题
         let title = 'Dev Preview';
-        if (type === 'elements') {
+        if (type === 'components') {
           title = `Element: ${item} - Dev Preview`;
-        } else if (type === 'pages') {
+        } else if (type === 'prototypes') {
           title = `Page: ${item} - Dev Preview`;
         }
         
@@ -67,8 +67,8 @@ function generateHtmlFiles(dir, type) {
 
 console.log('开始生成 HTML 文件...\n');
 
-generateHtmlFiles(elementsDir, 'elements');
-generateHtmlFiles(pagesDir, 'pages');
+generateHtmlFiles(elementsDir, 'components');
+generateHtmlFiles(pagesDir, 'prototypes');
 
 console.log(`\n完成！共生成 ${generatedCount} 个 HTML 文件。`);
 console.log('所有 HTML 文件都基于统一模板: src/common/dev-template.html');

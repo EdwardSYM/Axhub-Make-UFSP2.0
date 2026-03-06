@@ -87,5 +87,5 @@
 ## 3. 设计备注
 
 - `interactive=true` 的核心目的是“提交 prompt 后进入 CLI 对话”，因此不会等待进程退出，也不会走输出缓存/防抖逻辑。
-- macOS/Linux 默认 `shell=false`，避免 prompt 被 shell 解释导致命令注入风险；Windows 为兼容 `.cmd/.bat` 启动器会启用 `shell=true`。
-
+- 所有平台均使用 `shell=false`；Windows 通过统一命令执行层自动包装到 `cmd.exe /d /s /c`，避免直接开启 shell 带来的注入与转义不一致问题。
+- 输出解码由统一命令执行层处理：UTF-8 优先，Windows 下自动按活动代码页回退，避免 CLI 输出乱码影响日志和错误判定。

@@ -23,7 +23,7 @@ const __dirname = path.dirname(__filename);
 
 const CONFIG = {
   projectRoot: path.resolve(__dirname, '..'),
-  pagesDir: path.resolve(__dirname, '../src/pages')
+  pagesDir: path.resolve(__dirname, '../src/prototypes')
 };
 
 function log(message, type = 'info') {
@@ -372,7 +372,7 @@ function generateComponent(pageSlug, displayName, bodyContent, headContent) {
  * 
  * 参考资料：
  * - /rules/development-standards.md
- * - /assets/libraries/tailwind-css.md
+ * - /skills/default-resource-recommendations/SKILL.md
  */
 
 import './style.css';
@@ -639,7 +639,7 @@ function detectProjectType(sourcePath) {
   
   // 检查是否为 Chrome 扩展导出格式（有 index.html）
   if (items.includes('index.html')) {
-    return { type: 'chrome-export', pages: [{ name: 'index', path: sourcePath }] };
+    return { type: 'chrome-export', prototypes: [{ name: 'index', path: sourcePath }] };
   }
   
   throw new Error('未找到 index.html 文件，请确认这是 Chrome 扩展导出的项目');
@@ -715,10 +715,10 @@ Chrome 扩展导出转换器
   try {
     log('开始转换 Chrome 扩展导出...', 'info');
     
-    const { type, pages } = detectProjectType(sourcePath);
+    const { type, prototypes } = detectProjectType(sourcePath);
     log(`项目类型: ${type}`, 'info');
     
-    convertPage(pages[0].path, outputDir, outputName, displayName);
+    convertPage(prototypes[0].path, outputDir, outputName, displayName);
     log('✅ 转换完成！', 'info');
     log(`📁 页面位置: ${outputDir}`, 'info');
     

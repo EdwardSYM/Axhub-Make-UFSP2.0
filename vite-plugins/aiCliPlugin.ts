@@ -1,6 +1,6 @@
 import type { Plugin } from 'vite';
-import { spawn, spawnSync } from 'node:child_process';
-import { platform } from 'node:os';
+import { spawn } from 'node:child_process';
+import { commandExists, decodeOutput, getSpawnCommandSpec } from '../scripts/utils/command-runtime.mjs';
 
 type AIType = 'claude' | 'gemini' | 'opencode' | 'cursor' | 'codex';
 
@@ -15,9 +15,7 @@ interface RunAIOptions {
  * 检测 CLI 是否存在
  */
 function hasCommand(cmd: string): boolean {
-  const checker = platform() === 'win32' ? 'where' : 'which';
-  const result = spawnSync(checker, [cmd], { stdio: 'ignore' });
-  return result.status === 0;
+  return commandExists(cmd);
 }
 
 type CliSpawnConfig = {
@@ -103,13 +101,14 @@ function spawnAIProcess(options: RunAIOptions) {
     `[AI CLI] Spawning command: ${command} ${args.join(' ')}${useStdin ? ' (with stdin)' : ''}`,
   );
 
-  const child = spawn(command, args, {
+  const spawnSpec = getSpawnCommandSpec(command, args);
+  const child = spawn(spawnSpec.command, spawnSpec.args, {
     stdio: finalSilent
       ? ['pipe', 'pipe', 'pipe']
       : (useStdin ? ['pipe', 'inherit', 'inherit'] : 'inherit'),
     env: process.env,
-    // Windows 上执行 .cmd/.bat 往往需要 shell；macOS/Linux 默认关闭以避免命令注入风险
-    shell: platform() === 'win32',
+    shell: false,
+    windowsHide: spawnSpec.windowsHide,
   });
 
   // 如果需要通过 stdin 传递输入
@@ -145,13 +144,13 @@ function runAICommand(options: RunAIOptions): Promise<string> {
     // 捕获输出
     if (finalSilent && child.stdout && child.stderr) {
       child.stdout.on('data', (data) => {
-        const chunk = data.toString();
+        const chunk = decodeOutput(data);
         output += chunk;
         console.log(`[AI CLI] stdout chunk: ${chunk.substring(0, 100)}${chunk.length > 100 ? '...' : ''}`);
       });
 
       child.stderr.on('data', (data) => {
-        const chunk = data.toString();
+        const chunk = decodeOutput(data);
         errorOutput += chunk;
         console.error(`[AI CLI] stderr chunk: ${chunk.substring(0, 100)}${chunk.length > 100 ? '...' : ''}`);
       });

@@ -116,7 +116,7 @@ const Component: React.FC = () => {
             <div className="w-16 h-16 bg-gray-50 rounded-full flex items-center justify-center mb-6" style={{ color: 'rgba(0, 0, 0, 0.25)' }}>
               <span className="text-2xl font-mono">;</span>
             </div>
-            <h2 className="text-xl font-semibold mb-2" style={{ color: 'rgba(0, 0, 0, 0.88)' }}>施工中 Work in Progress</h2>
+            <h2 className="mt-0 text-xl font-semibold mb-2" style={{ color: 'rgba(0, 0, 0, 0.88)' }}>施工中 Work in Progress</h2>
             <p style={{ color: 'rgba(0, 0, 0, 0.45)' }}>
               <span className="font-medium" style={{ color: 'rgba(0, 0, 0, 0.65)' }}>{activeTab}</span> 模块正在开发中...
             </p>

@@ -81,7 +81,7 @@ description: 处理本地导出的 Axure 原型资源并生成主题、数据模
 
 生成站点地图文档（保持层级结构，页面名称可点击）和项目简介文档（基本信息、设计风格、数据模型概览）。
 
-**输出**：`assets/docs/`
+**输出**：`src/docs/`
 
 ## 页面还原指南
 
@@ -123,22 +123,22 @@ description: 处理本地导出的 Axure 原型资源并生成主题、数据模
      - 识别交互（点击、悬停、状态切换等）
 
    **输出文件**：
-   - `src/pages/<page-name>/index.tsx`
-   - `src/pages/<page-name>/style.css`（必须包含 `@import "tailwindcss";`）
-   - `src/pages/<page-name>/components/`（根据需要）
+   - `src/prototypes/<page-name>/index.tsx`
+   - `src/prototypes/<page-name>/style.css`（必须包含 `@import "tailwindcss";`）
+   - `src/prototypes/<page-name>/components/`（根据需要）
 
    **核心代码规范**（必须遵守）：
    - 变量名必须是 `Component`，使用 `export default Component`
    - 详细规范见 `rules/development-standards.md`
 
 5. **验收页面还原**
-   - 运行验收命令：`node scripts/check-app-ready.mjs /pages/[页面名]`
+   - 运行验收命令：`node scripts/check-app-ready.mjs /prototypes/[页面名]`
    - 提供预览 URL
    - 确认页面基础功能正常（无编译错误、可正常访问）
 
 6. **生成规格文档**
    - 基于已验收通过的页面代码生成规格文档
-   - 输出文件：`src/pages/<page-name>/spec.md`
+   - 输出文件：`src/prototypes/<page-name>/spec.md`
    - 文档内容应包括：
      - 页面结构说明
      - 组件清单
@@ -210,7 +210,7 @@ sitemap.json 包含 projectUrl 时，可使用本项目MCP 工具获取在线资
 - 设计主题：src/themes/<theme-key>/
 - 设计规范文档：src/themes/<theme-key>/DESIGN-SPEC.md
 - 数据模型：assets/database/
-- 项目文档：assets/docs/
+- 项目文档：src/docs/
 
 后续建议：
 💡 我还可以为您：

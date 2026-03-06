@@ -9,6 +9,7 @@ lerna-debug.log*
 # Build outputs
 dist/
 tests/
+vite-plugins/**/*.test.ts
 *.tsbuildinfo
 
 # Vite
@@ -23,12 +24,14 @@ vite.config.*.timestamp-*
 .env.development
 
 # Local configuration
-axhub.config.json
+.axhub/make/axhub.config.json
 components.json
+.axhub/make/entries.json
+.dev-server-info.json
 entries.json
 
 # Dev server info (for AI debugging)
-.dev-server-info.json
+.axhub/make/.dev-server-info.json
 
 # IDE and editors
 .idea/
@@ -72,6 +75,7 @@ coverage/
 
 # Optional npm cache directory
 .npm
+.npm-cache/
 
 # Optional eslint cache
 .eslintcache

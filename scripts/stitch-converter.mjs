@@ -22,7 +22,7 @@ const __dirname = path.dirname(__filename);
 
 const CONFIG = {
   projectRoot: path.resolve(__dirname, '..'),
-  pagesDir: path.resolve(__dirname, '../src/pages')
+  pagesDir: path.resolve(__dirname, '../src/prototypes')
 };
 
 function log(message, type = 'info') {
@@ -484,7 +484,7 @@ function generateComponent(pageName, bodyContent, headContent) {
  * 
  * 参考资料：
  * - /rules/development-standards.md
- * - /assets/libraries/tailwind-css.md
+ * - /skills/default-resource-recommendations/SKILL.md
  */
 
 import './style.css';
@@ -585,19 +585,19 @@ function detectProjectType(stitchDir) {
   const items = fs.readdirSync(stitchDir);
   
   if (items.includes('code.html')) {
-    return { type: 'single', pages: [{ name: 'index', path: stitchDir }] };
+    return { type: 'single', prototypes: [{ name: 'index', path: stitchDir }] };
   }
   
-  const pages = [];
+  const prototypes = [];
   for (const item of items) {
     const itemPath = path.join(stitchDir, item);
     const stat = fs.statSync(itemPath);
     if (stat.isDirectory() && fs.existsSync(path.join(itemPath, 'code.html'))) {
-      pages.push({ name: item, path: itemPath });
+      prototypes.push({ name: item, path: itemPath });
     }
   }
   
-  if (pages.length > 0) return { type: 'multi', pages };
+  if (prototypes.length > 0) return { type: 'multi', prototypes };
   throw new Error('未找到有效的 Stitch 项目结构');
 }
 
@@ -636,17 +636,17 @@ async function main() {
   try {
     log('开始转换 Stitch 项目...', 'info');
     
-    const { type, pages } = detectProjectType(stitchDir);
+    const { type, prototypes } = detectProjectType(stitchDir);
     log(`项目类型: ${type === 'single' ? '单页面' : '多页面'}`, 'info');
     
     if (type === 'single') {
-      convertPage(pages[0].path, outputDir, outputName);
+      convertPage(prototypes[0].path, outputDir, outputName);
       log('✅ 转换完成！', 'info');
       log(`📁 页面位置: ${outputDir}`, 'info');
     } else {
       // 多页面项目：每个页面创建独立的顶级文件夹
       const convertedPages = [];
-      for (const page of pages) {
+      for (const page of prototypes) {
         const pageFolderName = (outputName + '-' + page.name)
           .replace(/[^a-z0-9-_]/gi, '-')
           .replace(/-+/g, '-')
@@ -657,7 +657,7 @@ async function main() {
         convertedPages.push({
           name: page.name,
           folder: pageFolderName,
-          url: `/pages/${pageFolderName}/`
+          url: `/prototypes/${pageFolderName}/`
         });
       }
       

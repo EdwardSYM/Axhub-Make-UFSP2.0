@@ -13,10 +13,10 @@ export function handleDocsHtml(req: IncomingMessage, res: ServerResponse, specTe
 
   console.log('[虚拟HTML] Docs 请求路径:', req.url, '解析部分:', pathParts);
 
-  // 处理 /assets/docs/* 的 docs.html 请求
-  if (pathParts.length >= 2 && pathParts[0] === 'assets' && pathParts[1] === 'docs') {
-    const docName = pathParts.slice(2).join('/');
-    const mdPath = path.resolve(process.cwd(), 'assets/docs' + (docName ? '/' + docName : '') + '.md');
+  // 处理 /docs/* 的 docs.html 请求
+  if (pathParts.length >= 1 && pathParts[0] === 'docs') {
+    const docName = pathParts.slice(1).join('/');
+    const mdPath = path.resolve(process.cwd(), 'src/docs' + (docName ? '/' + docName : '') + '.md');
 
     console.log('[虚拟HTML] 检查 docs markdown 文件:', mdPath, '存在:', fs.existsSync(mdPath));
 

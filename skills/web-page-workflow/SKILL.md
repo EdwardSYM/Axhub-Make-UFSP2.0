@@ -1,6 +1,6 @@
 ---
 name: web-page-workflow
-description: 使用本项目MCP 与 Firecrawl MCP 处理普通网页资产提取与页面还原的流程规范；在执行网页页面地图发现、主题/数据/文档提取与还原时使用。
+description: 使用本项目MCP 与 Firecrawl MCP 处理普通网页资产提取与原型还原的流程规范；在执行网页页面地图发现、主题/数据/文档提取与还原时使用。
 ---
 
 # 普通网页处理规范（简版）
@@ -9,8 +9,11 @@ description: 使用本项目MCP 与 Firecrawl MCP 处理普通网页资产提取
 
 ## 快速分流
 
-- 资产提取/主题/数据/项目文档/业务文档/页面地图：`skills/web-page-workflow/asset-extraction.md`
-- 页面还原/优化/视觉复刻：`skills/web-page-workflow/page-restoration.md`
+- 资产提取总流程（编排入口）：`skills/web-page-workflow/asset-extraction.md`
+- 主题生成规则：`skills/web-page-workflow/theme-generation.md`
+- 文档生成规则：`skills/web-page-workflow/doc-generation.md`
+- 数据生成规则：`skills/web-page-workflow/data-generation.md`
+- 原型还原/优化/视觉复刻：`skills/web-page-workflow/prototype-restoration.md`
 
 ## 通用前置（任何场景都需要）
 

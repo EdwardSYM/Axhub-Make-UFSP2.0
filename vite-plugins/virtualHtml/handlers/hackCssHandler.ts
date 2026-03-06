@@ -8,7 +8,7 @@ export function handleHackCssRequest(req: IncomingMessage, res: ServerResponse):
   if (req.method === 'GET' && requestPath.endsWith('/hack.css')) {
     const pathParts = requestPath.split('/').filter(Boolean);
     
-    if (pathParts.length >= 2 && ['elements', 'pages'].includes(pathParts[0])) {
+    if (pathParts.length >= 2 && ['components', 'prototypes'].includes(pathParts[0])) {
       const hackCssPath = path.resolve(process.cwd(), 'src', requestPath.slice(1));
       
       if (fs.existsSync(hackCssPath)) {

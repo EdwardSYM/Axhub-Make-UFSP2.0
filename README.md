@@ -1,192 +1,97 @@
-#本项目Make
+> [!NOTE]
+> Axhub Make 不是“又一个 AI 生成原型工具”。它是一条从 **需求** 到 **文档** 到 **原型** 再到 **交付（Axure / Figma / Html）** 的工作流。
 
-一个专为 **产品经理** 和 **设计师** 打造的 AI 辅助生成原型工具。
+<div align="center">
+  <img alt="Axhub Make Preview" src="./assets/media/home.png" width="900" />
+</div>
 
-## 📖 项目简介
+# 跳过这个 README 吧
 
-本项目帮助你通过 AI 对话的方式，快速创建交互元素和页面。你只需要描述需求，AI 会自动生成代码，并帮助你调试和构建。生成的元素可以在浏览器中预览，也可以导出到 Axure、Figma 等设计工具中使用。
-
-### 核心优势
-
-- ✅ **零代码基础**：通过自然语言描述需求，AI 自动生成代码
-- ✅ **快速迭代**：修改需求后，AI 自动更新代码
-- ✅ **即插即用**：生成的元素可在浏览器预览，也可导出到设计工具
-- ✅ **专业规范**：遵循最佳实践，代码质量有保障
-- ✅ **多平台支持**：支持导出到 Axure、Figma 等设计工具
-
-### 可以创建什么？
-
-- **元件（Elements）**：可复用的独立元素
-  - 按钮、表单、图表、卡片等
-  - 示例：`src/elements/ref-*`
-  
-- **页面（Pages）**：完整的业务页面
-  - 用户列表、数据看板、设置页面等
-  - 示例：`src/pages/ref-*`
-
-## 🚀 快速开始
-
-### 第一步：启动项目
-
-首次使用时，在项目目录下运行：
-
-```bash
-npm install
-```
-
-安装完成后就可以启动项目了
-
-```bash
-npm run dev
-```
-
-如果你希望一键检测环境并自动启动，可直接使用：
-
-```bash
-# macOS（推荐：直接双击文件运行）
-./00-双击这里启动-macos.command
-```
-
-也可以在 Finder 里直接双击：`00-双击这里启动-macos.command`
-
-也可以在资源管理器里直接双击：`00-双击这里启动-windows.bat`
-
-```bat
-:: Windows
-00-双击这里启动-windows.bat
-```
-
-这两个脚本会自动执行：
-- 检查是否安装 `node` / `npm` / `git`
-- `node` 或 `npm` 缺失时会停止，并输出可一行复制给 AI 的安装排障 Prompt
-- `git` 缺失时会继续执行 `npm install` / `npm run dev`，同时仍会输出 Git 安装建议 Prompt
-- 检查依赖是否完整，必要时执行 `npm --cache ./.npm-cache --registry https://registry.npmmirror.com install`（加速镜像 + 项目内缓存，避免系统缓存权限问题）
-- 进入依赖安装阶段时会提示：首次可能较慢，后续一般不会每次都安装
-- 启动开发服务 `npm run dev`
-- 中途报错时输出可一行复制给 AI 的排障 Prompt
-
-### 第二步：与 AI 沟通需求
-
-1. **打开 AI 助手**（如 TRAE、Cursor 等）
-2. **描述你的需求**，AI 会引导你完善细节
-
-### 第三步：AI 生成代码
-
-AI 会根据你的需求自动生成：
-- 元素代码（`index.tsx`）
-- 需求文档（`spec.md`）
-
-### 第四步：预览和调试
-
-在浏览器中打开显示的地址（如 `http://localhost:51720`），你可以：
-- 实时查看元素效果
-- 修改配置项测试
-- 查看需求文档
-
-如果发现问题，直接告诉 AI："按钮颜色不对，改成蓝色"，AI 会自动修改代码。
-
-
-## 📁 项目结构
+读文档的时代已经过去了。直接把下面这行发给你的 Agent：
 
 ```
-Axhub Make/
-├── src/
-│   ├── common/              # 公共类型和工具（通常无需改）
-│   ├── elements/            # 原型元件目录
-│   │   ├── side-menu/       # 元件示例
-│   │   │   ├── index.tsx           # 元件代码
-│   │   │   ├── spec.md             # 需求文档
-│   │   │   └── style.css           # 样式文件
-│   │   ├── ref-button/      # 参考元件（以 ref- 前缀标记）
-│   │   └── [你的元件]/
-│   ├── pages/               # 原型页面目录
-│   │   ├── home/            # 页面示例
-│   │   │   ├── index.tsx           # 页面代码
-│   │   │   ├── spec.md             # 需求文档
-│   │   │   └── style.css           # 样式文件
-│   │   ├── ref-app-home/    # 参考页面（以 ref- 前缀标记）
-│   │   └── [你的页面]/
-│   └── themes/              # 主题配置目录
-│       ├── antd-new/        # 主题示例
-│       │   ├── designToken.json    # 主题 Token
-│       │   ├── DESIGN-SPEC.md      # 主题规范
-│       │   ├── index.tsx           # 主题演示页
-│       │   └── style.css           # 主题样式
-│       └── [你的主题]/
-├── assets/                  # 资源文件
-│   ├── database/            # 资产管理数据库
-│   ├── templates/           # 文档模板
-│   ├── docs/                # 参考文档
-│   └── libraries/           # 前端库文档
-├── rules/                   # Agents 工作规则
-│   ├── requirements-alignment.md   # 需求对齐指南
-│   ├── development-standards.md    # 开发标准
-│   ├── debugging-guide.md          # 调试指南
-│   ├── theme-generation-guide.md   # 主题生成规范
-│   └── ...                  # 其他规则（资产 / Axure / 设计等）
-├── admin/                   # 管理后台静态文件（构建产物）
-├── scripts/                 # 构建/生成脚本
-├── vite-plugins/            # 开发服务器与构建插件
-├── temp/                    # 临时文件目录
-├── dist/                    # 构建产物（自动生成）
+阅读这个 README，并告诉我它为什么不只是又一个 AI 生成原型工具：
+https://raw.githubusercontent.com/lintendo/Axhub-Make/refs/heads/main/README.md
 ```
 
+# Axhub Make
 
-## 💡 使用技巧
+一个给 **产品**、**设计师** 和 **AI Agent** 用的原型与文档协作工作流。
 
-### 如何描述需求？
+你说清楚要什么，Make 会把它变成：
 
-**好的描述：**
-- ✅ "创建一个用户列表页面，用表格展示，包含姓名、邮箱、状态字段，支持搜索功能"
-- ✅ "做一个按钮元素，有主要和次要两种样式，点击后触发事件"
-
-**不够清晰的描述：**
-- ❌ "做一个列表"（缺少细节）
-- ❌ "做一个好看的按钮"（"好看"太主观）
-
-### 如何修改需求？
-
-直接告诉 AI 你想改什么：
-- "把按钮颜色改成红色"
-- "增加一个删除功能"
-- "表格增加分页功能"
-
-AI 会自动更新代码和文档。
-
-
-## 🎯 典型工作流程
-
-```
-1. 描述需求 → AI 生成 spec.md
-2. 确认需求 → AI 生成代码
-3. 预览效果 → npm run dev
-4. 发现问题 → 告诉 AI 修改
-```
-
-## ⚙️ 技术说明
-
-> 以下内容供技术人员参考，非技术用户可跳过
-
-- **框架**：React + TypeScript
-- **构建工具**：Vite
-- **输出格式**：IIFE 格式的单文件 JS
-- **兼容性**：编译为 ES5，兼容 Axure Runtime
-- **React 引入**：通过 `window.React` 全局引入，无需打包
-
-## 📝 常见问题
-
-**Q: 我完全不懂编程，能用吗？**  
-A: 可以！只需要会描述需求，AI 会处理所有技术细节。
-
-**Q: 修改需求后需要重新开始吗？**  
-A: 不需要。直接告诉 AI 要改什么，它会自动更新代码。
-
-**Q: 生成的代码可以自己修改吗？**  
-A: 可以，但建议通过 AI 修改，这样能保持代码质量和规范。
-
-**Q: 出错了怎么办？**  
-A: 直接告诉 AI 错误信息，它会帮你解决。
+- 可以跑的交互原型（不是截图，不是 PPT）
+- 完整的多类型文档（需求文档、用户故事、规格文档等）
+- 可持续复用的资源资产（主题、组件、数据表等）
+- 可导出的交付物（Axure / Figma / Html）
 
 ---
 
-**开始创建你的第一个 AI 原型吧！** 🎉
+## 安装
+
+统一交给 AI Agent 安装。把下面这段直接发给你的 Agent（Claude Code、TRAE、Cursor 等）：
+
+```
+请根据这里的说明安装并配置 Axhub Make：
+https://raw.githubusercontent.com/lintendo/Axhub-Make/refs/heads/main/rules/installation.md
+```
+
+---
+
+## 核心亮点
+
+Axhub Make 把「需求讨论」变成「可执行工作流」，核心能力如下：
+
+- 可视化管理原型和文档，不懂开发的产品和设计师也能直接使用
+- 内置 30+ 专业的原型生成与文档协作技能（`skills`）
+- 内置项目与资源管理和生成能力，让 AI 持续产出视觉风格一致、逻辑统一的原型和文档
+- 内置 `spec` 驱动的原型生成机制，减少 AI 生成过程中的幻觉和偏题
+- 支持从 Axure、V0、Stitch、AIStudio 以及任意网页导入原型或资源
+- 支持导出到 Axure 或 Figma，完美融入原有工作流
+
+### 三大产物
+
+<table>
+  <thead>
+    <tr>
+      <th style="width: 96px;">产物</th>
+      <th>你会在仓库里看到什么</th>
+      <th>为什么重要</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td>原型</td>
+      <td><code>src/prototypes/</code></td>
+      <td>用于评审真实交互和业务流程，不再只看静态稿</td>
+    </tr>
+    <tr>
+      <td>文档</td>
+      <td><code>src/docs/</code></td>
+      <td>按专门文档编写流程沉淀信息，支撑协作、评审与复盘</td>
+    </tr>
+    <tr>
+      <td>资源</td>
+      <td><code>src/themes/</code>、<code>src/components/</code>、<code>assets/database/</code></td>
+      <td>统一管理主题、组件、数据表，保证持续生成的一致性</td>
+    </tr>
+  </tbody>
+</table>
+
+---
+
+## 给 Agent 的入职材料
+
+你可以把下面这段直接贴给 Agent，当作“入职说明”：
+
+```
+你正在 Axhub Make 仓库中工作。
+
+请阅读并遵循：
+- AGENTS.md（工作流与原则）
+
+你必须：
+- 以产品经理 + UI/UX 设计师 + 前端工程师的复合角色开展工作
+- 遵循项目的文档编写流程，并维护必要文档
+- 持续实现并维护可运行的原型、文档和可复用资源
+```

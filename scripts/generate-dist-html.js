@@ -54,11 +54,11 @@ function generateHtmlForDirectory(dir, baseDir = distDir) {
 
       // 根据路径生成标题
       let title = 'Preview';
-      if (jsName.startsWith('elements/')) {
-        const name = jsName.replace('elements/', '');
+      if (jsName.startsWith('components/')) {
+        const name = jsName.replace('components/', '');
         title = `Element: ${name}`;
-      } else if (jsName.startsWith('pages/')) {
-        const name = jsName.replace('pages/', '');
+      } else if (jsName.startsWith('prototypes/')) {
+        const name = jsName.replace('prototypes/', '');
         title = `Page: ${name}`;
       }
 

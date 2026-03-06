@@ -433,4 +433,4 @@ export default Component;
 
 - **类型定义**：`/src/common/axure-types.ts`
 - **配置面板类型**：`/src/common/config-panel-types.ts`
-- **示例代码**：查看 `/src/elements/` 和 `/src/pages/` 目录下以 `ref-` 开头的文件
+- **示例代码**：查看 `/src/components/` 和 `/src/prototypes/` 目录下以 `ref-` 开头的文件
