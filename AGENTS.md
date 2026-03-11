@@ -44,12 +44,13 @@
 ## 项目结构
 ```
 ├── src/
-│   ├── common/      # 公共类型和工具
+│   ├── common/        # 公共类型和工具
 │   ├── components/    # 组件目录
 │   ├── prototypes/    # 原型目录
 │   ├── docs/          # 项目文档
 │   └── themes/        # 主题配置
-└── assets/          # 原型资产
-    ├── files/       # 文件资产
-    └── database/    # 数据库
+├── skills/            # 项目技能与工作流
+└── assets/            # 原型资产
+    ├── files/         # 文件资产
+    └── database/      # 数据库
 ```

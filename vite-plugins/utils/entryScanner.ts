@@ -3,7 +3,7 @@ import path from 'path';
 import { getDisplayName } from './fileUtils';
 import { migrateLegacyEntries, toCompatMaps } from './entriesManifest';
 
-export type SidebarTreeTab = 'prototypes' | 'components' | 'docs';
+export type SidebarTreeTab = 'prototypes' | 'components' | 'docs' | 'canvas';
 type ScannableGroup = 'components' | 'prototypes' | 'themes';
 
 export interface ScannedEntryItem {
@@ -95,6 +95,7 @@ export function scanEntries(projectRoot: string): EntryScanResult {
       components: [],
       prototypes: [],
       docs: [],
+      canvas: [],
     },
   };
 

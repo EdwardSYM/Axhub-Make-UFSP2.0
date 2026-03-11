@@ -18,6 +18,8 @@ https://raw.githubusercontent.com/lintendo/Axhub-Make/refs/heads/main/README.md
 
 一个给 **产品**、**设计师** 和 **AI Agent** 用的原型与文档协作工作流。
 
+官网：[https://axhub.im/make/](https://axhub.im/make/)
+
 你说清楚要什么，Make 会把它变成：
 
 - 可以跑的交互原型（不是截图，不是 PPT）
@@ -40,7 +42,7 @@ https://raw.githubusercontent.com/lintendo/Axhub-Make/refs/heads/main/rules/inst
 
 ## 核心亮点
 
-Axhub Make 把「需求讨论」变成「可执行工作流」，核心能力如下：
+Axhub Make 把「原型生成」变成「可执行工作流」，核心能力如下：
 
 - 可视化管理原型和文档，不懂开发的产品和设计师也能直接使用
 - 内置 30+ 专业的原型生成与文档协作技能（`skills`）
@@ -54,24 +56,24 @@ Axhub Make 把「需求讨论」变成「可执行工作流」，核心能力如
 <table>
   <thead>
     <tr>
-      <th style="width: 96px;">产物</th>
+      <th style="white-space: nowrap;">内容</th>
       <th>你会在仓库里看到什么</th>
       <th>为什么重要</th>
     </tr>
   </thead>
   <tbody>
     <tr>
-      <td>原型</td>
+      <td style="white-space: nowrap;">原型</td>
       <td><code>src/prototypes/</code></td>
       <td>用于评审真实交互和业务流程，不再只看静态稿</td>
     </tr>
     <tr>
-      <td>文档</td>
+      <td style="white-space: nowrap;">文档</td>
       <td><code>src/docs/</code></td>
       <td>按专门文档编写流程沉淀信息，支撑协作、评审与复盘</td>
     </tr>
     <tr>
-      <td>资源</td>
+      <td style="white-space: nowrap;">资源</td>
       <td><code>src/themes/</code>、<code>src/components/</code>、<code>assets/database/</code></td>
       <td>统一管理主题、组件、数据表，保证持续生成的一致性</td>
     </tr>

@@ -146,7 +146,7 @@ export function fileSystemApiPlugin(): Plugin {
       });
 
       const isSidebarTreeTab = (value: string): value is SidebarTreeTab => {
-        return value === 'prototypes' || value === 'components' || value === 'docs';
+        return value === 'prototypes' || value === 'components' || value === 'docs' || value === 'canvas';
       };
 
       const getTabFromRequest = (req: any): SidebarTreeTab | null => {
@@ -296,15 +296,13 @@ export function fileSystemApiPlugin(): Plugin {
 
         const normalizedTree = normalizeNodes(tree, 0);
         const missingItemKeys = Array.from(allowedItemKeys).filter((itemKey) => !seenItemKeys.has(itemKey));
-        for (const itemKey of missingItemKeys.sort((a, b) => a.localeCompare(b))) {
-          normalizedTree.push({
+        const nextMissingNodes = missingItemKeys.sort((a, b) => a.localeCompare(b)).map((itemKey) => ({
             id: makeUniqueId(`item-${sanitizeNodeId(itemKey)}`),
             kind: 'item',
             title: toDefaultTreeTitle(itemKey),
             itemKey,
-          });
-        }
-        return normalizedTree;
+          }));
+        return [...nextMissingNodes, ...normalizedTree];
       };
 
       const collectSidebarTreeIds = (nodes: SidebarTreeNode[]): Set<string> => {
@@ -369,12 +367,13 @@ export function fileSystemApiPlugin(): Plugin {
       };
 
       const DOC_EXTENSIONS = new Set(['.md', '.csv', '.json', '.yaml', '.yml', '.txt']);
+      const CANVAS_EXT = '.excalidraw';
 
       const collectDocItemKeys = (): Set<string> => {
         const docsDir = path.join(projectRoot, 'src', 'docs');
-        const keys = new Set<string>();
+        const keys: string[] = [];
         if (!fs.existsSync(docsDir)) {
-          return keys;
+          return new Set();
         }
 
         const walk = (currentDir: string) => {
@@ -389,17 +388,38 @@ export function fileSystemApiPlugin(): Plugin {
             const ext = path.extname(entry.name).toLowerCase();
             if (!DOC_EXTENSIONS.has(ext)) continue;
             const rel = normalizePath(path.relative(docsDir, absolutePath));
-            keys.add(`docs/${rel}`);
+            keys.push(`docs/${rel}`);
           }
         };
 
         walk(docsDir);
-        return keys;
+        keys.sort((a, b) => a.localeCompare(b));
+        return new Set(keys);
+      };
+
+      const collectCanvasItemKeys = (): Set<string> => {
+        const canvasDir = path.join(projectRoot, 'src', 'canvas');
+        const keys: string[] = [];
+        if (!fs.existsSync(canvasDir)) {
+          return new Set();
+        }
+
+        const entries = fs.readdirSync(canvasDir, { withFileTypes: true });
+        for (const entry of entries) {
+          if (!entry.isFile() || !entry.name.endsWith(CANVAS_EXT)) continue;
+          keys.push(`canvas/${entry.name}`);
+        }
+
+        keys.sort((a, b) => a.localeCompare(b));
+        return new Set(keys);
       };
 
       const resolveAllowedItemKeys = (tab: SidebarTreeTab): Set<string> => {
         if (tab === 'docs') {
           return collectDocItemKeys();
+        }
+        if (tab === 'canvas') {
+          return collectCanvasItemKeys();
         }
         const scanned = scanEntries(projectRoot);
         return allowedItemKeysByTab(scanned.entries.js, tab);
@@ -467,8 +487,7 @@ export function fileSystemApiPlugin(): Plugin {
 
         const remaining = Array.from(allowedKeys).filter((key) => !seen.has(key));
         remaining.sort((a, b) => a.localeCompare(b));
-        nextOrder.push(...remaining);
-        return nextOrder;
+        return [...remaining, ...nextOrder];
       };
       
       // Helper function to parse JSON body
@@ -536,7 +555,7 @@ export function fileSystemApiPlugin(): Plugin {
       server.middlewares.use('/api/prototype-admin/sidebar-tree/folder', async (req: any, res: any) => {
         const tab = getTabFromRequest(req);
         if (!tab) {
-          return sendJSON(res, 400, { error: 'Invalid tab, expected prototypes|components|docs' });
+          return sendJSON(res, 400, { error: 'Invalid tab, expected prototypes|components|docs|canvas' });
         }
 
         if (req.method !== 'POST') {
@@ -553,13 +572,13 @@ export function fileSystemApiPlugin(): Plugin {
           const createdFolderId = createUniqueFolderNodeId(existingIds);
           const title = createRootFolderTitle(tree);
           const nextTree: SidebarTreeNode[] = [
-            ...tree,
             {
               id: createdFolderId,
               kind: 'folder',
               title,
               children: [],
             },
+            ...tree,
           ];
 
           sidebarTreeStore.setTree(tab, nextTree);
@@ -579,7 +598,7 @@ export function fileSystemApiPlugin(): Plugin {
       server.middlewares.use('/api/prototype-admin/sidebar-tree', async (req: any, res: any) => {
         const tab = getTabFromRequest(req);
         if (!tab) {
-          return sendJSON(res, 400, { error: 'Invalid tab, expected prototypes|components|docs' });
+          return sendJSON(res, 400, { error: 'Invalid tab, expected prototypes|components|docs|canvas' });
         }
 
         if (req.method === 'GET') {

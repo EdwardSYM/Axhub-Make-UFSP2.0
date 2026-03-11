@@ -1,6 +1,6 @@
 {
   "version": 1,
-  "updatedAt": "2026-03-05T09:12:44.033Z",
+  "updatedAt": "2026-03-11T02:12:59.058Z",
   "prototypes": [
     {
       "id": "folder-1771647506379-zzmigx",
@@ -61,6 +61,20 @@
           "itemKey": "docs/评审工作台需求文档.md"
         }
       ]
+    }
+  ],
+  "canvas": [
+    {
+      "id": "item-canvas-canvas-mmfykxyt-excalidraw",
+      "kind": "item",
+      "title": "canvas mmfykxyt.excalidraw",
+      "itemKey": "canvas/canvas-mmfykxyt.excalidraw"
+    },
+    {
+      "id": "item-canvas-canvas-mmekrlrn-excalidraw",
+      "kind": "item",
+      "title": "canvas mmekrlrn.excalidraw",
+      "itemKey": "canvas/canvas-mmekrlrn.excalidraw"
     }
   ],
   "themes": [

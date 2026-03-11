@@ -72,6 +72,83 @@ function getRequestPathname(req: any): string {
   }
 }
 
+function readErrorString(value: unknown): string {
+  return typeof value === 'string' ? value.trim() : '';
+}
+
+function limitErrorText(value: string, maxLength: number = 500): string {
+  if (value.length <= maxLength) {
+    return value;
+  }
+
+  return `${value.slice(0, maxLength)}...`;
+}
+
+function serializeErrorForLog(error: any) {
+  const cause = error?.cause;
+  const stack = readErrorString(error?.stack);
+  const causeStack = readErrorString(cause?.stack);
+
+  return {
+    name: readErrorString(error?.name) || undefined,
+    message: readErrorString(error?.message) || undefined,
+    code: readErrorString(error?.code) || undefined,
+    errno: readErrorString(error?.errno) || undefined,
+    syscall: readErrorString(error?.syscall) || undefined,
+    address: readErrorString(error?.address) || undefined,
+    port: typeof error?.port === 'number' ? error.port : undefined,
+    causeName: readErrorString(cause?.name) || undefined,
+    causeMessage: readErrorString(cause?.message) || undefined,
+    causeCode: readErrorString(cause?.code) || undefined,
+    causeErrno: readErrorString(cause?.errno) || undefined,
+    causeSyscall: readErrorString(cause?.syscall) || undefined,
+    causeAddress: readErrorString(cause?.address) || undefined,
+    causePort: typeof cause?.port === 'number' ? cause.port : undefined,
+    stack: stack ? limitErrorText(stack, 1200) : undefined,
+    causeStack: causeStack ? limitErrorText(causeStack, 1200) : undefined,
+  };
+}
+
+function formatAxureProxyErrorDetails(error: any): string {
+  const parts: string[] = [];
+  const message = readErrorString(error?.message);
+  const causeMessage = readErrorString(error?.cause?.message);
+  const code = readErrorString(error?.code) || readErrorString(error?.cause?.code);
+  const errno = readErrorString(error?.errno) || readErrorString(error?.cause?.errno);
+  const syscall = readErrorString(error?.syscall) || readErrorString(error?.cause?.syscall);
+  const address = readErrorString(error?.address) || readErrorString(error?.cause?.address);
+  const port =
+    typeof error?.port === 'number'
+      ? String(error.port)
+      : typeof error?.cause?.port === 'number'
+        ? String(error.cause.port)
+        : '';
+
+  if (message) {
+    parts.push(message);
+  }
+  if (causeMessage && causeMessage !== message) {
+    parts.push(`cause=${causeMessage}`);
+  }
+  if (code) {
+    parts.push(`code=${code}`);
+  }
+  if (errno && errno !== code) {
+    parts.push(`errno=${errno}`);
+  }
+  if (syscall) {
+    parts.push(`syscall=${syscall}`);
+  }
+  if (address) {
+    parts.push(`address=${address}`);
+  }
+  if (port) {
+    parts.push(`port=${port}`);
+  }
+
+  return parts.join('; ') || 'Unknown upstream error';
+}
+
 function streamDirectoryAsZip(res: any, sourceDir: string, fileName: string) {
   res.setHeader('Content-Type', 'application/zip');
   res.setHeader('Content-Disposition', `attachment; filename="${fileName}"`);
@@ -496,11 +573,16 @@ function axureBridgeProxyPlugin(): Plugin {
           return next();
         }
 
+        const upstreamUrl = isAvailableRoute
+          ? `${AXURE_BRIDGE_BASE_URL}/available`
+          : `${AXURE_BRIDGE_BASE_URL}/copyaxvg`;
+        let payloadBytes = 0;
+
         try {
           let upstreamResponse: any;
 
           if (isAvailableRoute) {
-            upstreamResponse = await fetch(`${AXURE_BRIDGE_BASE_URL}/available`, {
+            upstreamResponse = await fetch(upstreamUrl, {
               method: 'GET',
             });
           } else {
@@ -514,17 +596,32 @@ function axureBridgeProxyPlugin(): Plugin {
               return;
             }
 
-            upstreamResponse = await fetch(`${AXURE_BRIDGE_BASE_URL}/copyaxvg`, {
+            const requestBody = JSON.stringify(body ?? {});
+            payloadBytes = Buffer.byteLength(requestBody, 'utf8');
+
+            upstreamResponse = await fetch(upstreamUrl, {
               method: 'POST',
               headers: {
                 'Content-Type': 'application/json',
               },
-              body: JSON.stringify(body ?? {}),
+              body: requestBody,
             });
           }
 
           const contentType = String(upstreamResponse.headers.get('content-type') || '').toLowerCase();
           const responseText = await upstreamResponse.text();
+
+          if (!upstreamResponse.ok) {
+            console.warn('[axure-bridge-proxy] upstream responded with error', {
+              route: pathname,
+              method: req.method,
+              upstreamUrl,
+              payloadBytes: payloadBytes || undefined,
+              status: upstreamResponse.status,
+              statusText: upstreamResponse.statusText,
+              bodyPreview: limitErrorText(readErrorString(responseText), 800) || undefined,
+            });
+          }
 
           res.statusCode = upstreamResponse.status;
           res.setHeader('Cache-Control', 'no-store');
@@ -549,9 +646,27 @@ function axureBridgeProxyPlugin(): Plugin {
           res.setHeader('Content-Type', 'text/plain; charset=utf-8');
           res.end(responseText);
         } catch (error: any) {
+          const errorLog = serializeErrorForLog(error);
+          console.error('[axure-bridge-proxy] upstream request failed', {
+            route: pathname,
+            method: req.method,
+            upstreamUrl,
+            payloadBytes: payloadBytes || undefined,
+            error: errorLog,
+          });
+
           res.statusCode = 502;
           res.setHeader('Content-Type', 'application/json; charset=utf-8');
-          res.end(JSON.stringify({ error: error?.message || 'Axure Bridge unavailable' }));
+          res.end(JSON.stringify({
+            error: error?.message || 'Axure Bridge unavailable',
+            details: formatAxureProxyErrorDetails(error),
+            code: errorLog.code || errorLog.causeCode || undefined,
+            causeMessage: errorLog.causeMessage || undefined,
+            route: pathname,
+            method: req.method,
+            bridgeUrl: upstreamUrl,
+            payloadBytes: payloadBytes || undefined,
+          }));
         }
       });
     }
@@ -784,10 +899,17 @@ type MarkitdownResolvedCommand = {
   installed: boolean;
   command?: string;
   args?: string[];
+  pythonCommand?: string;
   commandSource: string;
   version: string;
   installHints: string[];
   error: string;
+};
+
+type MarkitdownOptionalFeature = {
+  extension: string;
+  feature: string;
+  modules: string[];
 };
 
 const MARKITDOWN_MIN_PYTHON_MAJOR = 3;
@@ -805,6 +927,13 @@ const MARKITDOWN_PYTHON_COMMAND_CANDIDATES = [
   'python3.10',
   'python3',
   'python',
+];
+
+const MARKITDOWN_REQUIRED_OPTIONAL_FEATURES: MarkitdownOptionalFeature[] = [
+  { extension: '.pdf', feature: 'pdf', modules: ['pdfminer', 'pdfplumber'] },
+  { extension: '.docx', feature: 'docx', modules: ['mammoth'] },
+  { extension: '.pptx', feature: 'pptx', modules: ['pptx'] },
+  { extension: '.xlsx', feature: 'xlsx', modules: ['pandas', 'openpyxl'] },
 ];
 
 function parsePythonVersionText(versionText: string): { major: number; minor: number } | null {
@@ -854,15 +983,14 @@ function probePythonRuntime(command: string): PythonRuntimeProbe {
 }
 
 function buildMarkitdownInstallHints(preferredPythonCommand?: string): string[] {
+  const installCommand = `${preferredPythonCommand || 'python3.11'} -m pip install -U 'markitdown[pdf,docx,pptx,xlsx]'`;
   if (preferredPythonCommand) {
-    return [
-      `${preferredPythonCommand} -m pip install -U markitdown`,
-    ];
+    return [installCommand];
   }
 
   return [
     'brew install python@3.11',
-    'python3.11 -m pip install -U markitdown',
+    installCommand,
   ];
 }
 
@@ -906,17 +1034,139 @@ function isCommandWorking(candidate: MarkitdownCommandCandidate): {
   };
 }
 
+function resolveMarkitdownPythonCommand(candidate: MarkitdownCommandCandidate): string | undefined {
+  if (candidate.args[0] === '-m' && candidate.args[1] === 'markitdown') {
+    return candidate.command;
+  }
+
+  const whichAttempt = spawnSync('which', [candidate.command], {
+    encoding: 'utf8',
+    timeout: 8000,
+    maxBuffer: 1024 * 1024,
+  });
+  if (whichAttempt.error || whichAttempt.status !== 0) {
+    return undefined;
+  }
+
+  const executablePath = String(whichAttempt.stdout || '').trim().split(/\r?\n/)[0]?.trim();
+  if (!executablePath || !fs.existsSync(executablePath)) {
+    return undefined;
+  }
+
+  try {
+    const firstLine = fs.readFileSync(executablePath, 'utf8').split(/\r?\n/, 1)[0]?.trim() || '';
+    if (!firstLine.startsWith('#!')) {
+      return undefined;
+    }
+
+    const shebang = firstLine.slice(2).trim();
+    if (!shebang) {
+      return undefined;
+    }
+
+    const shebangParts = shebang.split(/\s+/).filter(Boolean);
+    if (shebangParts[0] === '/usr/bin/env') {
+      return shebangParts[1];
+    }
+
+    return shebangParts[0];
+  } catch {
+    return undefined;
+  }
+}
+
+function probeMarkitdownOptionalDependencies(pythonCommand?: string): {
+  ready: boolean;
+  missingExtensions: string[];
+  error: string;
+  installHints: string[];
+} {
+  if (!pythonCommand) {
+    return {
+      ready: true,
+      missingExtensions: [],
+      error: '',
+      installHints: [],
+    };
+  }
+
+  const checksJson = JSON.stringify(MARKITDOWN_REQUIRED_OPTIONAL_FEATURES);
+  const probeScript = [
+    'import importlib.util, json',
+    `checks = json.loads(${JSON.stringify(checksJson)})`,
+    'missing = []',
+    'for item in checks:',
+    "    missing_modules = [name for name in item['modules'] if importlib.util.find_spec(name) is None]",
+    '    if missing_modules:',
+    "        missing.append({'extension': item['extension'], 'feature': item['feature'], 'missingModules': missing_modules})",
+    "print(json.dumps({'missing': missing}, ensure_ascii=False))",
+  ].join('\n');
+
+  const probeAttempt = spawnSync(pythonCommand, ['-c', probeScript], {
+    encoding: 'utf8',
+    timeout: 8000,
+    maxBuffer: 1024 * 1024,
+  });
+
+  if (probeAttempt.error || probeAttempt.status !== 0) {
+    return {
+      ready: false,
+      missingExtensions: [],
+      error: `markitdown 依赖检测失败，请执行 ${buildMarkitdownInstallHints(pythonCommand)[0]} 后重试。`,
+      installHints: buildMarkitdownInstallHints(pythonCommand),
+    };
+  }
+
+  try {
+    const payload = JSON.parse(String(probeAttempt.stdout || '{}')) as {
+      missing?: Array<{ extension?: string; missingModules?: string[] }>;
+    };
+    const missing = Array.isArray(payload?.missing) ? payload.missing : [];
+    if (missing.length === 0) {
+      return {
+        ready: true,
+        missingExtensions: [],
+        error: '',
+        installHints: [],
+      };
+    }
+
+    const missingDescriptions = missing.map((item) => {
+      const extension = String(item?.extension || '').trim() || 'unknown';
+      const missingModules = Array.isArray(item?.missingModules) ? item.missingModules.filter(Boolean) : [];
+      return `${extension}${missingModules.length > 0 ? `（缺少：${missingModules.join(', ')}）` : ''}`;
+    });
+
+    return {
+      ready: false,
+      missingExtensions: missing.map((item) => String(item?.extension || '').trim()).filter(Boolean),
+      error: `markitdown 已安装，但以下格式依赖不完整：${missingDescriptions.join('、')}。请先安装完整依赖后再导入非 .md 文档。`,
+      installHints: buildMarkitdownInstallHints(pythonCommand),
+    };
+  } catch {
+    return {
+      ready: false,
+      missingExtensions: [],
+      error: `markitdown 依赖检测结果无法解析，请执行 ${buildMarkitdownInstallHints(pythonCommand)[0]} 后重试。`,
+      installHints: buildMarkitdownInstallHints(pythonCommand),
+    };
+  }
+}
+
 function resolveMarkitdownCommand(): MarkitdownResolvedCommand {
   const directCommandResult = isCommandWorking(MARKITDOWN_DIRECT_COMMAND_CANDIDATE);
   if (directCommandResult.success) {
+    const pythonCommand = resolveMarkitdownPythonCommand(MARKITDOWN_DIRECT_COMMAND_CANDIDATE);
+    const dependencyProbe = probeMarkitdownOptionalDependencies(pythonCommand);
     return {
-      installed: true,
+      installed: dependencyProbe.ready,
       command: MARKITDOWN_DIRECT_COMMAND_CANDIDATE.command,
       args: MARKITDOWN_DIRECT_COMMAND_CANDIDATE.args,
+      pythonCommand,
       commandSource: MARKITDOWN_DIRECT_COMMAND_CANDIDATE.commandSource,
       version: directCommandResult.version,
-      installHints: [],
-      error: '',
+      installHints: dependencyProbe.installHints,
+      error: dependencyProbe.error,
     };
   }
 
@@ -937,14 +1187,16 @@ function resolveMarkitdownCommand(): MarkitdownResolvedCommand {
     };
     const candidateResult = isCommandWorking(pythonCandidate);
     if (candidateResult.success) {
+      const dependencyProbe = probeMarkitdownOptionalDependencies(pythonRuntime.command);
       return {
-        installed: true,
+        installed: dependencyProbe.ready,
         command: pythonCandidate.command,
         args: pythonCandidate.args,
+        pythonCommand: pythonRuntime.command,
         commandSource: pythonCandidate.commandSource,
         version: candidateResult.version,
-        installHints: [],
-        error: '',
+        installHints: dependencyProbe.installHints,
+        error: dependencyProbe.error,
       };
     }
 
@@ -1034,7 +1286,7 @@ function convertFileToMarkdownWithMarkitdown(params: {
   try {
     const result = spawnSync(
       params.command,
-      [...params.args, params.sourcePath, '-o', outputPath],
+      [...params.args, '--keep-data-uris', params.sourcePath, '-o', outputPath],
       {
         encoding: 'utf8',
         timeout: 120000,
@@ -1699,6 +1951,333 @@ function docsApiPlugin(): Plugin {
         next();
       });
     }
+  };
+}
+
+function canvasApiPlugin(): Plugin {
+  const CANVAS_EXT = '.excalidraw';
+  const DEFAULT_CANVAS_DATA = JSON.stringify({
+    type: 'excalidraw',
+    version: 2,
+    source: 'axhub-make',
+    elements: [],
+    appState: { gridSize: null, viewBackgroundColor: '#ffffff' },
+    files: {},
+  }, null, 2);
+
+  return {
+    name: 'canvas-api-plugin',
+    configureServer(server: any) {
+      server.middlewares.use(async (req: any, res: any, next: any) => {
+        const pathname = getRequestPathname(req);
+        if (!pathname.startsWith('/api/canvas')) {
+          return next();
+        }
+        const canvasDir = path.resolve(__dirname, 'src/canvas');
+
+        // POST /api/canvas/create
+        if (
+          req.method === 'POST' &&
+          (pathname === '/api/canvas/create' || pathname === '/api/canvas/create/')
+        ) {
+          try {
+            const body = await readJsonBody(req);
+            const displayName = String(body?.displayName || '').trim();
+
+            fs.mkdirSync(canvasDir, { recursive: true });
+
+            const fallbackBase = `canvas-${Date.now().toString(36)}`;
+            const sanitizedBase = sanitizeDocBaseName(displayName || fallbackBase) || fallbackBase;
+            let baseName = sanitizedBase;
+            let suffix = 2;
+            while (fs.existsSync(path.join(canvasDir, `${baseName}${CANVAS_EXT}`))) {
+              baseName = `${sanitizedBase}-${suffix}`;
+              suffix += 1;
+            }
+
+            const fileName = `${baseName}${CANVAS_EXT}`;
+            const filePath = path.join(canvasDir, fileName);
+
+            if (!filePath.startsWith(canvasDir)) {
+              res.statusCode = 403;
+              res.setHeader('Content-Type', 'application/json; charset=utf-8');
+              res.end(JSON.stringify({ error: 'Forbidden' }));
+              return;
+            }
+
+            fs.writeFileSync(filePath, DEFAULT_CANVAS_DATA, 'utf8');
+
+            res.statusCode = 201;
+            res.setHeader('Content-Type', 'application/json; charset=utf-8');
+            res.end(JSON.stringify({
+              success: true,
+              name: fileName,
+              displayName: baseName,
+              path: `src/canvas/${fileName}`,
+            }));
+          } catch (error: any) {
+            console.error('Error creating canvas:', error);
+            res.statusCode = 500;
+            res.setHeader('Content-Type', 'application/json; charset=utf-8');
+            res.end(JSON.stringify({ error: error?.message || 'Create canvas failed' }));
+          }
+          return;
+        }
+
+        // POST /api/canvas/:name/copy
+        if (req.method === 'POST' && pathname.startsWith('/api/canvas/') && pathname.endsWith('/copy')) {
+          try {
+            const encodedName = pathname.slice('/api/canvas/'.length, -'/copy'.length);
+            const canvasName = decodeURIComponent(encodedName);
+            if (!canvasName) {
+              res.statusCode = 400;
+              res.end(JSON.stringify({ error: 'Missing canvas name' }));
+              return;
+            }
+
+            const sourcePath = path.join(canvasDir, canvasName);
+            if (!sourcePath.startsWith(canvasDir)) {
+              res.statusCode = 403;
+              res.end(JSON.stringify({ error: 'Forbidden' }));
+              return;
+            }
+            if (!fs.existsSync(sourcePath)) {
+              res.statusCode = 404;
+              res.end(JSON.stringify({ error: 'Canvas not found' }));
+              return;
+            }
+
+            const sourceBaseName = path.basename(sourcePath, CANVAS_EXT);
+            const safeBaseName = sanitizeDocBaseName(sourceBaseName) || sourceBaseName;
+            const candidateBase = `${safeBaseName}-copy`;
+
+            let nextBaseName = candidateBase;
+            let suffix = 2;
+            let nextName = `${nextBaseName}${CANVAS_EXT}`;
+            let nextPath = path.join(canvasDir, nextName);
+            while (fs.existsSync(nextPath)) {
+              nextBaseName = `${candidateBase}${suffix}`;
+              nextName = `${nextBaseName}${CANVAS_EXT}`;
+              nextPath = path.join(canvasDir, nextName);
+              suffix += 1;
+            }
+
+            if (!nextPath.startsWith(canvasDir)) {
+              res.statusCode = 403;
+              res.end(JSON.stringify({ error: 'Forbidden' }));
+              return;
+            }
+
+            fs.copyFileSync(sourcePath, nextPath);
+
+            res.statusCode = 201;
+            res.setHeader('Content-Type', 'application/json; charset=utf-8');
+            res.end(JSON.stringify({
+              success: true,
+              name: nextName,
+              displayName: nextBaseName,
+              path: `src/canvas/${nextName}`,
+            }));
+          } catch (error: any) {
+            console.error('Error copying canvas:', error);
+            res.statusCode = 500;
+            res.setHeader('Content-Type', 'application/json; charset=utf-8');
+            res.end(JSON.stringify({ error: error?.message || 'Copy canvas failed' }));
+          }
+          return;
+        }
+
+        // DELETE /api/canvas/:name
+        if (req.method === 'DELETE' && pathname.startsWith('/api/canvas/')) {
+          try {
+            const encodedName = pathname.replace('/api/canvas/', '');
+            const canvasName = decodeURIComponent(encodedName);
+            if (!canvasName) {
+              res.statusCode = 400;
+              res.end(JSON.stringify({ error: 'Missing canvas name' }));
+              return;
+            }
+            const filePath = path.join(canvasDir, canvasName);
+
+            if (!filePath.startsWith(canvasDir)) {
+              res.statusCode = 403;
+              res.end(JSON.stringify({ error: 'Forbidden' }));
+              return;
+            }
+            if (!fs.existsSync(filePath)) {
+              res.statusCode = 404;
+              res.end(JSON.stringify({ error: 'Canvas not found' }));
+              return;
+            }
+
+            fs.unlinkSync(filePath);
+            res.statusCode = 200;
+            res.setHeader('Content-Type', 'application/json');
+            res.end(JSON.stringify({ success: true }));
+          } catch (error: any) {
+            console.error('Error deleting canvas:', error);
+            res.statusCode = 500;
+            res.end(JSON.stringify({ error: error.message }));
+          }
+          return;
+        }
+
+        // PUT /api/canvas/:name
+        if (req.method === 'PUT' && pathname.startsWith('/api/canvas/')) {
+          try {
+            const encodedName = pathname.replace('/api/canvas/', '');
+            if (!encodedName) {
+              res.statusCode = 400;
+              res.end(JSON.stringify({ error: 'Missing canvas name' }));
+              return;
+            }
+
+            const bodyData = await readJsonBody(req);
+            const hasContentUpdate = typeof bodyData?.content === 'string';
+            let newBaseName = String(bodyData?.newBaseName || '').trim();
+            const hasRename = Boolean(newBaseName);
+
+            if (!hasContentUpdate && !hasRename) {
+              res.statusCode = 400;
+              res.end(JSON.stringify({ error: 'Missing content or newBaseName parameter' }));
+              return;
+            }
+            if (hasRename && /[/\\:*?"<>|]/.test(newBaseName)) {
+              res.statusCode = 400;
+              res.end(JSON.stringify({ error: 'Invalid newBaseName format' }));
+              return;
+            }
+
+            const canvasName = decodeURIComponent(encodedName);
+            const oldPath = path.join(canvasDir, canvasName);
+            if (!oldPath.startsWith(canvasDir)) {
+              res.statusCode = 403;
+              res.end(JSON.stringify({ error: 'Forbidden' }));
+              return;
+            }
+            if (!fs.existsSync(oldPath)) {
+              res.statusCode = 404;
+              res.end(JSON.stringify({ error: 'Canvas not found' }));
+              return;
+            }
+
+            let finalPath = oldPath;
+            if (hasRename) {
+              if (newBaseName.toLowerCase().endsWith(CANVAS_EXT)) {
+                newBaseName = newBaseName.slice(0, -CANVAS_EXT.length).trim();
+              }
+              const safeBaseName = sanitizeDocBaseName(newBaseName);
+              if (!safeBaseName) {
+                res.statusCode = 400;
+                res.end(JSON.stringify({ error: 'Invalid newBaseName format' }));
+                return;
+              }
+
+              const newFileName = `${safeBaseName}${CANVAS_EXT}`;
+              const newPath = path.join(canvasDir, newFileName);
+
+              if (!newPath.startsWith(canvasDir)) {
+                res.statusCode = 403;
+                res.end(JSON.stringify({ error: 'Forbidden' }));
+                return;
+              }
+              if (newPath !== oldPath && fs.existsSync(newPath)) {
+                res.statusCode = 400;
+                res.end(JSON.stringify({ error: '目标文件已存在' }));
+                return;
+              }
+
+              if (newPath !== oldPath) {
+                fs.renameSync(oldPath, newPath);
+              }
+              finalPath = newPath;
+            }
+
+            if (hasContentUpdate) {
+              fs.writeFileSync(finalPath, String(bodyData.content), 'utf8');
+            }
+
+            const relativeName = path.basename(finalPath);
+            res.setHeader('Content-Type', 'application/json');
+            res.end(JSON.stringify({ success: true, name: relativeName }));
+          } catch (error: any) {
+            console.error('Error updating canvas:', error);
+            res.statusCode = 500;
+            res.end(JSON.stringify({ error: error.message }));
+          }
+          return;
+        }
+
+        // GET requests
+        if (req.method !== 'GET') {
+          return next();
+        }
+
+        // GET /api/canvas/:name
+        if (pathname.startsWith('/api/canvas/') && pathname !== '/api/canvas' && pathname !== '/api/canvas/') {
+          try {
+            const encodedName = pathname.replace('/api/canvas/', '');
+            if (!encodedName) {
+              return next();
+            }
+
+            const canvasName = decodeURIComponent(encodedName);
+            const filePath = path.join(canvasDir, canvasName);
+
+            if (!filePath.startsWith(canvasDir)) {
+              res.statusCode = 403;
+              res.end(JSON.stringify({ error: 'Forbidden' }));
+              return;
+            }
+
+            if (fs.existsSync(filePath)) {
+              const content = fs.readFileSync(filePath, 'utf8');
+              res.setHeader('Content-Type', 'application/json; charset=utf-8');
+              res.end(content);
+            } else {
+              res.statusCode = 404;
+              res.end(JSON.stringify({ error: 'Canvas not found' }));
+            }
+          } catch (error: any) {
+            console.error('Error loading canvas:', error);
+            res.statusCode = 500;
+            res.end(JSON.stringify({ error: error.message }));
+          }
+          return;
+        }
+
+        // GET /api/canvas - list all canvases
+        if (pathname === '/api/canvas' || pathname === '/api/canvas/') {
+          try {
+            const items: Array<{ name: string; displayName: string }> = [];
+
+            if (fs.existsSync(canvasDir)) {
+              const entries = fs.readdirSync(canvasDir, { withFileTypes: true });
+              entries.forEach((entry) => {
+                if (!entry.isFile()) return;
+                if (!entry.name.endsWith(CANVAS_EXT)) return;
+                const baseName = entry.name.slice(0, -CANVAS_EXT.length);
+                items.push({
+                  name: entry.name,
+                  displayName: baseName,
+                });
+              });
+            }
+
+            items.sort((a, b) => a.name.localeCompare(b.name));
+            res.setHeader('Content-Type', 'application/json');
+            res.end(JSON.stringify(items));
+          } catch (error: any) {
+            console.error('Error listing canvases:', error);
+            res.statusCode = 500;
+            res.end(JSON.stringify({ error: error.message }));
+          }
+          return;
+        }
+
+        next();
+      });
+    },
   };
 }
 
@@ -2487,6 +3066,7 @@ const config: any = {
     downloadDistPlugin(), // 提供 /api/download-dist 端点
     docsImportApiPlugin(), // 提供 /api/docs/import 端点
     docsApiPlugin(), // 提供 /api/docs 端点
+    canvasApiPlugin(), // 提供 /api/canvas 端点
     templatesApiPlugin(), // 提供 /api/templates 端点
     uploadDocsApiPlugin(),
     sourceApiPlugin(), // 提供 /api/source 端点

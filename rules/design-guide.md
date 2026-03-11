@@ -24,6 +24,10 @@
 
 按优先级依次阅读以下资料：
 
+**用户指定的技能（若有）**
+- 优先阅读并执行该 Skill 的流程（可能会产出**主题 tokens / 设计规范**等）
+- 如果 Skill 的设计流程和本指导冲突时，以 Skill 为准
+
 **用户提供的资料（最高优先级）**
 - 用户提供的主题、设计规范、业务文档、数据表、参考设计稿等
 - 用户指定的任何参考资料或约束条件
@@ -81,8 +85,9 @@
 1. **用户指定规范** → 严格遵循用户提供的设计规范文档
 2. **主题内 `DESIGN-SPEC.md`** → 使用主题自带的设计规范
 3. **内置设计指导** → 根据业务场景选择：
-   - 管理后台/ToB/效率化 → `/skills/default-design-guide-minimal/SKILL.md`
-   - 落地页/ToC/App → `/skills/default-design-guide-stylized/SKILL.md`
+   - **基础型界面**（管理后台 / ToB / 工具 / 设置 / 数据工作台）→ `/skills/third-party/interface-design/SKILL.md`
+   - **风格化界面**（落地页 / ToC / 品牌展示 / 营销页 / 强视觉 App）→ `/skills/third-party/frontend-design/SKILL.md`
+   - **混合场景** → 以核心任务区优先套用基础型界面规范，品牌展示区再补充风格化规范
 
 ### 3. 弥补缺失事项
 

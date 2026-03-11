@@ -75,12 +75,9 @@
 ## 🎨 视觉规范
 
 ### 4.1 设计规范来源
-> 优先级：用户提供的设计规范 > 主题设计系统（DESIGN-SPEC.md）> 内置设计指导
+> 优先级：用户规范 > 主题（DESIGN-SPEC.md）> 内置（interface-design / frontend-design）
 
-**本设计基于**：
-- [ ] 用户提供的设计规范：[路径/说明]
-- [ ] 主题设计系统：`/src/themes/[主题名]/` （DESIGN-SPEC.md + designToken.json + globals.css）
-- [ ] 内置设计指导：`/skills/default-design-guide-minimal/SKILL.md` 或 `/skills/default-design-guide-stylized/SKILL.md`
+**设计规范来源**：`[只写最终采用的一条：用户规范 <path>｜主题 /src/themes/<name>｜内置 interface-design｜内置 frontend-design]`
 
 **说明**：设计令牌（Design Tokens）将从上述规范中动态读取，无需在此列出具体值。
 

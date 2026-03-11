@@ -221,9 +221,9 @@ export const ButtonSection: React.FC<ComponentSectionProps> = ({ tokens }) => {
 
 | 业务场景 | 参考文档 | 判断依据 |
 |---------|---------|---------|
-| **后台管理/ToB 业务** | `/skills/default-design-guide-minimal/SKILL.md` | • 目标用户：企业员工<br>• 使用频率：高频操作<br>• 核心任务：完成工作 |
-| **落地页/App/移动端** | `/skills/default-design-guide-stylized/SKILL.md` | • 目标用户：普通消费者<br>• 使用频率：低频浏览<br>• 核心任务：获取信息/娱乐 |
-| **混合场景** | 按模块区分规范 | 核心功能简约，展示区域风格化 |
+| **基础型界面 / ToB / 工具类** | `/skills/third-party/interface-design/SKILL.md` | • 目标用户：企业员工或专业用户<br>• 使用频率：高频操作<br>• 核心任务：完成工作、处理数据、执行操作 |
+| **风格化页面 / ToC / App / 移动端** | `/skills/third-party/frontend-design/SKILL.md` | • 目标用户：普通消费者或品牌受众<br>• 使用频率：低频浏览或内容消费<br>• 核心任务：获取信息、建立品牌感知、提升视觉吸引力 |
+| **混合场景** | 基础区用 `/skills/third-party/interface-design/SKILL.md`，展示区用 `/skills/third-party/frontend-design/SKILL.md` | 核心功能简洁稳定，展示区域可适度风格化 |
 
 **重要**：不要提前加载设计指导文档，仅在真正需要且无其他参考时查阅。
 
