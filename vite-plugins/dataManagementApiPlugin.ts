@@ -8,6 +8,7 @@ import {
   validateRecordForUpdate
 } from './validation';
 import Papa from 'papaparse';
+import { buildAttachmentContentDisposition } from './utils/contentDisposition';
 
 /**
  * Error response interface
@@ -246,7 +247,7 @@ export function dataManagementApiPlugin(): Plugin {
             // Send CSV response
             res.statusCode = 200;
             res.setHeader('Content-Type', 'text/csv; charset=utf-8');
-            res.setHeader('Content-Disposition', `attachment; filename="${fileName}.csv"`);
+            res.setHeader('Content-Disposition', buildAttachmentContentDisposition(`${fileName}.csv`));
             res.end(csv);
             return;
           }

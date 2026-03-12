@@ -2,7 +2,7 @@ import fs from 'fs';
 import path from 'path';
 import type { SidebarTreeTab } from './entryScanner';
 
-export type ResourceOrderType = 'themes' | 'data';
+export type ResourceOrderType = 'themes' | 'data' | 'templates';
 
 export type SidebarTreeNodeKind = 'folder' | 'item';
 
@@ -23,6 +23,7 @@ export interface SidebarTreeStore {
   canvas: SidebarTreeNode[];
   themes: string[];
   data: string[];
+  templates: string[];
 }
 
 interface EntriesWithLegacySidebarTree {
@@ -34,6 +35,7 @@ interface EntriesWithLegacySidebarTree {
     canvas?: SidebarTreeNode[];
     themes?: string[];
     data?: string[];
+    templates?: string[];
   };
 }
 
@@ -56,6 +58,7 @@ function createDefaultStore(version: number): SidebarTreeStore {
     canvas: [],
     themes: [],
     data: [],
+    templates: [],
   };
 }
 
@@ -97,6 +100,9 @@ function normalizeStore(data: unknown, version: number): SidebarTreeStore | null
   const updatedAt = typeof parsed.updatedAt === 'string' && parsed.updatedAt.trim()
     ? parsed.updatedAt
     : new Date().toISOString();
+  const templates = Array.isArray(parsed.templates)
+    ? parsed.templates.filter((key): key is string => typeof key === 'string')
+    : [];
 
   return {
     version,
@@ -107,6 +113,7 @@ function normalizeStore(data: unknown, version: number): SidebarTreeStore | null
     canvas,
     themes,
     data: dataOrder,
+    templates,
   };
 }
 
@@ -134,6 +141,9 @@ function readLegacySidebarTree(legacyEntriesPath: string, version: number): Side
       : [],
     data: Array.isArray((legacy as any).data)
       ? (legacy as any).data.filter((key: unknown): key is string => typeof key === 'string')
+      : [],
+    templates: Array.isArray((legacy as any).templates)
+      ? (legacy as any).templates.filter((key: unknown): key is string => typeof key === 'string')
       : [],
   };
 }
@@ -186,6 +196,7 @@ export function createSidebarTreeStore(projectRoot: string, options?: Partial<Si
       canvas: cloneTree(store.canvas),
       themes: Array.isArray(store.themes) ? [...store.themes] : [],
       data: Array.isArray(store.data) ? [...store.data] : [],
+      templates: Array.isArray(store.templates) ? [...store.templates] : [],
     };
     writeStoreAtomic(resolved.storePath, nextStore);
     return nextStore;

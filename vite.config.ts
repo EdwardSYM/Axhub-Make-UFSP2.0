@@ -22,6 +22,7 @@ import { autoDebugPlugin } from './vite-plugins/autoDebugPlugin';
 import { configApiPlugin } from './vite-plugins/configApiPlugin';
 import { aiCliPlugin } from './vite-plugins/aiCliPlugin';
 import { gitVersionApiPlugin } from './vite-plugins/gitVersionApiPlugin';
+import { buildAttachmentContentDisposition } from './vite-plugins/utils/contentDisposition';
 import { readEntriesManifest, scanProjectEntries, writeEntriesManifestAtomic } from './vite-plugins/utils/entriesManifest';
 
 const MAKE_STATE_DIR = path.join('.axhub', 'make');
@@ -70,6 +71,27 @@ function getRequestPathname(req: any): string {
   } catch {
     return (req.url || '/').split('?')[0];
   }
+}
+
+function readJsonBody(req: any): Promise<any> {
+  return new Promise((resolve, reject) => {
+    let body = '';
+    req.on('data', (chunk: Buffer) => {
+      body += chunk.toString('utf8');
+    });
+    req.on('end', () => {
+      if (!body) {
+        resolve({});
+        return;
+      }
+      try {
+        resolve(JSON.parse(body));
+      } catch (error) {
+        reject(error);
+      }
+    });
+    req.on('error', reject);
+  });
 }
 
 function readErrorString(value: unknown): string {
@@ -149,9 +171,179 @@ function formatAxureProxyErrorDetails(error: any): string {
   return parts.join('; ') || 'Unknown upstream error';
 }
 
+function normalizeAxvgPayloadText(rawBody: string): string {
+  const source = rawBody.trim();
+  if (!source) {
+    return '// axvg\n{}';
+  }
+
+  if (source.startsWith('// axvg')) {
+    return source;
+  }
+
+  return `// axvg\n${source}`;
+}
+
+function isLoopbackOrPrivateHostname(hostname: string): boolean {
+  const normalized = String(hostname || '').trim().toLowerCase();
+  if (!normalized) {
+    return true;
+  }
+
+  if (
+    normalized === 'localhost' ||
+    normalized === '127.0.0.1' ||
+    normalized === '0.0.0.0' ||
+    normalized === '::1' ||
+    normalized === '[::1]'
+  ) {
+    return true;
+  }
+
+  if (/^127\./.test(normalized)) {
+    return true;
+  }
+
+  if (/^10\./.test(normalized)) {
+    return true;
+  }
+
+  if (/^192\.168\./.test(normalized)) {
+    return true;
+  }
+
+  if (/^169\.254\./.test(normalized)) {
+    return true;
+  }
+
+  const match172 = normalized.match(/^172\.(\d{1,3})\./);
+  if (match172) {
+    const secondOctet = Number(match172[1]);
+    if (secondOctet >= 16 && secondOctet <= 31) {
+      return true;
+    }
+  }
+
+  return false;
+}
+
+function isAllowedProxyImageUrl(rawUrl: string): boolean {
+  let parsedUrl: URL;
+  try {
+    parsedUrl = new URL(rawUrl);
+  } catch {
+    return false;
+  }
+
+  if (parsedUrl.protocol !== 'http:' && parsedUrl.protocol !== 'https:') {
+    return false;
+  }
+
+  if (isLoopbackOrPrivateHostname(parsedUrl.hostname)) {
+    return false;
+  }
+
+  return true;
+}
+
+function exportImageProxyPlugin(): Plugin {
+  return {
+    name: 'export-image-proxy-plugin',
+    configureServer(server: any) {
+      server.middlewares.use(async (req: any, res: any, next: any) => {
+        const pathname = getRequestPathname(req);
+        if (req.method !== 'GET' || pathname !== '/api/export/image-proxy') {
+          return next();
+        }
+
+        const requestUrl = new URL(req.url || '/', `http://${req.headers.host || 'localhost'}`);
+        const targetUrl = String(requestUrl.searchParams.get('url') || '').trim();
+
+        if (!targetUrl) {
+          res.statusCode = 400;
+          res.setHeader('Content-Type', 'application/json; charset=utf-8');
+          res.end(JSON.stringify({ error: 'Missing url query parameter' }));
+          return;
+        }
+
+        if (!isAllowedProxyImageUrl(targetUrl)) {
+          res.statusCode = 400;
+          res.setHeader('Content-Type', 'application/json; charset=utf-8');
+          res.end(JSON.stringify({ error: 'Unsupported proxy target url' }));
+          return;
+        }
+
+        try {
+          const upstreamResponse = await fetch(targetUrl, {
+            method: 'GET',
+            redirect: 'follow',
+            headers: {
+              Accept: 'image/*,*/*;q=0.8',
+              'User-Agent': 'AxhubMakeExportProxy/1.0',
+            },
+          });
+
+          if (!upstreamResponse.ok) {
+            res.statusCode = upstreamResponse.status;
+            res.setHeader('Content-Type', 'application/json; charset=utf-8');
+            res.end(JSON.stringify({
+              error: `Upstream responded with ${upstreamResponse.status}`,
+              targetUrl,
+            }));
+            return;
+          }
+
+          const contentType = String(upstreamResponse.headers.get('content-type') || '').toLowerCase();
+          if (contentType && !contentType.startsWith('image/')) {
+            res.statusCode = 415;
+            res.setHeader('Content-Type', 'application/json; charset=utf-8');
+            res.end(JSON.stringify({
+              error: `Unsupported upstream content-type: ${contentType}`,
+              targetUrl,
+            }));
+            return;
+          }
+
+          const body = Buffer.from(await upstreamResponse.arrayBuffer());
+
+          res.statusCode = 200;
+          res.setHeader('Access-Control-Allow-Origin', '*');
+          res.setHeader('Cache-Control', upstreamResponse.headers.get('cache-control') || 'public, max-age=600');
+          res.setHeader('Content-Type', contentType || 'application/octet-stream');
+          res.setHeader('Content-Length', String(body.byteLength));
+
+          const etag = upstreamResponse.headers.get('etag');
+          if (etag) {
+            res.setHeader('ETag', etag);
+          }
+
+          const lastModified = upstreamResponse.headers.get('last-modified');
+          if (lastModified) {
+            res.setHeader('Last-Modified', lastModified);
+          }
+
+          res.end(body);
+        } catch (error: any) {
+          console.error('[export-image-proxy] request failed', {
+            targetUrl,
+            error: serializeErrorForLog(error),
+          });
+
+          res.statusCode = 502;
+          res.setHeader('Content-Type', 'application/json; charset=utf-8');
+          res.end(JSON.stringify({
+            error: error?.message || 'Failed to fetch target image',
+            targetUrl,
+          }));
+        }
+      });
+    }
+  };
+}
+
 function streamDirectoryAsZip(res: any, sourceDir: string, fileName: string) {
   res.setHeader('Content-Type', 'application/zip');
-  res.setHeader('Content-Disposition', `attachment; filename="${fileName}"`);
+  res.setHeader('Content-Disposition', buildAttachmentContentDisposition(fileName));
 
   const archive = archiver('zip', { zlib: { level: 9 } });
 
@@ -507,6 +699,25 @@ function serveAdminPlugin(): Plugin {
             return;
           }
         }
+
+        const encodedTemplateName = pathname?.match(/^\/templates\/([^/]+)(?:\/spec\.html)?$/)?.[1];
+        if (encodedTemplateName) {
+          const specTemplatePath = path.join(adminDir, 'spec-template.html');
+          if (fs.existsSync(specTemplatePath)) {
+            let html = fs.readFileSync(specTemplatePath, 'utf8');
+            const templateName = decodeURIComponent(encodedTemplateName);
+            const templateFileName = templateName.endsWith('.md') ? templateName : `${templateName}.md`;
+            const specUrl = `/api/templates/${encodeURIComponent(templateFileName)}`;
+            html = html.replace(/\{\{SPEC_URL\}\}/g, specUrl);
+            html = html.replace(/\{\{TITLE\}\}/g, templateName);
+            html = html.replace(/\{\{MULTI_DOC\}\}/g, 'false');
+            html = html.replace(/\{\{DOCS_CONFIG\}\}/g, '[]');
+            html = html.replace('</head>', `${injectScript}\n</head>`);
+            res.setHeader('Content-Type', 'text/html; charset=utf-8');
+            res.end(html);
+            return;
+          }
+        }
         
         next();
       });
@@ -586,23 +797,23 @@ function axureBridgeProxyPlugin(): Plugin {
               method: 'GET',
             });
           } else {
-            let body: any = {};
+            let rawBody = '';
             try {
-              body = await readJsonBody(req);
+              rawBody = await readRequestBody(req);
             } catch (error: any) {
               res.statusCode = 400;
               res.setHeader('Content-Type', 'application/json; charset=utf-8');
-              res.end(JSON.stringify({ error: error?.message || 'Invalid JSON body' }));
+              res.end(JSON.stringify({ error: error?.message || 'Invalid request body' }));
               return;
             }
 
-            const requestBody = JSON.stringify(body ?? {});
+            const requestBody = normalizeAxvgPayloadText(rawBody);
             payloadBytes = Buffer.byteLength(requestBody, 'utf8');
 
             upstreamResponse = await fetch(upstreamUrl, {
               method: 'POST',
               headers: {
-                'Content-Type': 'application/json',
+                'Content-Type': 'text/plain; charset=utf-8',
               },
               body: requestBody,
             });
@@ -702,17 +913,12 @@ function versionApiPlugin(): Plugin {
   };
 }
 
-function readJsonBody(req: any): Promise<any> {
+function readRequestBody(req: any): Promise<string> {
   return new Promise((resolve, reject) => {
     const chunks: Buffer[] = [];
-    req.on('data', (chunk: Buffer) => chunks.push(chunk));
+    req.on('data', (chunk: Buffer | string) => chunks.push(Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk)));
     req.on('end', () => {
-      try {
-        const raw = Buffer.concat(chunks).toString('utf8');
-        resolve(raw ? JSON.parse(raw) : {});
-      } catch {
-        reject(new Error('Invalid JSON body'));
-      }
+      resolve(Buffer.concat(chunks).toString('utf8'));
     });
     req.on('error', reject);
   });
@@ -726,6 +932,17 @@ function sanitizeDocBaseName(input: string) {
     .replace(/\s+/g, '-')
     .replace(/-+/g, '-')
     .replace(/^-|-$/g, '');
+}
+
+const PROTECTED_TEMPLATE_BASENAMES = new Set([
+  'spec-template',
+]);
+
+function isProtectedTemplateName(templateName: string) {
+  const normalizedName = String(templateName || '').trim();
+  if (!normalizedName) return false;
+  const baseName = path.basename(normalizedName, path.extname(normalizedName));
+  return PROTECTED_TEMPLATE_BASENAMES.has(baseName);
 }
 
 const SPEC_DOC_IMAGE_MAX_FILE_SIZE = 5 * 1024 * 1024; // 5MB
@@ -861,6 +1078,61 @@ function createManualDocTemplate(displayName: string) {
 ## 详细内容
 请在此继续编写正文。
 `;
+}
+
+function extractMarkdownDisplayName(content: string, fallbackName: string) {
+  const titleMatch = content.match(/^#\s+(.+)$/m);
+  return titleMatch?.[1]?.trim() || fallbackName;
+}
+
+function extractMarkdownDescription(content: string) {
+  const lines = content.split('\n');
+  for (const rawLine of lines) {
+    const line = rawLine.trim();
+    if (line && !line.startsWith('#')) {
+      return line;
+    }
+  }
+  return '';
+}
+
+function listTemplateAssets(templatesDir: string) {
+  const templates: Array<{ name: string; displayName: string; description: string }> = [];
+
+  if (!fs.existsSync(templatesDir)) {
+    return templates;
+  }
+
+  const walkTemplatesDir = (dirPath: string) => {
+    const entries = fs.readdirSync(dirPath, { withFileTypes: true });
+    entries.forEach((entry) => {
+      if (!entry || entry.name.startsWith('.')) {
+        return;
+      }
+
+      const fullPath = path.join(dirPath, entry.name);
+      if (entry.isDirectory()) {
+        walkTemplatesDir(fullPath);
+        return;
+      }
+
+      if (!entry.isFile()) {
+        return;
+      }
+
+      const relativePath = path.relative(templatesDir, fullPath).split(path.sep).join('/');
+      const content = fs.readFileSync(fullPath, 'utf8');
+      templates.push({
+        name: relativePath,
+        displayName: relativePath.replace(/\.[^./\\]+$/u, ''),
+        description: extractMarkdownDescription(content),
+      });
+    });
+  };
+
+  walkTemplatesDir(templatesDir);
+  templates.sort((a, b) => String(a.name || '').localeCompare(String(b.name || '')));
+  return templates;
 }
 
 const DOC_IMPORT_MAX_FILE_SIZE = 30 * 1024 * 1024; // 30MB per file
@@ -2286,46 +2558,284 @@ function templatesApiPlugin(): Plugin {
   return {
     name: 'templates-api-plugin',
     configureServer(server: any) {
-      server.middlewares.use((req: any, res: any, next: any) => {
+      server.middlewares.use(async (req: any, res: any, next: any) => {
         const pathname = getRequestPathname(req);
-        if (req.method !== 'GET' || (pathname !== '/api/templates' && pathname !== '/api/templates/')) {
+        if (!pathname.startsWith('/api/templates')) {
+          return next();
+        }
+
+        const templatesDir = path.resolve(__dirname, 'assets/templates');
+
+        if (req.method === 'POST' && (pathname === '/api/templates' || pathname === '/api/templates/')) {
+          try {
+            const body = await readJsonBody(req);
+            const displayName = String(body?.displayName || '').trim();
+            const fileNameInput = String(body?.fileName || body?.displayName || '').trim();
+
+            if (!displayName) {
+              res.statusCode = 400;
+              res.setHeader('Content-Type', 'application/json; charset=utf-8');
+              res.end(JSON.stringify({ error: 'Missing displayName' }));
+              return;
+            }
+
+            fs.mkdirSync(templatesDir, { recursive: true });
+            const fallbackBase = `template-${Date.now().toString(36)}`;
+            const sanitizedBase = sanitizeDocBaseName(fileNameInput || displayName) || fallbackBase;
+            let baseName = sanitizedBase;
+            let suffix = 2;
+            while (fs.existsSync(path.join(templatesDir, `${baseName}.md`))) {
+              baseName = `${sanitizedBase}-${suffix}`;
+              suffix += 1;
+            }
+
+            const templateFileName = `${baseName}.md`;
+            const templatePath = path.join(templatesDir, templateFileName);
+            if (!templatePath.startsWith(templatesDir)) {
+              res.statusCode = 403;
+              res.setHeader('Content-Type', 'application/json; charset=utf-8');
+              res.end(JSON.stringify({ error: 'Forbidden' }));
+              return;
+            }
+
+            fs.writeFileSync(templatePath, createManualDocTemplate(displayName), 'utf8');
+
+            res.statusCode = 201;
+            res.setHeader('Content-Type', 'application/json; charset=utf-8');
+            res.end(JSON.stringify({
+              success: true,
+              name: templateFileName,
+              displayName: templateFileName.replace(/\.[^./\\]+$/u, ''),
+              path: `assets/templates/${templateFileName}`,
+            }));
+          } catch (error: any) {
+            console.error('Error creating template:', error);
+            res.statusCode = 500;
+            res.setHeader('Content-Type', 'application/json; charset=utf-8');
+            res.end(JSON.stringify({ error: error?.message || 'Create template failed' }));
+          }
+          return;
+        }
+
+        if (req.method === 'POST' && pathname.startsWith('/api/templates/') && pathname.endsWith('/copy')) {
+          try {
+            const encodedTemplateName = pathname.slice('/api/templates/'.length, -'/copy'.length);
+            const templateName = decodeURIComponent(encodedTemplateName);
+            if (!templateName) {
+              res.statusCode = 400;
+              res.end(JSON.stringify({ error: 'Missing template name' }));
+              return;
+            }
+
+            const sourcePath = path.join(templatesDir, templateName);
+            if (!sourcePath.startsWith(templatesDir)) {
+              res.statusCode = 403;
+              res.end(JSON.stringify({ error: 'Forbidden' }));
+              return;
+            }
+            if (!fs.existsSync(sourcePath)) {
+              res.statusCode = 404;
+              res.end(JSON.stringify({ error: 'Template not found' }));
+              return;
+            }
+
+            const sourceDir = path.dirname(sourcePath);
+            const ext = path.extname(sourcePath);
+            const sourceBaseName = path.basename(sourcePath, ext);
+            const safeBaseName = sanitizeDocBaseName(sourceBaseName) || sourceBaseName;
+            const candidateBase = `${safeBaseName}-copy`;
+
+            let nextBaseName = candidateBase;
+            let suffix = 2;
+            let nextName = `${nextBaseName}${ext}`;
+            let nextPath = path.join(sourceDir, nextName);
+            while (fs.existsSync(nextPath)) {
+              nextBaseName = `${candidateBase}${suffix}`;
+              nextName = `${nextBaseName}${ext}`;
+              nextPath = path.join(sourceDir, nextName);
+              suffix += 1;
+            }
+
+            if (!nextPath.startsWith(templatesDir)) {
+              res.statusCode = 403;
+              res.end(JSON.stringify({ error: 'Forbidden' }));
+              return;
+            }
+
+            fs.copyFileSync(sourcePath, nextPath);
+
+            const relativeName = path.relative(templatesDir, nextPath).split(path.sep).join('/');
+            res.statusCode = 201;
+            res.setHeader('Content-Type', 'application/json; charset=utf-8');
+            res.end(JSON.stringify({
+              success: true,
+              name: relativeName,
+              displayName: relativeName.replace(/\.[^./\\]+$/u, ''),
+              path: `assets/templates/${relativeName}`,
+            }));
+          } catch (error: any) {
+            console.error('Error copying template:', error);
+            res.statusCode = 500;
+            res.setHeader('Content-Type', 'application/json; charset=utf-8');
+            res.end(JSON.stringify({ error: error?.message || 'Copy template failed' }));
+          }
+          return;
+        }
+
+        if (req.method === 'DELETE' && pathname.startsWith('/api/templates/') && pathname !== '/api/templates/' && pathname !== '/api/templates') {
+          try {
+            const encodedTemplateName = pathname.replace('/api/templates/', '');
+            const templateName = decodeURIComponent(encodedTemplateName);
+            const templatePath = path.join(templatesDir, templateName);
+
+            if (!templatePath.startsWith(templatesDir)) {
+              res.statusCode = 403;
+              res.end(JSON.stringify({ error: 'Forbidden' }));
+              return;
+            }
+            if (!fs.existsSync(templatePath)) {
+              res.statusCode = 404;
+              res.end(JSON.stringify({ error: 'Template not found' }));
+              return;
+            }
+
+            fs.unlinkSync(templatePath);
+            res.statusCode = 200;
+            res.setHeader('Content-Type', 'application/json; charset=utf-8');
+            res.end(JSON.stringify({ success: true }));
+          } catch (error: any) {
+            console.error('Error deleting template:', error);
+            res.statusCode = 500;
+            res.end(JSON.stringify({ error: error?.message || 'Delete template failed' }));
+          }
+          return;
+        }
+
+        if (req.method === 'PUT' && pathname.startsWith('/api/templates/') && pathname !== '/api/templates/' && pathname !== '/api/templates') {
+          try {
+            const encodedTemplateName = pathname.replace('/api/templates/', '');
+            if (!encodedTemplateName) {
+              res.statusCode = 400;
+              res.end(JSON.stringify({ error: 'Missing template name' }));
+              return;
+            }
+
+            const bodyData = await readJsonBody(req);
+            const hasContentUpdate = typeof bodyData?.content === 'string';
+            let newBaseName = String(bodyData?.newBaseName || '').trim();
+            const hasRename = Boolean(newBaseName);
+            if (!hasContentUpdate && !hasRename) {
+              res.statusCode = 400;
+              res.end(JSON.stringify({ error: 'Missing content or newBaseName parameter' }));
+              return;
+            }
+            if (hasRename && /[/\\:*?"<>|]/.test(newBaseName)) {
+              res.statusCode = 400;
+              res.end(JSON.stringify({ error: 'Invalid newBaseName format' }));
+              return;
+            }
+
+            const templateName = decodeURIComponent(encodedTemplateName);
+            const oldPath = path.join(templatesDir, templateName);
+            if (!oldPath.startsWith(templatesDir)) {
+              res.statusCode = 403;
+              res.end(JSON.stringify({ error: 'Forbidden' }));
+              return;
+            }
+            if (!fs.existsSync(oldPath)) {
+              res.statusCode = 404;
+              res.end(JSON.stringify({ error: 'Template not found' }));
+              return;
+            }
+            if (hasRename && isProtectedTemplateName(templateName)) {
+              res.statusCode = 403;
+              res.end(JSON.stringify({ error: '系统模板不支持重命名' }));
+              return;
+            }
+
+            let finalPath = oldPath;
+            if (hasRename) {
+              const ext = path.extname(oldPath);
+              if (ext && newBaseName.toLowerCase().endsWith(ext.toLowerCase())) {
+                newBaseName = newBaseName.slice(0, -ext.length).trim();
+              }
+              const safeBaseName = sanitizeDocBaseName(newBaseName);
+              if (!safeBaseName) {
+                res.statusCode = 400;
+                res.end(JSON.stringify({ error: 'Invalid newBaseName format' }));
+                return;
+              }
+
+              const oldDir = path.dirname(oldPath);
+              const newFileName = `${safeBaseName}${ext}`;
+              const newPath = path.join(oldDir, newFileName);
+              if (!newPath.startsWith(templatesDir)) {
+                res.statusCode = 403;
+                res.end(JSON.stringify({ error: 'Forbidden' }));
+                return;
+              }
+              if (newPath !== oldPath && fs.existsSync(newPath)) {
+                res.statusCode = 400;
+                res.end(JSON.stringify({ error: '目标文件已存在' }));
+                return;
+              }
+              if (newPath !== oldPath) {
+                fs.renameSync(oldPath, newPath);
+              }
+              finalPath = newPath;
+            }
+
+            if (hasContentUpdate) {
+              fs.writeFileSync(finalPath, String(bodyData.content), 'utf8');
+            }
+
+            const relativeName = path.relative(templatesDir, finalPath).split(path.sep).join('/');
+            res.setHeader('Content-Type', 'application/json; charset=utf-8');
+            res.end(JSON.stringify({ success: true, name: relativeName }));
+          } catch (error: any) {
+            console.error('Error updating template:', error);
+            res.statusCode = 500;
+            res.end(JSON.stringify({ error: error?.message || 'Update template failed' }));
+          }
+          return;
+        }
+
+        if (req.method !== 'GET') {
+          return next();
+        }
+
+        if (pathname.startsWith('/api/templates/') && pathname !== '/api/templates/' && pathname !== '/api/templates') {
+          try {
+            const encodedTemplateName = pathname.replace('/api/templates/', '');
+            const templateName = decodeURIComponent(encodedTemplateName);
+            const templatePath = path.join(templatesDir, templateName);
+            if (!templatePath.startsWith(templatesDir)) {
+              res.statusCode = 403;
+              res.end(JSON.stringify({ error: 'Forbidden' }));
+              return;
+            }
+            if (!fs.existsSync(templatePath)) {
+              res.statusCode = 404;
+              res.end(JSON.stringify({ error: 'Template not found' }));
+              return;
+            }
+            const content = fs.readFileSync(templatePath, 'utf8');
+            res.setHeader('Content-Type', 'text/markdown; charset=utf-8');
+            res.end(content);
+          } catch (error: any) {
+            console.error('Error loading template:', error);
+            res.statusCode = 500;
+            res.end(JSON.stringify({ error: error?.message || 'Load template failed' }));
+          }
+          return;
+        }
+
+        if (pathname !== '/api/templates' && pathname !== '/api/templates/') {
           return next();
         }
 
         try {
-          const templatesDir = path.resolve(__dirname, 'assets/templates');
-          const templates: Array<{ name: string; displayName: string }> = [];
-
-          if (fs.existsSync(templatesDir)) {
-            const walkTemplatesDir = (dirPath: string) => {
-              const entries = fs.readdirSync(dirPath, { withFileTypes: true });
-              entries.forEach((entry) => {
-                if (!entry || entry.name.startsWith('.')) {
-                  return;
-                }
-
-                const fullPath = path.join(dirPath, entry.name);
-                if (entry.isDirectory()) {
-                  walkTemplatesDir(fullPath);
-                  return;
-                }
-
-                if (!entry.isFile()) {
-                  return;
-                }
-
-                const relativePath = path.relative(templatesDir, fullPath).split(path.sep).join('/');
-                templates.push({
-                  name: relativePath,
-                  displayName: relativePath,
-                });
-              });
-            };
-
-            walkTemplatesDir(templatesDir);
-          }
-
-          templates.sort((a, b) => String(a.name || '').localeCompare(String(b.name || '')));
+          const templates = listTemplateAssets(templatesDir);
           res.setHeader('Content-Type', 'application/json');
           res.end(JSON.stringify(templates));
         } catch (error: any) {
@@ -2750,27 +3260,6 @@ function themesApiPlugin(): Plugin {
   return {
     name: 'themes-api-plugin',
     configureServer(server: any) {
-      const readJsonBody = (req: any): Promise<any> => {
-        return new Promise((resolve, reject) => {
-          let body = '';
-          req.on('data', (chunk: Buffer) => {
-            body += chunk.toString('utf8');
-          });
-          req.on('end', () => {
-            if (!body) {
-              resolve({});
-              return;
-            }
-            try {
-              resolve(JSON.parse(body));
-            } catch (error) {
-              reject(error);
-            }
-          });
-          req.on('error', reject);
-        });
-      };
-
       server.middlewares.use((req: any, res: any, next: any) => {
         const pathname = getRequestPathname(req);
         if (!pathname.startsWith('/api/themes')) {
@@ -3059,6 +3548,7 @@ const config: any = {
     writeDevServerInfoPlugin(), // 写入开发服务器信息
     serveAdminPlugin(), // 服务 admin 目录（需要在最前面）
     axureBridgeProxyPlugin(), // 提供 /api/axure-bridge/* 端点
+    exportImageProxyPlugin(), // 提供 /api/export/image-proxy 端点
     injectStablePageIds(), // 注入稳定 ID（所有模式都启用）
     virtualHtmlPlugin(),
     websocketPlugin(),

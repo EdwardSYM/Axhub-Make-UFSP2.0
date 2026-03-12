@@ -7,6 +7,7 @@ import extractZip from 'extract-zip';
 import archiver from 'archiver';
 import { allowedItemKeysByTab, scanEntries, type SidebarTreeTab } from './utils/entryScanner';
 import { createSidebarTreeStore, type SidebarTreeNode, type ResourceOrderType } from './utils/sidebarTreeStore';
+import { buildAttachmentContentDisposition } from './utils/contentDisposition';
 import { runCommand, runCommandSync } from '../scripts/utils/command-runtime.mjs';
 
 /**
@@ -426,7 +427,7 @@ export function fileSystemApiPlugin(): Plugin {
       };
 
       const isResourceOrderType = (value: string): value is ResourceOrderType => {
-        return value === 'themes' || value === 'data';
+        return value === 'themes' || value === 'data' || value === 'templates';
       };
 
       const getResourceOrderTypeFromRequest = (req: any): ResourceOrderType | null => {
@@ -472,7 +473,35 @@ export function fileSystemApiPlugin(): Plugin {
       };
 
       const resolveAllowedResourceKeys = (type: ResourceOrderType): Set<string> => {
-        return type === 'themes' ? collectThemeKeys() : collectDataTableKeys();
+        if (type === 'themes') {
+          return collectThemeKeys();
+        }
+        if (type === 'data') {
+          return collectDataTableKeys();
+        }
+        const templatesDir = path.join(projectRoot, 'assets', 'templates');
+        const keys = new Set<string>();
+        if (!fs.existsSync(templatesDir)) {
+          return keys;
+        }
+        const walkTemplatesDir = (dirPath: string) => {
+          const entries = fs.readdirSync(dirPath, { withFileTypes: true });
+          for (const entry of entries) {
+            if (!entry || entry.name.startsWith('.')) continue;
+            const fullPath = path.join(dirPath, entry.name);
+            if (entry.isDirectory()) {
+              walkTemplatesDir(fullPath);
+              continue;
+            }
+            if (!entry.isFile()) continue;
+            const relativePath = path.relative(templatesDir, fullPath).split(path.sep).join('/');
+            if (relativePath) {
+              keys.add(relativePath);
+            }
+          }
+        };
+        walkTemplatesDir(templatesDir);
+        return keys;
       };
 
       const reconcileResourceOrder = (order: string[], allowedKeys: Set<string>): string[] => {
@@ -642,7 +671,7 @@ export function fileSystemApiPlugin(): Plugin {
       server.middlewares.use('/api/prototype-admin/resource-order', async (req: any, res: any) => {
         const type = getResourceOrderTypeFromRequest(req);
         if (!type) {
-          return sendJSON(res, 400, { error: 'Invalid type, expected themes|data' });
+          return sendJSON(res, 400, { error: 'Invalid type, expected themes|data|templates' });
         }
 
         if (req.method === 'GET') {
@@ -1745,7 +1774,7 @@ ${filePaths.map(p => `- \`${p}\``).join('\n')}
           }
 
           res.setHeader('Content-Type', 'application/zip');
-          res.setHeader('Content-Disposition', `attachment; filename="${fileName}"`);
+          res.setHeader('Content-Disposition', buildAttachmentContentDisposition(fileName));
 
           // 使用 streaming 方式创建 ZIP（避免在内存中构建整个 zip buffer）
           try {
