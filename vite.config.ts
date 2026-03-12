@@ -22,6 +22,7 @@ import { autoDebugPlugin } from './vite-plugins/autoDebugPlugin';
 import { configApiPlugin } from './vite-plugins/configApiPlugin';
 import { aiCliPlugin } from './vite-plugins/aiCliPlugin';
 import { gitVersionApiPlugin } from './vite-plugins/gitVersionApiPlugin';
+import { buildAttachmentContentDisposition } from './vite-plugins/utils/contentDisposition';
 import { readEntriesManifest, scanProjectEntries, writeEntriesManifestAtomic } from './vite-plugins/utils/entriesManifest';
 
 const MAKE_STATE_DIR = path.join('.axhub', 'make');
@@ -72,9 +73,277 @@ function getRequestPathname(req: any): string {
   }
 }
 
+function readJsonBody(req: any): Promise<any> {
+  return new Promise((resolve, reject) => {
+    let body = '';
+    req.on('data', (chunk: Buffer) => {
+      body += chunk.toString('utf8');
+    });
+    req.on('end', () => {
+      if (!body) {
+        resolve({});
+        return;
+      }
+      try {
+        resolve(JSON.parse(body));
+      } catch (error) {
+        reject(error);
+      }
+    });
+    req.on('error', reject);
+  });
+}
+
+function readErrorString(value: unknown): string {
+  return typeof value === 'string' ? value.trim() : '';
+}
+
+function limitErrorText(value: string, maxLength: number = 500): string {
+  if (value.length <= maxLength) {
+    return value;
+  }
+
+  return `${value.slice(0, maxLength)}...`;
+}
+
+function serializeErrorForLog(error: any) {
+  const cause = error?.cause;
+  const stack = readErrorString(error?.stack);
+  const causeStack = readErrorString(cause?.stack);
+
+  return {
+    name: readErrorString(error?.name) || undefined,
+    message: readErrorString(error?.message) || undefined,
+    code: readErrorString(error?.code) || undefined,
+    errno: readErrorString(error?.errno) || undefined,
+    syscall: readErrorString(error?.syscall) || undefined,
+    address: readErrorString(error?.address) || undefined,
+    port: typeof error?.port === 'number' ? error.port : undefined,
+    causeName: readErrorString(cause?.name) || undefined,
+    causeMessage: readErrorString(cause?.message) || undefined,
+    causeCode: readErrorString(cause?.code) || undefined,
+    causeErrno: readErrorString(cause?.errno) || undefined,
+    causeSyscall: readErrorString(cause?.syscall) || undefined,
+    causeAddress: readErrorString(cause?.address) || undefined,
+    causePort: typeof cause?.port === 'number' ? cause.port : undefined,
+    stack: stack ? limitErrorText(stack, 1200) : undefined,
+    causeStack: causeStack ? limitErrorText(causeStack, 1200) : undefined,
+  };
+}
+
+function formatAxureProxyErrorDetails(error: any): string {
+  const parts: string[] = [];
+  const message = readErrorString(error?.message);
+  const causeMessage = readErrorString(error?.cause?.message);
+  const code = readErrorString(error?.code) || readErrorString(error?.cause?.code);
+  const errno = readErrorString(error?.errno) || readErrorString(error?.cause?.errno);
+  const syscall = readErrorString(error?.syscall) || readErrorString(error?.cause?.syscall);
+  const address = readErrorString(error?.address) || readErrorString(error?.cause?.address);
+  const port =
+    typeof error?.port === 'number'
+      ? String(error.port)
+      : typeof error?.cause?.port === 'number'
+        ? String(error.cause.port)
+        : '';
+
+  if (message) {
+    parts.push(message);
+  }
+  if (causeMessage && causeMessage !== message) {
+    parts.push(`cause=${causeMessage}`);
+  }
+  if (code) {
+    parts.push(`code=${code}`);
+  }
+  if (errno && errno !== code) {
+    parts.push(`errno=${errno}`);
+  }
+  if (syscall) {
+    parts.push(`syscall=${syscall}`);
+  }
+  if (address) {
+    parts.push(`address=${address}`);
+  }
+  if (port) {
+    parts.push(`port=${port}`);
+  }
+
+  return parts.join('; ') || 'Unknown upstream error';
+}
+
+function normalizeAxvgPayloadText(rawBody: string): string {
+  const source = rawBody.trim();
+  if (!source) {
+    return '// axvg\n{}';
+  }
+
+  if (source.startsWith('// axvg')) {
+    return source;
+  }
+
+  return `// axvg\n${source}`;
+}
+
+function isLoopbackOrPrivateHostname(hostname: string): boolean {
+  const normalized = String(hostname || '').trim().toLowerCase();
+  if (!normalized) {
+    return true;
+  }
+
+  if (
+    normalized === 'localhost' ||
+    normalized === '127.0.0.1' ||
+    normalized === '0.0.0.0' ||
+    normalized === '::1' ||
+    normalized === '[::1]'
+  ) {
+    return true;
+  }
+
+  if (/^127\./.test(normalized)) {
+    return true;
+  }
+
+  if (/^10\./.test(normalized)) {
+    return true;
+  }
+
+  if (/^192\.168\./.test(normalized)) {
+    return true;
+  }
+
+  if (/^169\.254\./.test(normalized)) {
+    return true;
+  }
+
+  const match172 = normalized.match(/^172\.(\d{1,3})\./);
+  if (match172) {
+    const secondOctet = Number(match172[1]);
+    if (secondOctet >= 16 && secondOctet <= 31) {
+      return true;
+    }
+  }
+
+  return false;
+}
+
+function isAllowedProxyImageUrl(rawUrl: string): boolean {
+  let parsedUrl: URL;
+  try {
+    parsedUrl = new URL(rawUrl);
+  } catch {
+    return false;
+  }
+
+  if (parsedUrl.protocol !== 'http:' && parsedUrl.protocol !== 'https:') {
+    return false;
+  }
+
+  if (isLoopbackOrPrivateHostname(parsedUrl.hostname)) {
+    return false;
+  }
+
+  return true;
+}
+
+function exportImageProxyPlugin(): Plugin {
+  return {
+    name: 'export-image-proxy-plugin',
+    configureServer(server: any) {
+      server.middlewares.use(async (req: any, res: any, next: any) => {
+        const pathname = getRequestPathname(req);
+        if (req.method !== 'GET' || pathname !== '/api/export/image-proxy') {
+          return next();
+        }
+
+        const requestUrl = new URL(req.url || '/', `http://${req.headers.host || 'localhost'}`);
+        const targetUrl = String(requestUrl.searchParams.get('url') || '').trim();
+
+        if (!targetUrl) {
+          res.statusCode = 400;
+          res.setHeader('Content-Type', 'application/json; charset=utf-8');
+          res.end(JSON.stringify({ error: 'Missing url query parameter' }));
+          return;
+        }
+
+        if (!isAllowedProxyImageUrl(targetUrl)) {
+          res.statusCode = 400;
+          res.setHeader('Content-Type', 'application/json; charset=utf-8');
+          res.end(JSON.stringify({ error: 'Unsupported proxy target url' }));
+          return;
+        }
+
+        try {
+          const upstreamResponse = await fetch(targetUrl, {
+            method: 'GET',
+            redirect: 'follow',
+            headers: {
+              Accept: 'image/*,*/*;q=0.8',
+              'User-Agent': 'AxhubMakeExportProxy/1.0',
+            },
+          });
+
+          if (!upstreamResponse.ok) {
+            res.statusCode = upstreamResponse.status;
+            res.setHeader('Content-Type', 'application/json; charset=utf-8');
+            res.end(JSON.stringify({
+              error: `Upstream responded with ${upstreamResponse.status}`,
+              targetUrl,
+            }));
+            return;
+          }
+
+          const contentType = String(upstreamResponse.headers.get('content-type') || '').toLowerCase();
+          if (contentType && !contentType.startsWith('image/')) {
+            res.statusCode = 415;
+            res.setHeader('Content-Type', 'application/json; charset=utf-8');
+            res.end(JSON.stringify({
+              error: `Unsupported upstream content-type: ${contentType}`,
+              targetUrl,
+            }));
+            return;
+          }
+
+          const body = Buffer.from(await upstreamResponse.arrayBuffer());
+
+          res.statusCode = 200;
+          res.setHeader('Access-Control-Allow-Origin', '*');
+          res.setHeader('Cache-Control', upstreamResponse.headers.get('cache-control') || 'public, max-age=600');
+          res.setHeader('Content-Type', contentType || 'application/octet-stream');
+          res.setHeader('Content-Length', String(body.byteLength));
+
+          const etag = upstreamResponse.headers.get('etag');
+          if (etag) {
+            res.setHeader('ETag', etag);
+          }
+
+          const lastModified = upstreamResponse.headers.get('last-modified');
+          if (lastModified) {
+            res.setHeader('Last-Modified', lastModified);
+          }
+
+          res.end(body);
+        } catch (error: any) {
+          console.error('[export-image-proxy] request failed', {
+            targetUrl,
+            error: serializeErrorForLog(error),
+          });
+
+          res.statusCode = 502;
+          res.setHeader('Content-Type', 'application/json; charset=utf-8');
+          res.end(JSON.stringify({
+            error: error?.message || 'Failed to fetch target image',
+            targetUrl,
+          }));
+        }
+      });
+    }
+  };
+}
+
 function streamDirectoryAsZip(res: any, sourceDir: string, fileName: string) {
   res.setHeader('Content-Type', 'application/zip');
-  res.setHeader('Content-Disposition', `attachment; filename="${fileName}"`);
+  res.setHeader('Content-Disposition', buildAttachmentContentDisposition(fileName));
 
   const archive = archiver('zip', { zlib: { level: 9 } });
 
@@ -430,6 +699,25 @@ function serveAdminPlugin(): Plugin {
             return;
           }
         }
+
+        const encodedTemplateName = pathname?.match(/^\/templates\/([^/]+)(?:\/spec\.html)?$/)?.[1];
+        if (encodedTemplateName) {
+          const specTemplatePath = path.join(adminDir, 'spec-template.html');
+          if (fs.existsSync(specTemplatePath)) {
+            let html = fs.readFileSync(specTemplatePath, 'utf8');
+            const templateName = decodeURIComponent(encodedTemplateName);
+            const templateFileName = templateName.endsWith('.md') ? templateName : `${templateName}.md`;
+            const specUrl = `/api/templates/${encodeURIComponent(templateFileName)}`;
+            html = html.replace(/\{\{SPEC_URL\}\}/g, specUrl);
+            html = html.replace(/\{\{TITLE\}\}/g, templateName);
+            html = html.replace(/\{\{MULTI_DOC\}\}/g, 'false');
+            html = html.replace(/\{\{DOCS_CONFIG\}\}/g, '[]');
+            html = html.replace('</head>', `${injectScript}\n</head>`);
+            res.setHeader('Content-Type', 'text/html; charset=utf-8');
+            res.end(html);
+            return;
+          }
+        }
         
         next();
       });
@@ -496,35 +784,55 @@ function axureBridgeProxyPlugin(): Plugin {
           return next();
         }
 
+        const upstreamUrl = isAvailableRoute
+          ? `${AXURE_BRIDGE_BASE_URL}/available`
+          : `${AXURE_BRIDGE_BASE_URL}/copyaxvg`;
+        let payloadBytes = 0;
+
         try {
           let upstreamResponse: any;
 
           if (isAvailableRoute) {
-            upstreamResponse = await fetch(`${AXURE_BRIDGE_BASE_URL}/available`, {
+            upstreamResponse = await fetch(upstreamUrl, {
               method: 'GET',
             });
           } else {
-            let body: any = {};
+            let rawBody = '';
             try {
-              body = await readJsonBody(req);
+              rawBody = await readRequestBody(req);
             } catch (error: any) {
               res.statusCode = 400;
               res.setHeader('Content-Type', 'application/json; charset=utf-8');
-              res.end(JSON.stringify({ error: error?.message || 'Invalid JSON body' }));
+              res.end(JSON.stringify({ error: error?.message || 'Invalid request body' }));
               return;
             }
 
-            upstreamResponse = await fetch(`${AXURE_BRIDGE_BASE_URL}/copyaxvg`, {
+            const requestBody = normalizeAxvgPayloadText(rawBody);
+            payloadBytes = Buffer.byteLength(requestBody, 'utf8');
+
+            upstreamResponse = await fetch(upstreamUrl, {
               method: 'POST',
               headers: {
-                'Content-Type': 'application/json',
+                'Content-Type': 'text/plain; charset=utf-8',
               },
-              body: JSON.stringify(body ?? {}),
+              body: requestBody,
             });
           }
 
           const contentType = String(upstreamResponse.headers.get('content-type') || '').toLowerCase();
           const responseText = await upstreamResponse.text();
+
+          if (!upstreamResponse.ok) {
+            console.warn('[axure-bridge-proxy] upstream responded with error', {
+              route: pathname,
+              method: req.method,
+              upstreamUrl,
+              payloadBytes: payloadBytes || undefined,
+              status: upstreamResponse.status,
+              statusText: upstreamResponse.statusText,
+              bodyPreview: limitErrorText(readErrorString(responseText), 800) || undefined,
+            });
+          }
 
           res.statusCode = upstreamResponse.status;
           res.setHeader('Cache-Control', 'no-store');
@@ -549,9 +857,27 @@ function axureBridgeProxyPlugin(): Plugin {
           res.setHeader('Content-Type', 'text/plain; charset=utf-8');
           res.end(responseText);
         } catch (error: any) {
+          const errorLog = serializeErrorForLog(error);
+          console.error('[axure-bridge-proxy] upstream request failed', {
+            route: pathname,
+            method: req.method,
+            upstreamUrl,
+            payloadBytes: payloadBytes || undefined,
+            error: errorLog,
+          });
+
           res.statusCode = 502;
           res.setHeader('Content-Type', 'application/json; charset=utf-8');
-          res.end(JSON.stringify({ error: error?.message || 'Axure Bridge unavailable' }));
+          res.end(JSON.stringify({
+            error: error?.message || 'Axure Bridge unavailable',
+            details: formatAxureProxyErrorDetails(error),
+            code: errorLog.code || errorLog.causeCode || undefined,
+            causeMessage: errorLog.causeMessage || undefined,
+            route: pathname,
+            method: req.method,
+            bridgeUrl: upstreamUrl,
+            payloadBytes: payloadBytes || undefined,
+          }));
         }
       });
     }
@@ -587,17 +913,12 @@ function versionApiPlugin(): Plugin {
   };
 }
 
-function readJsonBody(req: any): Promise<any> {
+function readRequestBody(req: any): Promise<string> {
   return new Promise((resolve, reject) => {
     const chunks: Buffer[] = [];
-    req.on('data', (chunk: Buffer) => chunks.push(chunk));
+    req.on('data', (chunk: Buffer | string) => chunks.push(Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk)));
     req.on('end', () => {
-      try {
-        const raw = Buffer.concat(chunks).toString('utf8');
-        resolve(raw ? JSON.parse(raw) : {});
-      } catch {
-        reject(new Error('Invalid JSON body'));
-      }
+      resolve(Buffer.concat(chunks).toString('utf8'));
     });
     req.on('error', reject);
   });
@@ -611,6 +932,17 @@ function sanitizeDocBaseName(input: string) {
     .replace(/\s+/g, '-')
     .replace(/-+/g, '-')
     .replace(/^-|-$/g, '');
+}
+
+const PROTECTED_TEMPLATE_BASENAMES = new Set([
+  'spec-template',
+]);
+
+function isProtectedTemplateName(templateName: string) {
+  const normalizedName = String(templateName || '').trim();
+  if (!normalizedName) return false;
+  const baseName = path.basename(normalizedName, path.extname(normalizedName));
+  return PROTECTED_TEMPLATE_BASENAMES.has(baseName);
 }
 
 const SPEC_DOC_IMAGE_MAX_FILE_SIZE = 5 * 1024 * 1024; // 5MB
@@ -748,6 +1080,61 @@ function createManualDocTemplate(displayName: string) {
 `;
 }
 
+function extractMarkdownDisplayName(content: string, fallbackName: string) {
+  const titleMatch = content.match(/^#\s+(.+)$/m);
+  return titleMatch?.[1]?.trim() || fallbackName;
+}
+
+function extractMarkdownDescription(content: string) {
+  const lines = content.split('\n');
+  for (const rawLine of lines) {
+    const line = rawLine.trim();
+    if (line && !line.startsWith('#')) {
+      return line;
+    }
+  }
+  return '';
+}
+
+function listTemplateAssets(templatesDir: string) {
+  const templates: Array<{ name: string; displayName: string; description: string }> = [];
+
+  if (!fs.existsSync(templatesDir)) {
+    return templates;
+  }
+
+  const walkTemplatesDir = (dirPath: string) => {
+    const entries = fs.readdirSync(dirPath, { withFileTypes: true });
+    entries.forEach((entry) => {
+      if (!entry || entry.name.startsWith('.')) {
+        return;
+      }
+
+      const fullPath = path.join(dirPath, entry.name);
+      if (entry.isDirectory()) {
+        walkTemplatesDir(fullPath);
+        return;
+      }
+
+      if (!entry.isFile()) {
+        return;
+      }
+
+      const relativePath = path.relative(templatesDir, fullPath).split(path.sep).join('/');
+      const content = fs.readFileSync(fullPath, 'utf8');
+      templates.push({
+        name: relativePath,
+        displayName: relativePath.replace(/\.[^./\\]+$/u, ''),
+        description: extractMarkdownDescription(content),
+      });
+    });
+  };
+
+  walkTemplatesDir(templatesDir);
+  templates.sort((a, b) => String(a.name || '').localeCompare(String(b.name || '')));
+  return templates;
+}
+
 const DOC_IMPORT_MAX_FILE_SIZE = 30 * 1024 * 1024; // 30MB per file
 const DOC_IMPORT_MAX_FILE_COUNT = 30;
 const DOC_IMPORT_MAX_TOTAL_SIZE = 150 * 1024 * 1024; // 150MB per request
@@ -784,10 +1171,17 @@ type MarkitdownResolvedCommand = {
   installed: boolean;
   command?: string;
   args?: string[];
+  pythonCommand?: string;
   commandSource: string;
   version: string;
   installHints: string[];
   error: string;
+};
+
+type MarkitdownOptionalFeature = {
+  extension: string;
+  feature: string;
+  modules: string[];
 };
 
 const MARKITDOWN_MIN_PYTHON_MAJOR = 3;
@@ -805,6 +1199,13 @@ const MARKITDOWN_PYTHON_COMMAND_CANDIDATES = [
   'python3.10',
   'python3',
   'python',
+];
+
+const MARKITDOWN_REQUIRED_OPTIONAL_FEATURES: MarkitdownOptionalFeature[] = [
+  { extension: '.pdf', feature: 'pdf', modules: ['pdfminer', 'pdfplumber'] },
+  { extension: '.docx', feature: 'docx', modules: ['mammoth'] },
+  { extension: '.pptx', feature: 'pptx', modules: ['pptx'] },
+  { extension: '.xlsx', feature: 'xlsx', modules: ['pandas', 'openpyxl'] },
 ];
 
 function parsePythonVersionText(versionText: string): { major: number; minor: number } | null {
@@ -854,15 +1255,14 @@ function probePythonRuntime(command: string): PythonRuntimeProbe {
 }
 
 function buildMarkitdownInstallHints(preferredPythonCommand?: string): string[] {
+  const installCommand = `${preferredPythonCommand || 'python3.11'} -m pip install -U 'markitdown[pdf,docx,pptx,xlsx]'`;
   if (preferredPythonCommand) {
-    return [
-      `${preferredPythonCommand} -m pip install -U markitdown`,
-    ];
+    return [installCommand];
   }
 
   return [
     'brew install python@3.11',
-    'python3.11 -m pip install -U markitdown',
+    installCommand,
   ];
 }
 
@@ -906,17 +1306,139 @@ function isCommandWorking(candidate: MarkitdownCommandCandidate): {
   };
 }
 
+function resolveMarkitdownPythonCommand(candidate: MarkitdownCommandCandidate): string | undefined {
+  if (candidate.args[0] === '-m' && candidate.args[1] === 'markitdown') {
+    return candidate.command;
+  }
+
+  const whichAttempt = spawnSync('which', [candidate.command], {
+    encoding: 'utf8',
+    timeout: 8000,
+    maxBuffer: 1024 * 1024,
+  });
+  if (whichAttempt.error || whichAttempt.status !== 0) {
+    return undefined;
+  }
+
+  const executablePath = String(whichAttempt.stdout || '').trim().split(/\r?\n/)[0]?.trim();
+  if (!executablePath || !fs.existsSync(executablePath)) {
+    return undefined;
+  }
+
+  try {
+    const firstLine = fs.readFileSync(executablePath, 'utf8').split(/\r?\n/, 1)[0]?.trim() || '';
+    if (!firstLine.startsWith('#!')) {
+      return undefined;
+    }
+
+    const shebang = firstLine.slice(2).trim();
+    if (!shebang) {
+      return undefined;
+    }
+
+    const shebangParts = shebang.split(/\s+/).filter(Boolean);
+    if (shebangParts[0] === '/usr/bin/env') {
+      return shebangParts[1];
+    }
+
+    return shebangParts[0];
+  } catch {
+    return undefined;
+  }
+}
+
+function probeMarkitdownOptionalDependencies(pythonCommand?: string): {
+  ready: boolean;
+  missingExtensions: string[];
+  error: string;
+  installHints: string[];
+} {
+  if (!pythonCommand) {
+    return {
+      ready: true,
+      missingExtensions: [],
+      error: '',
+      installHints: [],
+    };
+  }
+
+  const checksJson = JSON.stringify(MARKITDOWN_REQUIRED_OPTIONAL_FEATURES);
+  const probeScript = [
+    'import importlib.util, json',
+    `checks = json.loads(${JSON.stringify(checksJson)})`,
+    'missing = []',
+    'for item in checks:',
+    "    missing_modules = [name for name in item['modules'] if importlib.util.find_spec(name) is None]",
+    '    if missing_modules:',
+    "        missing.append({'extension': item['extension'], 'feature': item['feature'], 'missingModules': missing_modules})",
+    "print(json.dumps({'missing': missing}, ensure_ascii=False))",
+  ].join('\n');
+
+  const probeAttempt = spawnSync(pythonCommand, ['-c', probeScript], {
+    encoding: 'utf8',
+    timeout: 8000,
+    maxBuffer: 1024 * 1024,
+  });
+
+  if (probeAttempt.error || probeAttempt.status !== 0) {
+    return {
+      ready: false,
+      missingExtensions: [],
+      error: `markitdown 依赖检测失败，请执行 ${buildMarkitdownInstallHints(pythonCommand)[0]} 后重试。`,
+      installHints: buildMarkitdownInstallHints(pythonCommand),
+    };
+  }
+
+  try {
+    const payload = JSON.parse(String(probeAttempt.stdout || '{}')) as {
+      missing?: Array<{ extension?: string; missingModules?: string[] }>;
+    };
+    const missing = Array.isArray(payload?.missing) ? payload.missing : [];
+    if (missing.length === 0) {
+      return {
+        ready: true,
+        missingExtensions: [],
+        error: '',
+        installHints: [],
+      };
+    }
+
+    const missingDescriptions = missing.map((item) => {
+      const extension = String(item?.extension || '').trim() || 'unknown';
+      const missingModules = Array.isArray(item?.missingModules) ? item.missingModules.filter(Boolean) : [];
+      return `${extension}${missingModules.length > 0 ? `（缺少：${missingModules.join(', ')}）` : ''}`;
+    });
+
+    return {
+      ready: false,
+      missingExtensions: missing.map((item) => String(item?.extension || '').trim()).filter(Boolean),
+      error: `markitdown 已安装，但以下格式依赖不完整：${missingDescriptions.join('、')}。请先安装完整依赖后再导入非 .md 文档。`,
+      installHints: buildMarkitdownInstallHints(pythonCommand),
+    };
+  } catch {
+    return {
+      ready: false,
+      missingExtensions: [],
+      error: `markitdown 依赖检测结果无法解析，请执行 ${buildMarkitdownInstallHints(pythonCommand)[0]} 后重试。`,
+      installHints: buildMarkitdownInstallHints(pythonCommand),
+    };
+  }
+}
+
 function resolveMarkitdownCommand(): MarkitdownResolvedCommand {
   const directCommandResult = isCommandWorking(MARKITDOWN_DIRECT_COMMAND_CANDIDATE);
   if (directCommandResult.success) {
+    const pythonCommand = resolveMarkitdownPythonCommand(MARKITDOWN_DIRECT_COMMAND_CANDIDATE);
+    const dependencyProbe = probeMarkitdownOptionalDependencies(pythonCommand);
     return {
-      installed: true,
+      installed: dependencyProbe.ready,
       command: MARKITDOWN_DIRECT_COMMAND_CANDIDATE.command,
       args: MARKITDOWN_DIRECT_COMMAND_CANDIDATE.args,
+      pythonCommand,
       commandSource: MARKITDOWN_DIRECT_COMMAND_CANDIDATE.commandSource,
       version: directCommandResult.version,
-      installHints: [],
-      error: '',
+      installHints: dependencyProbe.installHints,
+      error: dependencyProbe.error,
     };
   }
 
@@ -937,14 +1459,16 @@ function resolveMarkitdownCommand(): MarkitdownResolvedCommand {
     };
     const candidateResult = isCommandWorking(pythonCandidate);
     if (candidateResult.success) {
+      const dependencyProbe = probeMarkitdownOptionalDependencies(pythonRuntime.command);
       return {
-        installed: true,
+        installed: dependencyProbe.ready,
         command: pythonCandidate.command,
         args: pythonCandidate.args,
+        pythonCommand: pythonRuntime.command,
         commandSource: pythonCandidate.commandSource,
         version: candidateResult.version,
-        installHints: [],
-        error: '',
+        installHints: dependencyProbe.installHints,
+        error: dependencyProbe.error,
       };
     }
 
@@ -1034,7 +1558,7 @@ function convertFileToMarkdownWithMarkitdown(params: {
   try {
     const result = spawnSync(
       params.command,
-      [...params.args, params.sourcePath, '-o', outputPath],
+      [...params.args, '--keep-data-uris', params.sourcePath, '-o', outputPath],
       {
         encoding: 'utf8',
         timeout: 120000,
@@ -1702,51 +2226,616 @@ function docsApiPlugin(): Plugin {
   };
 }
 
+function canvasApiPlugin(): Plugin {
+  const CANVAS_EXT = '.excalidraw';
+  const DEFAULT_CANVAS_DATA = JSON.stringify({
+    type: 'excalidraw',
+    version: 2,
+    source: 'axhub-make',
+    elements: [],
+    appState: { gridSize: null, viewBackgroundColor: '#ffffff' },
+    files: {},
+  }, null, 2);
+
+  return {
+    name: 'canvas-api-plugin',
+    configureServer(server: any) {
+      server.middlewares.use(async (req: any, res: any, next: any) => {
+        const pathname = getRequestPathname(req);
+        if (!pathname.startsWith('/api/canvas')) {
+          return next();
+        }
+        const canvasDir = path.resolve(__dirname, 'src/canvas');
+
+        // POST /api/canvas/create
+        if (
+          req.method === 'POST' &&
+          (pathname === '/api/canvas/create' || pathname === '/api/canvas/create/')
+        ) {
+          try {
+            const body = await readJsonBody(req);
+            const displayName = String(body?.displayName || '').trim();
+
+            fs.mkdirSync(canvasDir, { recursive: true });
+
+            const fallbackBase = `canvas-${Date.now().toString(36)}`;
+            const sanitizedBase = sanitizeDocBaseName(displayName || fallbackBase) || fallbackBase;
+            let baseName = sanitizedBase;
+            let suffix = 2;
+            while (fs.existsSync(path.join(canvasDir, `${baseName}${CANVAS_EXT}`))) {
+              baseName = `${sanitizedBase}-${suffix}`;
+              suffix += 1;
+            }
+
+            const fileName = `${baseName}${CANVAS_EXT}`;
+            const filePath = path.join(canvasDir, fileName);
+
+            if (!filePath.startsWith(canvasDir)) {
+              res.statusCode = 403;
+              res.setHeader('Content-Type', 'application/json; charset=utf-8');
+              res.end(JSON.stringify({ error: 'Forbidden' }));
+              return;
+            }
+
+            fs.writeFileSync(filePath, DEFAULT_CANVAS_DATA, 'utf8');
+
+            res.statusCode = 201;
+            res.setHeader('Content-Type', 'application/json; charset=utf-8');
+            res.end(JSON.stringify({
+              success: true,
+              name: fileName,
+              displayName: baseName,
+              path: `src/canvas/${fileName}`,
+            }));
+          } catch (error: any) {
+            console.error('Error creating canvas:', error);
+            res.statusCode = 500;
+            res.setHeader('Content-Type', 'application/json; charset=utf-8');
+            res.end(JSON.stringify({ error: error?.message || 'Create canvas failed' }));
+          }
+          return;
+        }
+
+        // POST /api/canvas/:name/copy
+        if (req.method === 'POST' && pathname.startsWith('/api/canvas/') && pathname.endsWith('/copy')) {
+          try {
+            const encodedName = pathname.slice('/api/canvas/'.length, -'/copy'.length);
+            const canvasName = decodeURIComponent(encodedName);
+            if (!canvasName) {
+              res.statusCode = 400;
+              res.end(JSON.stringify({ error: 'Missing canvas name' }));
+              return;
+            }
+
+            const sourcePath = path.join(canvasDir, canvasName);
+            if (!sourcePath.startsWith(canvasDir)) {
+              res.statusCode = 403;
+              res.end(JSON.stringify({ error: 'Forbidden' }));
+              return;
+            }
+            if (!fs.existsSync(sourcePath)) {
+              res.statusCode = 404;
+              res.end(JSON.stringify({ error: 'Canvas not found' }));
+              return;
+            }
+
+            const sourceBaseName = path.basename(sourcePath, CANVAS_EXT);
+            const safeBaseName = sanitizeDocBaseName(sourceBaseName) || sourceBaseName;
+            const candidateBase = `${safeBaseName}-copy`;
+
+            let nextBaseName = candidateBase;
+            let suffix = 2;
+            let nextName = `${nextBaseName}${CANVAS_EXT}`;
+            let nextPath = path.join(canvasDir, nextName);
+            while (fs.existsSync(nextPath)) {
+              nextBaseName = `${candidateBase}${suffix}`;
+              nextName = `${nextBaseName}${CANVAS_EXT}`;
+              nextPath = path.join(canvasDir, nextName);
+              suffix += 1;
+            }
+
+            if (!nextPath.startsWith(canvasDir)) {
+              res.statusCode = 403;
+              res.end(JSON.stringify({ error: 'Forbidden' }));
+              return;
+            }
+
+            fs.copyFileSync(sourcePath, nextPath);
+
+            res.statusCode = 201;
+            res.setHeader('Content-Type', 'application/json; charset=utf-8');
+            res.end(JSON.stringify({
+              success: true,
+              name: nextName,
+              displayName: nextBaseName,
+              path: `src/canvas/${nextName}`,
+            }));
+          } catch (error: any) {
+            console.error('Error copying canvas:', error);
+            res.statusCode = 500;
+            res.setHeader('Content-Type', 'application/json; charset=utf-8');
+            res.end(JSON.stringify({ error: error?.message || 'Copy canvas failed' }));
+          }
+          return;
+        }
+
+        // DELETE /api/canvas/:name
+        if (req.method === 'DELETE' && pathname.startsWith('/api/canvas/')) {
+          try {
+            const encodedName = pathname.replace('/api/canvas/', '');
+            const canvasName = decodeURIComponent(encodedName);
+            if (!canvasName) {
+              res.statusCode = 400;
+              res.end(JSON.stringify({ error: 'Missing canvas name' }));
+              return;
+            }
+            const filePath = path.join(canvasDir, canvasName);
+
+            if (!filePath.startsWith(canvasDir)) {
+              res.statusCode = 403;
+              res.end(JSON.stringify({ error: 'Forbidden' }));
+              return;
+            }
+            if (!fs.existsSync(filePath)) {
+              res.statusCode = 404;
+              res.end(JSON.stringify({ error: 'Canvas not found' }));
+              return;
+            }
+
+            fs.unlinkSync(filePath);
+            res.statusCode = 200;
+            res.setHeader('Content-Type', 'application/json');
+            res.end(JSON.stringify({ success: true }));
+          } catch (error: any) {
+            console.error('Error deleting canvas:', error);
+            res.statusCode = 500;
+            res.end(JSON.stringify({ error: error.message }));
+          }
+          return;
+        }
+
+        // PUT /api/canvas/:name
+        if (req.method === 'PUT' && pathname.startsWith('/api/canvas/')) {
+          try {
+            const encodedName = pathname.replace('/api/canvas/', '');
+            if (!encodedName) {
+              res.statusCode = 400;
+              res.end(JSON.stringify({ error: 'Missing canvas name' }));
+              return;
+            }
+
+            const bodyData = await readJsonBody(req);
+            const hasContentUpdate = typeof bodyData?.content === 'string';
+            let newBaseName = String(bodyData?.newBaseName || '').trim();
+            const hasRename = Boolean(newBaseName);
+
+            if (!hasContentUpdate && !hasRename) {
+              res.statusCode = 400;
+              res.end(JSON.stringify({ error: 'Missing content or newBaseName parameter' }));
+              return;
+            }
+            if (hasRename && /[/\\:*?"<>|]/.test(newBaseName)) {
+              res.statusCode = 400;
+              res.end(JSON.stringify({ error: 'Invalid newBaseName format' }));
+              return;
+            }
+
+            const canvasName = decodeURIComponent(encodedName);
+            const oldPath = path.join(canvasDir, canvasName);
+            if (!oldPath.startsWith(canvasDir)) {
+              res.statusCode = 403;
+              res.end(JSON.stringify({ error: 'Forbidden' }));
+              return;
+            }
+            if (!fs.existsSync(oldPath)) {
+              res.statusCode = 404;
+              res.end(JSON.stringify({ error: 'Canvas not found' }));
+              return;
+            }
+
+            let finalPath = oldPath;
+            if (hasRename) {
+              if (newBaseName.toLowerCase().endsWith(CANVAS_EXT)) {
+                newBaseName = newBaseName.slice(0, -CANVAS_EXT.length).trim();
+              }
+              const safeBaseName = sanitizeDocBaseName(newBaseName);
+              if (!safeBaseName) {
+                res.statusCode = 400;
+                res.end(JSON.stringify({ error: 'Invalid newBaseName format' }));
+                return;
+              }
+
+              const newFileName = `${safeBaseName}${CANVAS_EXT}`;
+              const newPath = path.join(canvasDir, newFileName);
+
+              if (!newPath.startsWith(canvasDir)) {
+                res.statusCode = 403;
+                res.end(JSON.stringify({ error: 'Forbidden' }));
+                return;
+              }
+              if (newPath !== oldPath && fs.existsSync(newPath)) {
+                res.statusCode = 400;
+                res.end(JSON.stringify({ error: '目标文件已存在' }));
+                return;
+              }
+
+              if (newPath !== oldPath) {
+                fs.renameSync(oldPath, newPath);
+              }
+              finalPath = newPath;
+            }
+
+            if (hasContentUpdate) {
+              fs.writeFileSync(finalPath, String(bodyData.content), 'utf8');
+            }
+
+            const relativeName = path.basename(finalPath);
+            res.setHeader('Content-Type', 'application/json');
+            res.end(JSON.stringify({ success: true, name: relativeName }));
+          } catch (error: any) {
+            console.error('Error updating canvas:', error);
+            res.statusCode = 500;
+            res.end(JSON.stringify({ error: error.message }));
+          }
+          return;
+        }
+
+        // GET requests
+        if (req.method !== 'GET') {
+          return next();
+        }
+
+        // GET /api/canvas/:name
+        if (pathname.startsWith('/api/canvas/') && pathname !== '/api/canvas' && pathname !== '/api/canvas/') {
+          try {
+            const encodedName = pathname.replace('/api/canvas/', '');
+            if (!encodedName) {
+              return next();
+            }
+
+            const canvasName = decodeURIComponent(encodedName);
+            const filePath = path.join(canvasDir, canvasName);
+
+            if (!filePath.startsWith(canvasDir)) {
+              res.statusCode = 403;
+              res.end(JSON.stringify({ error: 'Forbidden' }));
+              return;
+            }
+
+            if (fs.existsSync(filePath)) {
+              const content = fs.readFileSync(filePath, 'utf8');
+              res.setHeader('Content-Type', 'application/json; charset=utf-8');
+              res.end(content);
+            } else {
+              res.statusCode = 404;
+              res.end(JSON.stringify({ error: 'Canvas not found' }));
+            }
+          } catch (error: any) {
+            console.error('Error loading canvas:', error);
+            res.statusCode = 500;
+            res.end(JSON.stringify({ error: error.message }));
+          }
+          return;
+        }
+
+        // GET /api/canvas - list all canvases
+        if (pathname === '/api/canvas' || pathname === '/api/canvas/') {
+          try {
+            const items: Array<{ name: string; displayName: string }> = [];
+
+            if (fs.existsSync(canvasDir)) {
+              const entries = fs.readdirSync(canvasDir, { withFileTypes: true });
+              entries.forEach((entry) => {
+                if (!entry.isFile()) return;
+                if (!entry.name.endsWith(CANVAS_EXT)) return;
+                const baseName = entry.name.slice(0, -CANVAS_EXT.length);
+                items.push({
+                  name: entry.name,
+                  displayName: baseName,
+                });
+              });
+            }
+
+            items.sort((a, b) => a.name.localeCompare(b.name));
+            res.setHeader('Content-Type', 'application/json');
+            res.end(JSON.stringify(items));
+          } catch (error: any) {
+            console.error('Error listing canvases:', error);
+            res.statusCode = 500;
+            res.end(JSON.stringify({ error: error.message }));
+          }
+          return;
+        }
+
+        next();
+      });
+    },
+  };
+}
+
 // 提供 /api/templates 端点的插件
 function templatesApiPlugin(): Plugin {
   return {
     name: 'templates-api-plugin',
     configureServer(server: any) {
-      server.middlewares.use((req: any, res: any, next: any) => {
+      server.middlewares.use(async (req: any, res: any, next: any) => {
         const pathname = getRequestPathname(req);
-        if (req.method !== 'GET' || (pathname !== '/api/templates' && pathname !== '/api/templates/')) {
+        if (!pathname.startsWith('/api/templates')) {
+          return next();
+        }
+
+        const templatesDir = path.resolve(__dirname, 'assets/templates');
+
+        if (req.method === 'POST' && (pathname === '/api/templates' || pathname === '/api/templates/')) {
+          try {
+            const body = await readJsonBody(req);
+            const displayName = String(body?.displayName || '').trim();
+            const fileNameInput = String(body?.fileName || body?.displayName || '').trim();
+
+            if (!displayName) {
+              res.statusCode = 400;
+              res.setHeader('Content-Type', 'application/json; charset=utf-8');
+              res.end(JSON.stringify({ error: 'Missing displayName' }));
+              return;
+            }
+
+            fs.mkdirSync(templatesDir, { recursive: true });
+            const fallbackBase = `template-${Date.now().toString(36)}`;
+            const sanitizedBase = sanitizeDocBaseName(fileNameInput || displayName) || fallbackBase;
+            let baseName = sanitizedBase;
+            let suffix = 2;
+            while (fs.existsSync(path.join(templatesDir, `${baseName}.md`))) {
+              baseName = `${sanitizedBase}-${suffix}`;
+              suffix += 1;
+            }
+
+            const templateFileName = `${baseName}.md`;
+            const templatePath = path.join(templatesDir, templateFileName);
+            if (!templatePath.startsWith(templatesDir)) {
+              res.statusCode = 403;
+              res.setHeader('Content-Type', 'application/json; charset=utf-8');
+              res.end(JSON.stringify({ error: 'Forbidden' }));
+              return;
+            }
+
+            fs.writeFileSync(templatePath, createManualDocTemplate(displayName), 'utf8');
+
+            res.statusCode = 201;
+            res.setHeader('Content-Type', 'application/json; charset=utf-8');
+            res.end(JSON.stringify({
+              success: true,
+              name: templateFileName,
+              displayName: templateFileName.replace(/\.[^./\\]+$/u, ''),
+              path: `assets/templates/${templateFileName}`,
+            }));
+          } catch (error: any) {
+            console.error('Error creating template:', error);
+            res.statusCode = 500;
+            res.setHeader('Content-Type', 'application/json; charset=utf-8');
+            res.end(JSON.stringify({ error: error?.message || 'Create template failed' }));
+          }
+          return;
+        }
+
+        if (req.method === 'POST' && pathname.startsWith('/api/templates/') && pathname.endsWith('/copy')) {
+          try {
+            const encodedTemplateName = pathname.slice('/api/templates/'.length, -'/copy'.length);
+            const templateName = decodeURIComponent(encodedTemplateName);
+            if (!templateName) {
+              res.statusCode = 400;
+              res.end(JSON.stringify({ error: 'Missing template name' }));
+              return;
+            }
+
+            const sourcePath = path.join(templatesDir, templateName);
+            if (!sourcePath.startsWith(templatesDir)) {
+              res.statusCode = 403;
+              res.end(JSON.stringify({ error: 'Forbidden' }));
+              return;
+            }
+            if (!fs.existsSync(sourcePath)) {
+              res.statusCode = 404;
+              res.end(JSON.stringify({ error: 'Template not found' }));
+              return;
+            }
+
+            const sourceDir = path.dirname(sourcePath);
+            const ext = path.extname(sourcePath);
+            const sourceBaseName = path.basename(sourcePath, ext);
+            const safeBaseName = sanitizeDocBaseName(sourceBaseName) || sourceBaseName;
+            const candidateBase = `${safeBaseName}-copy`;
+
+            let nextBaseName = candidateBase;
+            let suffix = 2;
+            let nextName = `${nextBaseName}${ext}`;
+            let nextPath = path.join(sourceDir, nextName);
+            while (fs.existsSync(nextPath)) {
+              nextBaseName = `${candidateBase}${suffix}`;
+              nextName = `${nextBaseName}${ext}`;
+              nextPath = path.join(sourceDir, nextName);
+              suffix += 1;
+            }
+
+            if (!nextPath.startsWith(templatesDir)) {
+              res.statusCode = 403;
+              res.end(JSON.stringify({ error: 'Forbidden' }));
+              return;
+            }
+
+            fs.copyFileSync(sourcePath, nextPath);
+
+            const relativeName = path.relative(templatesDir, nextPath).split(path.sep).join('/');
+            res.statusCode = 201;
+            res.setHeader('Content-Type', 'application/json; charset=utf-8');
+            res.end(JSON.stringify({
+              success: true,
+              name: relativeName,
+              displayName: relativeName.replace(/\.[^./\\]+$/u, ''),
+              path: `assets/templates/${relativeName}`,
+            }));
+          } catch (error: any) {
+            console.error('Error copying template:', error);
+            res.statusCode = 500;
+            res.setHeader('Content-Type', 'application/json; charset=utf-8');
+            res.end(JSON.stringify({ error: error?.message || 'Copy template failed' }));
+          }
+          return;
+        }
+
+        if (req.method === 'DELETE' && pathname.startsWith('/api/templates/') && pathname !== '/api/templates/' && pathname !== '/api/templates') {
+          try {
+            const encodedTemplateName = pathname.replace('/api/templates/', '');
+            const templateName = decodeURIComponent(encodedTemplateName);
+            const templatePath = path.join(templatesDir, templateName);
+
+            if (!templatePath.startsWith(templatesDir)) {
+              res.statusCode = 403;
+              res.end(JSON.stringify({ error: 'Forbidden' }));
+              return;
+            }
+            if (!fs.existsSync(templatePath)) {
+              res.statusCode = 404;
+              res.end(JSON.stringify({ error: 'Template not found' }));
+              return;
+            }
+
+            fs.unlinkSync(templatePath);
+            res.statusCode = 200;
+            res.setHeader('Content-Type', 'application/json; charset=utf-8');
+            res.end(JSON.stringify({ success: true }));
+          } catch (error: any) {
+            console.error('Error deleting template:', error);
+            res.statusCode = 500;
+            res.end(JSON.stringify({ error: error?.message || 'Delete template failed' }));
+          }
+          return;
+        }
+
+        if (req.method === 'PUT' && pathname.startsWith('/api/templates/') && pathname !== '/api/templates/' && pathname !== '/api/templates') {
+          try {
+            const encodedTemplateName = pathname.replace('/api/templates/', '');
+            if (!encodedTemplateName) {
+              res.statusCode = 400;
+              res.end(JSON.stringify({ error: 'Missing template name' }));
+              return;
+            }
+
+            const bodyData = await readJsonBody(req);
+            const hasContentUpdate = typeof bodyData?.content === 'string';
+            let newBaseName = String(bodyData?.newBaseName || '').trim();
+            const hasRename = Boolean(newBaseName);
+            if (!hasContentUpdate && !hasRename) {
+              res.statusCode = 400;
+              res.end(JSON.stringify({ error: 'Missing content or newBaseName parameter' }));
+              return;
+            }
+            if (hasRename && /[/\\:*?"<>|]/.test(newBaseName)) {
+              res.statusCode = 400;
+              res.end(JSON.stringify({ error: 'Invalid newBaseName format' }));
+              return;
+            }
+
+            const templateName = decodeURIComponent(encodedTemplateName);
+            const oldPath = path.join(templatesDir, templateName);
+            if (!oldPath.startsWith(templatesDir)) {
+              res.statusCode = 403;
+              res.end(JSON.stringify({ error: 'Forbidden' }));
+              return;
+            }
+            if (!fs.existsSync(oldPath)) {
+              res.statusCode = 404;
+              res.end(JSON.stringify({ error: 'Template not found' }));
+              return;
+            }
+            if (hasRename && isProtectedTemplateName(templateName)) {
+              res.statusCode = 403;
+              res.end(JSON.stringify({ error: '系统模板不支持重命名' }));
+              return;
+            }
+
+            let finalPath = oldPath;
+            if (hasRename) {
+              const ext = path.extname(oldPath);
+              if (ext && newBaseName.toLowerCase().endsWith(ext.toLowerCase())) {
+                newBaseName = newBaseName.slice(0, -ext.length).trim();
+              }
+              const safeBaseName = sanitizeDocBaseName(newBaseName);
+              if (!safeBaseName) {
+                res.statusCode = 400;
+                res.end(JSON.stringify({ error: 'Invalid newBaseName format' }));
+                return;
+              }
+
+              const oldDir = path.dirname(oldPath);
+              const newFileName = `${safeBaseName}${ext}`;
+              const newPath = path.join(oldDir, newFileName);
+              if (!newPath.startsWith(templatesDir)) {
+                res.statusCode = 403;
+                res.end(JSON.stringify({ error: 'Forbidden' }));
+                return;
+              }
+              if (newPath !== oldPath && fs.existsSync(newPath)) {
+                res.statusCode = 400;
+                res.end(JSON.stringify({ error: '目标文件已存在' }));
+                return;
+              }
+              if (newPath !== oldPath) {
+                fs.renameSync(oldPath, newPath);
+              }
+              finalPath = newPath;
+            }
+
+            if (hasContentUpdate) {
+              fs.writeFileSync(finalPath, String(bodyData.content), 'utf8');
+            }
+
+            const relativeName = path.relative(templatesDir, finalPath).split(path.sep).join('/');
+            res.setHeader('Content-Type', 'application/json; charset=utf-8');
+            res.end(JSON.stringify({ success: true, name: relativeName }));
+          } catch (error: any) {
+            console.error('Error updating template:', error);
+            res.statusCode = 500;
+            res.end(JSON.stringify({ error: error?.message || 'Update template failed' }));
+          }
+          return;
+        }
+
+        if (req.method !== 'GET') {
+          return next();
+        }
+
+        if (pathname.startsWith('/api/templates/') && pathname !== '/api/templates/' && pathname !== '/api/templates') {
+          try {
+            const encodedTemplateName = pathname.replace('/api/templates/', '');
+            const templateName = decodeURIComponent(encodedTemplateName);
+            const templatePath = path.join(templatesDir, templateName);
+            if (!templatePath.startsWith(templatesDir)) {
+              res.statusCode = 403;
+              res.end(JSON.stringify({ error: 'Forbidden' }));
+              return;
+            }
+            if (!fs.existsSync(templatePath)) {
+              res.statusCode = 404;
+              res.end(JSON.stringify({ error: 'Template not found' }));
+              return;
+            }
+            const content = fs.readFileSync(templatePath, 'utf8');
+            res.setHeader('Content-Type', 'text/markdown; charset=utf-8');
+            res.end(content);
+          } catch (error: any) {
+            console.error('Error loading template:', error);
+            res.statusCode = 500;
+            res.end(JSON.stringify({ error: error?.message || 'Load template failed' }));
+          }
+          return;
+        }
+
+        if (pathname !== '/api/templates' && pathname !== '/api/templates/') {
           return next();
         }
 
         try {
-          const templatesDir = path.resolve(__dirname, 'assets/templates');
-          const templates: Array<{ name: string; displayName: string }> = [];
-
-          if (fs.existsSync(templatesDir)) {
-            const walkTemplatesDir = (dirPath: string) => {
-              const entries = fs.readdirSync(dirPath, { withFileTypes: true });
-              entries.forEach((entry) => {
-                if (!entry || entry.name.startsWith('.')) {
-                  return;
-                }
-
-                const fullPath = path.join(dirPath, entry.name);
-                if (entry.isDirectory()) {
-                  walkTemplatesDir(fullPath);
-                  return;
-                }
-
-                if (!entry.isFile()) {
-                  return;
-                }
-
-                const relativePath = path.relative(templatesDir, fullPath).split(path.sep).join('/');
-                templates.push({
-                  name: relativePath,
-                  displayName: relativePath,
-                });
-              });
-            };
-
-            walkTemplatesDir(templatesDir);
-          }
-
-          templates.sort((a, b) => String(a.name || '').localeCompare(String(b.name || '')));
+          const templates = listTemplateAssets(templatesDir);
           res.setHeader('Content-Type', 'application/json');
           res.end(JSON.stringify(templates));
         } catch (error: any) {
@@ -2171,27 +3260,6 @@ function themesApiPlugin(): Plugin {
   return {
     name: 'themes-api-plugin',
     configureServer(server: any) {
-      const readJsonBody = (req: any): Promise<any> => {
-        return new Promise((resolve, reject) => {
-          let body = '';
-          req.on('data', (chunk: Buffer) => {
-            body += chunk.toString('utf8');
-          });
-          req.on('end', () => {
-            if (!body) {
-              resolve({});
-              return;
-            }
-            try {
-              resolve(JSON.parse(body));
-            } catch (error) {
-              reject(error);
-            }
-          });
-          req.on('error', reject);
-        });
-      };
-
       server.middlewares.use((req: any, res: any, next: any) => {
         const pathname = getRequestPathname(req);
         if (!pathname.startsWith('/api/themes')) {
@@ -2480,6 +3548,7 @@ const config: any = {
     writeDevServerInfoPlugin(), // 写入开发服务器信息
     serveAdminPlugin(), // 服务 admin 目录（需要在最前面）
     axureBridgeProxyPlugin(), // 提供 /api/axure-bridge/* 端点
+    exportImageProxyPlugin(), // 提供 /api/export/image-proxy 端点
     injectStablePageIds(), // 注入稳定 ID（所有模式都启用）
     virtualHtmlPlugin(),
     websocketPlugin(),
@@ -2487,6 +3556,7 @@ const config: any = {
     downloadDistPlugin(), // 提供 /api/download-dist 端点
     docsImportApiPlugin(), // 提供 /api/docs/import 端点
     docsApiPlugin(), // 提供 /api/docs 端点
+    canvasApiPlugin(), // 提供 /api/canvas 端点
     templatesApiPlugin(), // 提供 /api/templates 端点
     uploadDocsApiPlugin(),
     sourceApiPlugin(), // 提供 /api/source 端点

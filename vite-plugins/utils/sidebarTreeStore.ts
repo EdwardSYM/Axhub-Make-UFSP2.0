@@ -2,7 +2,7 @@ import fs from 'fs';
 import path from 'path';
 import type { SidebarTreeTab } from './entryScanner';
 
-export type ResourceOrderType = 'themes' | 'data';
+export type ResourceOrderType = 'themes' | 'data' | 'templates';
 
 export type SidebarTreeNodeKind = 'folder' | 'item';
 
@@ -20,8 +20,10 @@ export interface SidebarTreeStore {
   prototypes: SidebarTreeNode[];
   components: SidebarTreeNode[];
   docs: SidebarTreeNode[];
+  canvas: SidebarTreeNode[];
   themes: string[];
   data: string[];
+  templates: string[];
 }
 
 interface EntriesWithLegacySidebarTree {
@@ -30,8 +32,10 @@ interface EntriesWithLegacySidebarTree {
     prototypes?: SidebarTreeNode[];
     components?: SidebarTreeNode[];
     docs?: SidebarTreeNode[];
+    canvas?: SidebarTreeNode[];
     themes?: string[];
     data?: string[];
+    templates?: string[];
   };
 }
 
@@ -51,8 +55,10 @@ function createDefaultStore(version: number): SidebarTreeStore {
     prototypes: [],
     components: [],
     docs: [],
+    canvas: [],
     themes: [],
     data: [],
+    templates: [],
   };
 }
 
@@ -84,6 +90,7 @@ function normalizeStore(data: unknown, version: number): SidebarTreeStore | null
   const prototypes = Array.isArray(parsed.prototypes) ? cloneTree(parsed.prototypes) : [];
   const components = Array.isArray(parsed.components) ? cloneTree(parsed.components) : [];
   const docs = Array.isArray(parsed.docs) ? cloneTree(parsed.docs) : [];
+  const canvas = Array.isArray(parsed.canvas) ? cloneTree(parsed.canvas) : [];
   const themes = Array.isArray(parsed.themes)
     ? parsed.themes.filter((key): key is string => typeof key === 'string')
     : [];
@@ -93,6 +100,9 @@ function normalizeStore(data: unknown, version: number): SidebarTreeStore | null
   const updatedAt = typeof parsed.updatedAt === 'string' && parsed.updatedAt.trim()
     ? parsed.updatedAt
     : new Date().toISOString();
+  const templates = Array.isArray(parsed.templates)
+    ? parsed.templates.filter((key): key is string => typeof key === 'string')
+    : [];
 
   return {
     version,
@@ -100,8 +110,10 @@ function normalizeStore(data: unknown, version: number): SidebarTreeStore | null
     prototypes,
     components,
     docs,
+    canvas,
     themes,
     data: dataOrder,
+    templates,
   };
 }
 
@@ -123,11 +135,15 @@ function readLegacySidebarTree(legacyEntriesPath: string, version: number): Side
     prototypes: Array.isArray(legacy.prototypes) ? cloneTree(legacy.prototypes) : [],
     components: Array.isArray(legacy.components) ? cloneTree(legacy.components) : [],
     docs: Array.isArray((legacy as any).docs) ? cloneTree((legacy as any).docs) : [],
+    canvas: Array.isArray((legacy as any).canvas) ? cloneTree((legacy as any).canvas) : [],
     themes: Array.isArray((legacy as any).themes)
       ? (legacy as any).themes.filter((key: unknown): key is string => typeof key === 'string')
       : [],
     data: Array.isArray((legacy as any).data)
       ? (legacy as any).data.filter((key: unknown): key is string => typeof key === 'string')
+      : [],
+    templates: Array.isArray((legacy as any).templates)
+      ? (legacy as any).templates.filter((key: unknown): key is string => typeof key === 'string')
       : [],
   };
 }
@@ -177,8 +193,10 @@ export function createSidebarTreeStore(projectRoot: string, options?: Partial<Si
       prototypes: cloneTree(store.prototypes),
       components: cloneTree(store.components),
       docs: cloneTree(store.docs),
+      canvas: cloneTree(store.canvas),
       themes: Array.isArray(store.themes) ? [...store.themes] : [],
       data: Array.isArray(store.data) ? [...store.data] : [],
+      templates: Array.isArray(store.templates) ? [...store.templates] : [],
     };
     writeStoreAtomic(resolved.storePath, nextStore);
     return nextStore;

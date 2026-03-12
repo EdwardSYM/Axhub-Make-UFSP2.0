@@ -16,14 +16,13 @@ description: 使用 Gemini CLI 执行 UI/UX 设计与实现任务。适用于需
 
 优先模型链（从高到低）：
 
-1. `gemini-3-pro`
-2. `gemini-3-flash`
-3. `gemini-2.5-pro`
+1. `pro`
+2. `auto`
 
 执行时应尽量显式指定模型，例如：
 
 ```bash
-gemini -m gemini-3-pro -p "<YOUR_PROMPT>"
+gemini -m pro -p "<YOUR_PROMPT>"
 ```
 
 如果当前 Gemini CLI 版本不支持 `-m` 或运行时被平台策略限制无法选模：

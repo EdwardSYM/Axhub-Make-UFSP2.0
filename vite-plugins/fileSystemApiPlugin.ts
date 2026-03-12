@@ -7,6 +7,7 @@ import extractZip from 'extract-zip';
 import archiver from 'archiver';
 import { allowedItemKeysByTab, scanEntries, type SidebarTreeTab } from './utils/entryScanner';
 import { createSidebarTreeStore, type SidebarTreeNode, type ResourceOrderType } from './utils/sidebarTreeStore';
+import { buildAttachmentContentDisposition } from './utils/contentDisposition';
 import { runCommand, runCommandSync } from '../scripts/utils/command-runtime.mjs';
 
 /**
@@ -146,7 +147,7 @@ export function fileSystemApiPlugin(): Plugin {
       });
 
       const isSidebarTreeTab = (value: string): value is SidebarTreeTab => {
-        return value === 'prototypes' || value === 'components' || value === 'docs';
+        return value === 'prototypes' || value === 'components' || value === 'docs' || value === 'canvas';
       };
 
       const getTabFromRequest = (req: any): SidebarTreeTab | null => {
@@ -296,15 +297,13 @@ export function fileSystemApiPlugin(): Plugin {
 
         const normalizedTree = normalizeNodes(tree, 0);
         const missingItemKeys = Array.from(allowedItemKeys).filter((itemKey) => !seenItemKeys.has(itemKey));
-        for (const itemKey of missingItemKeys.sort((a, b) => a.localeCompare(b))) {
-          normalizedTree.push({
+        const nextMissingNodes = missingItemKeys.sort((a, b) => a.localeCompare(b)).map((itemKey) => ({
             id: makeUniqueId(`item-${sanitizeNodeId(itemKey)}`),
             kind: 'item',
             title: toDefaultTreeTitle(itemKey),
             itemKey,
-          });
-        }
-        return normalizedTree;
+          }));
+        return [...nextMissingNodes, ...normalizedTree];
       };
 
       const collectSidebarTreeIds = (nodes: SidebarTreeNode[]): Set<string> => {
@@ -369,12 +368,13 @@ export function fileSystemApiPlugin(): Plugin {
       };
 
       const DOC_EXTENSIONS = new Set(['.md', '.csv', '.json', '.yaml', '.yml', '.txt']);
+      const CANVAS_EXT = '.excalidraw';
 
       const collectDocItemKeys = (): Set<string> => {
         const docsDir = path.join(projectRoot, 'src', 'docs');
-        const keys = new Set<string>();
+        const keys: string[] = [];
         if (!fs.existsSync(docsDir)) {
-          return keys;
+          return new Set();
         }
 
         const walk = (currentDir: string) => {
@@ -389,24 +389,45 @@ export function fileSystemApiPlugin(): Plugin {
             const ext = path.extname(entry.name).toLowerCase();
             if (!DOC_EXTENSIONS.has(ext)) continue;
             const rel = normalizePath(path.relative(docsDir, absolutePath));
-            keys.add(`docs/${rel}`);
+            keys.push(`docs/${rel}`);
           }
         };
 
         walk(docsDir);
-        return keys;
+        keys.sort((a, b) => a.localeCompare(b));
+        return new Set(keys);
+      };
+
+      const collectCanvasItemKeys = (): Set<string> => {
+        const canvasDir = path.join(projectRoot, 'src', 'canvas');
+        const keys: string[] = [];
+        if (!fs.existsSync(canvasDir)) {
+          return new Set();
+        }
+
+        const entries = fs.readdirSync(canvasDir, { withFileTypes: true });
+        for (const entry of entries) {
+          if (!entry.isFile() || !entry.name.endsWith(CANVAS_EXT)) continue;
+          keys.push(`canvas/${entry.name}`);
+        }
+
+        keys.sort((a, b) => a.localeCompare(b));
+        return new Set(keys);
       };
 
       const resolveAllowedItemKeys = (tab: SidebarTreeTab): Set<string> => {
         if (tab === 'docs') {
           return collectDocItemKeys();
         }
+        if (tab === 'canvas') {
+          return collectCanvasItemKeys();
+        }
         const scanned = scanEntries(projectRoot);
         return allowedItemKeysByTab(scanned.entries.js, tab);
       };
 
       const isResourceOrderType = (value: string): value is ResourceOrderType => {
-        return value === 'themes' || value === 'data';
+        return value === 'themes' || value === 'data' || value === 'templates';
       };
 
       const getResourceOrderTypeFromRequest = (req: any): ResourceOrderType | null => {
@@ -452,7 +473,35 @@ export function fileSystemApiPlugin(): Plugin {
       };
 
       const resolveAllowedResourceKeys = (type: ResourceOrderType): Set<string> => {
-        return type === 'themes' ? collectThemeKeys() : collectDataTableKeys();
+        if (type === 'themes') {
+          return collectThemeKeys();
+        }
+        if (type === 'data') {
+          return collectDataTableKeys();
+        }
+        const templatesDir = path.join(projectRoot, 'assets', 'templates');
+        const keys = new Set<string>();
+        if (!fs.existsSync(templatesDir)) {
+          return keys;
+        }
+        const walkTemplatesDir = (dirPath: string) => {
+          const entries = fs.readdirSync(dirPath, { withFileTypes: true });
+          for (const entry of entries) {
+            if (!entry || entry.name.startsWith('.')) continue;
+            const fullPath = path.join(dirPath, entry.name);
+            if (entry.isDirectory()) {
+              walkTemplatesDir(fullPath);
+              continue;
+            }
+            if (!entry.isFile()) continue;
+            const relativePath = path.relative(templatesDir, fullPath).split(path.sep).join('/');
+            if (relativePath) {
+              keys.add(relativePath);
+            }
+          }
+        };
+        walkTemplatesDir(templatesDir);
+        return keys;
       };
 
       const reconcileResourceOrder = (order: string[], allowedKeys: Set<string>): string[] => {
@@ -467,8 +516,7 @@ export function fileSystemApiPlugin(): Plugin {
 
         const remaining = Array.from(allowedKeys).filter((key) => !seen.has(key));
         remaining.sort((a, b) => a.localeCompare(b));
-        nextOrder.push(...remaining);
-        return nextOrder;
+        return [...remaining, ...nextOrder];
       };
       
       // Helper function to parse JSON body
@@ -536,7 +584,7 @@ export function fileSystemApiPlugin(): Plugin {
       server.middlewares.use('/api/prototype-admin/sidebar-tree/folder', async (req: any, res: any) => {
         const tab = getTabFromRequest(req);
         if (!tab) {
-          return sendJSON(res, 400, { error: 'Invalid tab, expected prototypes|components|docs' });
+          return sendJSON(res, 400, { error: 'Invalid tab, expected prototypes|components|docs|canvas' });
         }
 
         if (req.method !== 'POST') {
@@ -553,13 +601,13 @@ export function fileSystemApiPlugin(): Plugin {
           const createdFolderId = createUniqueFolderNodeId(existingIds);
           const title = createRootFolderTitle(tree);
           const nextTree: SidebarTreeNode[] = [
-            ...tree,
             {
               id: createdFolderId,
               kind: 'folder',
               title,
               children: [],
             },
+            ...tree,
           ];
 
           sidebarTreeStore.setTree(tab, nextTree);
@@ -579,7 +627,7 @@ export function fileSystemApiPlugin(): Plugin {
       server.middlewares.use('/api/prototype-admin/sidebar-tree', async (req: any, res: any) => {
         const tab = getTabFromRequest(req);
         if (!tab) {
-          return sendJSON(res, 400, { error: 'Invalid tab, expected prototypes|components|docs' });
+          return sendJSON(res, 400, { error: 'Invalid tab, expected prototypes|components|docs|canvas' });
         }
 
         if (req.method === 'GET') {
@@ -623,7 +671,7 @@ export function fileSystemApiPlugin(): Plugin {
       server.middlewares.use('/api/prototype-admin/resource-order', async (req: any, res: any) => {
         const type = getResourceOrderTypeFromRequest(req);
         if (!type) {
-          return sendJSON(res, 400, { error: 'Invalid type, expected themes|data' });
+          return sendJSON(res, 400, { error: 'Invalid type, expected themes|data|templates' });
         }
 
         if (req.method === 'GET') {
@@ -1726,7 +1774,7 @@ ${filePaths.map(p => `- \`${p}\``).join('\n')}
           }
 
           res.setHeader('Content-Type', 'application/zip');
-          res.setHeader('Content-Disposition', `attachment; filename="${fileName}"`);
+          res.setHeader('Content-Disposition', buildAttachmentContentDisposition(fileName));
 
           // 使用 streaming 方式创建 ZIP（避免在内存中构建整个 zip buffer）
           try {

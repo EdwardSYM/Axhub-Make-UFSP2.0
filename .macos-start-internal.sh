@@ -6,7 +6,7 @@ NPM_REGISTRY="https://registry.npmmirror.com"
 NPM_CACHE_DIR="$(pwd)/.npm-cache"
 
 print_ai_prompt() {
-  local issue="${1:-未知错误}"
+  local issue="${1:-未提供错误详情}"
   echo "AI求助：我在 macOS 启动 Axhub Make 失败，问题：${issue}，项目路径：$(pwd)。请直接带我修到 npm run dev 成功（我有安装权限），并按“每次只给我下一条可执行命令，我执行后回传结果，你再给下一条”方式直到成功。"
 }
 

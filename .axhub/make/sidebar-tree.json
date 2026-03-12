@@ -1,6 +1,6 @@
 {
   "version": 1,
-  "updatedAt": "2026-03-05T09:12:44.033Z",
+  "updatedAt": "2026-03-12T08:38:12.432Z",
   "prototypes": [
     {
       "id": "folder-1771647506379-zzmigx",
@@ -63,6 +63,7 @@
       ]
     }
   ],
+  "canvas": [],
   "themes": [
     "antd-new",
     "trae-design",
@@ -70,5 +71,10 @@
   ],
   "data": [
     "orders"
+  ],
+  "templates": [
+    "lite-prd-template.md",
+    "prd-template.md",
+    "spec-template.md"
   ]
 }
