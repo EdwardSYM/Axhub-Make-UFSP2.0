@@ -808,14 +808,16 @@ function axureBridgeProxyPlugin(): Plugin {
             }
 
             const requestBody = normalizeAxvgPayloadText(rawBody);
-            payloadBytes = Buffer.byteLength(requestBody, 'utf8');
+            const requestBuffer = Buffer.from(requestBody, 'utf8');
+            payloadBytes = requestBuffer.byteLength;
 
             upstreamResponse = await fetch(upstreamUrl, {
               method: 'POST',
               headers: {
                 'Content-Type': 'text/plain; charset=utf-8',
+                'Content-Length': String(payloadBytes),
               },
-              body: requestBody,
+              body: requestBuffer,
             });
           }
 
