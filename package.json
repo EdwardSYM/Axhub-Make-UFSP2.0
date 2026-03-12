@@ -31,14 +31,12 @@
   },
   "dependencies": {
     "archiver": "^7.0.1",
-    "clsx": "^2.1.1",
     "extract-zip": "^2.0.1",
     "formidable": "^3.5.4",
     "iconv-lite": "^0.7.1",
     "lowdb": "^7.0.1",
     "lucide-react": "^0.562.0",
     "papaparse": "^5.5.3",
-    "tailwind-merge": "^3.4.0",
     "uuid": "^13.0.0"
   }
 }
