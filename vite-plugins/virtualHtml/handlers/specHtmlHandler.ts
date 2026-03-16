@@ -6,6 +6,11 @@ import { normalizePath } from './pathNormalizer';
 export function handleSpecHtml(req: IncomingMessage, res: ServerResponse, specTemplate: string): boolean {
   if (!req.url) return false;
 
+  const rawPathname = req.url.split('?')[0];
+  if (rawPathname.startsWith('/docs/') && rawPathname.includes('/assets/')) {
+    return false;
+  }
+
   // 先尝试标准化路径
   const normalized = normalizePath(req.url);
 

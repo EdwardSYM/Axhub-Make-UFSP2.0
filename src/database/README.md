@@ -1,4 +1,4 @@
-# assets/database
+# src/database
 
 本目录存放页面可直接消费的数据表 JSON。
 

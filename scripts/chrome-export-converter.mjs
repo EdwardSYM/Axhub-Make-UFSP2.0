@@ -37,6 +37,25 @@ function ensureDir(dirPath) {
   }
 }
 
+function normalizeRelativeDir(value) {
+  return String(value ?? '')
+    .replace(/\\/g, '/')
+    .split('/')
+    .filter(Boolean)
+    .join('/');
+}
+
+function isSafeRelativeDir(value) {
+  if (!value) return false;
+  if (value.startsWith('/') || value.startsWith('~')) return false;
+  const segments = value.split('/');
+  if (segments.length === 0) return false;
+  return segments.every((segment) => {
+    if (!segment || segment === '.' || segment === '..') return false;
+    return !/[\\/]/.test(segment);
+  });
+}
+
 /**
  * 判断是否为 CDN 链接
  */
@@ -371,7 +390,7 @@ function generateComponent(pageSlug, displayName, bodyContent, headContent) {
  * @name ${safeDisplayName}
  * 
  * 参考资料：
- * - /rules/development-standards.md
+ * - /rules/development-guide.md
  * - /skills/default-resource-recommendations/SKILL.md
  */
 
@@ -657,16 +676,18 @@ Chrome 扩展导出转换器
 
 使用方法:
   node scripts/chrome-export-converter.mjs <source-dir> [output-name] [display-name]
-  node scripts/chrome-export-converter.mjs <source-dir> --name <output-name> --display-name <display-name>
+  node scripts/chrome-export-converter.mjs <source-dir> --name <output-name> --display-name <display-name> --target-dir <relative-dir>
 
 参数说明:
   source-dir   : Chrome 扩展导出的目录（包含 index.html）
   output-name  : 输出页面名称（可选，默认使用目录名）
   display-name : 页面显示名（可选，写入 index.tsx 的 @name）
+  target-dir   : 输出到 src/prototypes 下的相对目录（可选）
 
 示例:
   node scripts/chrome-export-converter.mjs ".drafts/my-export" my-page
   node scripts/chrome-export-converter.mjs ".drafts/my-export" my-page "登录页"
+  node scripts/chrome-export-converter.mjs ".drafts/my-export" --name my-page --target-dir grouped/login-page
     `);
     process.exit(0);
   }
@@ -675,7 +696,7 @@ Chrome 扩展导出转换器
   const positionals = [];
   for (let i = 0; i < args.length; i += 1) {
     const token = args[i];
-    if (token === '--name' || token === '--display-name') {
+    if (token === '--name' || token === '--display-name' || token === '--target-dir') {
       const next = args[i + 1];
       if (typeof next === 'string' && next) {
         flags[token] = next;
@@ -704,8 +725,17 @@ Chrome 扩展导出转换器
     }
   }
 
+  const requestedTargetDir = normalizeRelativeDir(flags['--target-dir'] || outputName);
+  if (!isSafeRelativeDir(requestedTargetDir)) {
+    throw new Error('target-dir 必须是 src/prototypes 下的安全相对路径');
+  }
+
   const sourcePath = path.resolve(CONFIG.projectRoot, sourceDirArg);
-  const outputDir = path.join(CONFIG.pagesDir, outputName);
+  const outputDir = path.resolve(CONFIG.pagesDir, requestedTargetDir);
+  const resolvedPagesDir = path.resolve(CONFIG.pagesDir);
+  if (outputDir === resolvedPagesDir || !outputDir.startsWith(`${resolvedPagesDir}${path.sep}`)) {
+    throw new Error('target-dir 超出 src/prototypes 目录范围');
+  }
   
   if (!fs.existsSync(sourcePath)) {
     log(`错误: 找不到目录 ${sourcePath}`, 'error');

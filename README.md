@@ -1,10 +1,6 @@
 > [!NOTE]
 > Axhub Make 不是“又一个 AI 生成原型工具”。它是一条从 **需求** 到 **文档** 到 **原型** 再到 **交付（Axure / Figma / Html）** 的工作流。
 
-<div align="center">
-  <img alt="Axhub Make Preview" src="./assets/media/home.png" width="900" />
-</div>
-
 # 跳过这个 README 吧
 
 读文档的时代已经过去了。直接把下面这行发给你的 Agent：
@@ -35,7 +31,7 @@ https://raw.githubusercontent.com/lintendo/Axhub-Make/refs/heads/main/README.md
 
 ```
 请根据这里的说明安装并配置 Axhub Make：
-https://raw.githubusercontent.com/lintendo/Axhub-Make/refs/heads/main/rules/installation.md
+https://raw.githubusercontent.com/lintendo/Axhub-Make/refs/heads/main/rules/installation-guide.md
 ```
 
 ---
@@ -47,9 +43,11 @@ Axhub Make 把「原型生成」变成「可执行工作流」，核心能力如
 - 可视化管理原型和文档，不懂开发的产品和设计师也能直接使用
 - 内置 30+ 专业的原型生成与文档协作技能（`skills`）
 - 内置项目与资源管理和生成能力，让 AI 持续产出视觉风格一致、逻辑统一的原型和文档
+- 内置记忆系统，通过文档持续沉淀项目记忆，让 AI 越来越懂你和项目
 - 内置 `spec` 驱动的原型生成机制，减少 AI 生成过程中的幻觉和偏题
 - 支持从 Axure、V0、Stitch、AIStudio 以及任意网页导入原型或资源
 - 支持导出到 Axure 或 Figma，完美融入原有工作流
+
 
 ### 三大产物
 
@@ -74,7 +72,7 @@ Axhub Make 把「原型生成」变成「可执行工作流」，核心能力如
     </tr>
     <tr>
       <td style="white-space: nowrap;">资源</td>
-      <td><code>src/themes/</code>、<code>src/components/</code>、<code>assets/database/</code></td>
+      <td><code>src/themes/</code>、<code>src/components/</code>、<code>src/database/</code></td>
       <td>统一管理主题、组件、数据表，保证持续生成的一致性</td>
     </tr>
   </tbody>
@@ -91,6 +89,7 @@ Axhub Make 把「原型生成」变成「可执行工作流」，核心能力如
 
 请阅读并遵循：
 - AGENTS.md（工作流与原则）
+- rules/README.md（规则索引与命名体系）
 
 你必须：
 - 以产品经理 + UI/UX 设计师 + 前端工程师的复合角色开展工作

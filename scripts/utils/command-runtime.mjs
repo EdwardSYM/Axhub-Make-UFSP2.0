@@ -1,4 +1,6 @@
 import { spawn, spawnSync } from 'node:child_process';
+import fs from 'node:fs';
+import path from 'node:path';
 import iconv from 'iconv-lite';
 
 const WINDOWS_CODEPAGE_TIMEOUT_MS = 1200;
@@ -21,21 +23,79 @@ function buildWindowsCommandLine(command, args) {
   return [command, ...args].map((part) => quoteForCmdExec(String(part))).join(' ');
 }
 
-function shouldUseWindowsCmdWrapper(platform, command) {
-  if (platform !== 'win32') return false;
-  return !/\.exe$/i.test(command);
+function getEnvValue(env, key) {
+  if (!env) return undefined;
+
+  const direct = env[key];
+  if (typeof direct === 'string' && direct.length > 0) {
+    return direct;
+  }
+
+  const matchedKey = Object.keys(env).find((candidate) => candidate.toLowerCase() === key.toLowerCase());
+  if (!matchedKey) return undefined;
+
+  const value = env[matchedKey];
+  return typeof value === 'string' && value.length > 0 ? value : undefined;
 }
 
-function getSpawnSpec(command, args, platform = process.platform) {
-  if (!shouldUseWindowsCmdWrapper(platform, command)) {
+function getWindowsPathExtList(env) {
+  const pathExt = getEnvValue(env, 'PATHEXT') || '.COM;.EXE;.BAT;.CMD';
+  return pathExt
+    .split(';')
+    .map((ext) => ext.trim())
+    .filter(Boolean)
+    .map((ext) => (ext.startsWith('.') ? ext.toLowerCase() : `.${ext.toLowerCase()}`));
+}
+
+function resolveWindowsCommand(command, env) {
+  if (!command || typeof command !== 'string') return command;
+
+  const trimmed = command.trim();
+  if (!trimmed) return trimmed;
+
+  const hasPathSeparator = /[\\/]/.test(trimmed);
+  const ext = path.extname(trimmed);
+  const pathExts = ext ? [''] : getWindowsPathExtList(env);
+
+  const candidateDirs = hasPathSeparator
+    ? ['']
+    : (getEnvValue(env, 'PATH') || '')
+        .split(';')
+        .map((entry) => entry.trim())
+        .filter(Boolean);
+
+  const baseCandidates = hasPathSeparator ? [trimmed] : candidateDirs.map((dir) => path.join(dir, trimmed));
+
+  for (const baseCandidate of baseCandidates) {
+    const suffixes = ext ? [''] : pathExts;
+    for (const suffix of suffixes) {
+      const fullPath = suffix ? `${baseCandidate}${suffix}` : baseCandidate;
+      if (fs.existsSync(fullPath)) {
+        return fullPath;
+      }
+    }
+  }
+
+  return trimmed;
+}
+
+function shouldUseWindowsCmdWrapper(platform, command) {
+  if (platform !== 'win32') return false;
+  return /\.(cmd|bat)$/i.test(command) || !/\.(exe|com)$/i.test(command);
+}
+
+function getSpawnSpec(command, args, platform = process.platform, env = process.env) {
+  const resolvedCommand = platform === 'win32' ? resolveWindowsCommand(command, env) : command;
+
+  if (!shouldUseWindowsCmdWrapper(platform, resolvedCommand)) {
     return {
-      command,
+      command: resolvedCommand,
       args,
       windowsHide: platform === 'win32',
     };
   }
 
-  const commandLine = buildWindowsCommandLine(command, args);
+  const commandLine = buildWindowsCommandLine(resolvedCommand, args);
   return {
     command: 'cmd.exe',
     args: ['/d', '/s', '/c', commandLine],
@@ -137,10 +197,11 @@ export function runCommandSync(options) {
   } = options;
 
   const platform = process.platform;
-  const spawnSpec = getSpawnSpec(command, args, platform);
+  const mergedEnv = env ? { ...process.env, ...env } : process.env;
+  const spawnSpec = getSpawnSpec(command, args, platform, mergedEnv);
   const result = spawnSync(spawnSpec.command, spawnSpec.args, {
     cwd,
-    env: env ? { ...process.env, ...env } : process.env,
+    env: mergedEnv,
     timeout: timeoutMs,
     maxBuffer,
     windowsHide: spawnSpec.windowsHide,
@@ -179,11 +240,12 @@ export function runCommand(options) {
 
   return new Promise((resolve, reject) => {
     const platform = process.platform;
-    const spawnSpec = getSpawnSpec(command, args, platform);
+    const mergedEnv = env ? { ...process.env, ...env } : process.env;
+    const spawnSpec = getSpawnSpec(command, args, platform, mergedEnv);
 
     const child = spawn(spawnSpec.command, spawnSpec.args, {
       cwd,
-      env: env ? { ...process.env, ...env } : process.env,
+      env: mergedEnv,
       detached,
       stdio: stdio || (capture ? ['ignore', 'pipe', 'pipe'] : 'inherit'),
       windowsHide: spawnSpec.windowsHide,

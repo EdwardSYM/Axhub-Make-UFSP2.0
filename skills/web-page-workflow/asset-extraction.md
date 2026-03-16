@@ -11,7 +11,7 @@
 
 - 主题：`src/themes/<theme-key>/`
 - 文档：`src/docs/`
-- 数据：`assets/database/`
+- 数据：`src/database/`
 
 ## 工具策略
 
@@ -79,7 +79,7 @@
 产物路径：
 - 主题：src/themes/<theme-key>/
 - 文档：src/docs/
-- 数据：assets/database/
+- 数据：src/database/
 
 如需继续，我可以按指定 URL 生成还原页面。
 ```

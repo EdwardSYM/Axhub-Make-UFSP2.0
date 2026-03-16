@@ -1,4 +1,4 @@
-# 方案比选规则
+# 方案比选指南
 
 本文档指导 AI Agent 如何为用户提供多方案比选，以及如何引导用户进行决策收敛。
 
@@ -303,4 +303,4 @@ AI: 我为您准备了 3 种页面布局方案：
 - `src/common/VariantSwitcher.tsx` - 组件实现代码
 - `src/prototypes/ref-variant-switcher-demo/` - 演示页面
 - `skills/third-party/brainstorming/SKILL.md` - 需求对齐规则
-- `development-standards.md` - 开发标准
+- `development-guide.md` - 开发指南

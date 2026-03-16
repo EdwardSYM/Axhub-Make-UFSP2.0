@@ -7,7 +7,7 @@
 ## 默认目标
 
 - **1:1 像素级还原**：完全还原截图的视觉与布局
-- **独立实现**：不参考本项目已有主题和生成流程，本指南是一个独立的页面还原流程，不需要读取和遵循 `rules/development-standards.md` 以外的项目文档
+- **独立实现**：不参考本项目已有主题和生成流程，本指南是一个独立的页面还原流程，不需要读取和遵循 `rules/development-guide.md` 以外的项目文档
 
 ## 核心流程
 
@@ -79,7 +79,7 @@
    @import "tailwindcss";
    ```
    - 变量名必须是 `Component`，使用 `export default Component`
-   - 详细规范见 `rules/development-standards.md`
+   - 详细规范见 `rules/development-guide.md`
 
 5. **验收页面还原**
    - 运行验收命令：`node scripts/check-app-ready.mjs /prototypes/[页面名]`
@@ -102,7 +102,7 @@
 
 ## 代码规范
 - 优先使用 Tailwind CSS V4 还原
-- 遵循 `rules/development-standards.md`
+- 遵循 `rules/development-guide.md`
 - 样式独立实现，不依赖系统主题
 
 ---

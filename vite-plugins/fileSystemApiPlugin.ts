@@ -8,6 +8,7 @@ import archiver from 'archiver';
 import { allowedItemKeysByTab, scanEntries, type SidebarTreeTab } from './utils/entryScanner';
 import { createSidebarTreeStore, type SidebarTreeNode, type ResourceOrderType } from './utils/sidebarTreeStore';
 import { buildAttachmentContentDisposition } from './utils/contentDisposition';
+import { ensureTemplatesDirMigrated, getTemplatesDir } from './utils/docUtils';
 import { runCommand, runCommandSync } from '../scripts/utils/command-runtime.mjs';
 
 /**
@@ -137,10 +138,20 @@ export function fileSystemApiPlugin(): Plugin {
     
     configureServer(server) {
       const projectRoot = process.cwd();
+      const nodeCommand = process.execPath;
       const entriesPath = path.join(projectRoot, '.axhub', 'make', 'entries.json');
       const configPath = path.join(projectRoot, '.axhub', 'make', 'axhub.config.json');
       const DEFAULT_PROJECT_TITLE = '未命名项目';
       const SIDEBAR_TREE_VERSION = 1;
+      const templateMigrationResult = ensureTemplatesDirMigrated(projectRoot);
+      if (templateMigrationResult.conflicts.length > 0) {
+        console.error(
+          '[filesystem-api] Template migration conflicts detected:\n' +
+          templateMigrationResult.conflicts
+            .map((conflict) => `- ${conflict.relativePath}\n  legacy: ${conflict.legacyPath}\n  target: ${conflict.targetPath}`)
+            .join('\n'),
+        );
+      }
       const sidebarTreeStore = createSidebarTreeStore(projectRoot, {
         version: SIDEBAR_TREE_VERSION,
         legacyEntriesPath: entriesPath,
@@ -456,7 +467,7 @@ export function fileSystemApiPlugin(): Plugin {
       };
 
       const collectDataTableKeys = (): Set<string> => {
-        const databaseDir = path.join(projectRoot, 'assets', 'database');
+        const databaseDir = path.join(projectRoot, 'src', 'database');
         const keys = new Set<string>();
         if (!fs.existsSync(databaseDir)) {
           return keys;
@@ -479,7 +490,7 @@ export function fileSystemApiPlugin(): Plugin {
         if (type === 'data') {
           return collectDataTableKeys();
         }
-        const templatesDir = path.join(projectRoot, 'assets', 'templates');
+        const templatesDir = getTemplatesDir(projectRoot);
         const keys = new Set<string>();
         if (!fs.existsSync(templatesDir)) {
           return keys;
@@ -1179,7 +1190,7 @@ export function fileSystemApiPlugin(): Plugin {
                 try {
                   const scriptPath = path.join(projectRoot, 'scripts', 'local-axure-extract.mjs');
                   const commandResult = runCommandSync({
-                    command: 'node',
+                    command: nodeCommand,
                     args: [scriptPath, tempFilePath, originalFilename],
                     cwd: projectRoot,
                   });
@@ -1207,7 +1218,7 @@ export function fileSystemApiPlugin(): Plugin {
                     : ['/skills/local-axure-workflow/SKILL.md'];
                   const targetHint = targetType ? `\n\n建议输出目录：\`src/${targetType}\`` : '';
                   const prompt = isThemeImport
-                    ? `本地 Axure ZIP 已上传并解压完成。\n\n解压目录：\`${filePath}\`\n\n请阅读技能文档：\n${formatReferenceList(skillDocs)}\n\n目标：导入主题并生成主题/文档/数据相关资产。\n\n建议输出目录：\n- \`src/themes/<theme-key>/\`\n- \`src/docs/\`\n- \`assets/database/\`\n\n开始执行前：先根据 skill 的用户交互指南用简短中文回复用户，确认需求（主题范围/是否需要文档与数据/是否允许优化）。\n\n请按技能文档流程，从解压目录中提取并生成主题 token、设计规范、项目文档与数据模型。`
+                    ? `本地 Axure ZIP 已上传并解压完成。\n\n解压目录：\`${filePath}\`\n\n请阅读技能文档：\n${formatReferenceList(skillDocs)}\n\n目标：导入主题并生成主题/文档/数据相关资产。\n\n建议输出目录：\n- \`src/themes/<theme-key>/\`\n- \`src/docs/\`\n- \`src/database/\`\n\n开始执行前：先根据 skill 的用户交互指南用简短中文回复用户，确认需求（主题范围/是否需要文档与数据/是否允许优化）。\n\n请按技能文档流程，从解压目录中提取并生成主题 token、设计规范、项目文档与数据模型。`
                     : `本地 Axure ZIP 已上传并解压完成。\n\n解压目录：\`${filePath}\`\n\n请阅读技能文档：\n${formatReferenceList(skillDocs)}${targetHint}\n\n开始执行前：先根据 skill 的用户交互指南用简短中文回复用户，确认需求（目标范围/输出类型/是否允许优化等）。\n\n请按技能文档流程，从解压目录中提取主题/数据/文档并还原页面/元素。`;
 
                   return sendJSON(res, 200, {
@@ -1375,7 +1386,7 @@ export function fileSystemApiPlugin(): Plugin {
                     // Chrome 扩展：执行转换脚本
                     const scriptPath = path.join(projectRoot, 'scripts', 'chrome-export-converter.mjs');
                     void runCommand({
-                      command: 'node',
+                      command: nodeCommand,
                       args: [scriptPath, targetDir, targetFolderName],
                       cwd: projectRoot,
                       capture: true,
@@ -1390,22 +1401,46 @@ export function fileSystemApiPlugin(): Plugin {
                       console.error('[Chrome 转换] 执行失败:', error);
                     });
                   } else if (uploadType === 'google_stitch') {
-                    // Stitch：执行转换脚本
                     const scriptPath = path.join(projectRoot, 'scripts', 'stitch-converter.mjs');
-                    void runCommand({
-                      command: 'node',
+                    const commandResult = runCommandSync({
+                      command: nodeCommand,
                       args: [scriptPath, targetDir, targetFolderName],
                       cwd: projectRoot,
-                      capture: true,
-                    }).then((result) => {
-                      if (result.code !== 0) {
-                        console.error('[Stitch 转换] 执行失败:', result.stderr || result.stdout || `exit=${result.code}`);
-                      } else {
-                        console.log('[Stitch 转换] 完成:', result.stdout);
-                      }
-                      if (result.stderr) console.error('[Stitch 转换] 错误:', result.stderr);
-                    }).catch((error: any) => {
-                      console.error('[Stitch 转换] 执行失败:', error);
+                    });
+
+                    if (commandResult.status !== 0) {
+                      throw new Error(commandResult.stderr || commandResult.stdout || `stitch-converter exit=${commandResult.status}`);
+                    }
+
+                    const output = commandResult.stdout.trim();
+                    const lastLine = output.split('\n').filter(Boolean).slice(-1)[0] || output;
+                    let stitchResult: {
+                      success?: boolean;
+                      requiresAi?: boolean;
+                      prompt?: string | null;
+                      reasons?: string[];
+                    } = {};
+
+                    try {
+                      stitchResult = JSON.parse(lastLine);
+                    } catch (parseError: any) {
+                      throw new Error(`stitch-converter 返回结果无法解析: ${parseError.message}`);
+                    }
+
+                    const requiresAi = stitchResult.requiresAi === true;
+                    return sendJSON(res, 200, {
+                      success: true,
+                      message: requiresAi
+                        ? '页面已导入完成，可先预览基础效果。部分细节还可继续优化，建议交给 AI 完成。'
+                        : '上传并解压成功',
+                      folderName: targetFolderName,
+                      path: `${targetType}/${targetFolderName}`,
+                      hint: requiresAi
+                        ? '复制提示词后，可继续完善交互与动态内容'
+                        : '如果页面无法预览，让 AI 处理即可',
+                      requiresAi,
+                      prompt: stitchResult.prompt || undefined,
+                      reasons: Array.isArray(stitchResult.reasons) ? stitchResult.reasons : [],
                     });
                   }
 
@@ -1467,7 +1502,7 @@ export function fileSystemApiPlugin(): Plugin {
                     // 同步执行，等待完成
                     try {
                       const commandResult = runCommandSync({
-                        command: 'node',
+                        command: nodeCommand,
                         args: commandArgs,
                         cwd: projectRoot,
                       });
@@ -1489,7 +1524,7 @@ export function fileSystemApiPlugin(): Plugin {
                       const tasksFileRelPath = `src/${targetType}/${pageName}/${tasksFileName}`;
                       const ruleFile = '/rules/v0-project-converter.md';
                       const prompt = isThemeTarget
-                        ? `V0 项目已上传并预处理完成（主题模式）。\n\n请阅读以下文件：\n1. 主题任务清单: ${tasksFileRelPath}\n2. 转换规范: ${ruleFile}\n\n请同时阅读主题拆分技能文档：\n${formatReferenceList(THEME_IMPORT_SUB_SKILL_DOCS)}\n\n然后基于任务清单生成主题/文档/数据（输出到 \`src/themes/${pageName}/\`、\`src/docs/\`、\`assets/database/\`）。`
+                        ? `V0 项目已上传并预处理完成（主题模式）。\n\n请阅读以下文件：\n1. 主题任务清单: ${tasksFileRelPath}\n2. 转换规范: ${ruleFile}\n\n请同时阅读主题拆分技能文档：\n${formatReferenceList(THEME_IMPORT_SUB_SKILL_DOCS)}\n\n然后基于任务清单生成主题/文档/数据（输出到 \`src/themes/${pageName}/\`、\`src/docs/\`、\`src/database/\`）。`
                         : `V0 项目已上传并预处理完成。\n\n请阅读以下文件：\n1. 任务清单: ${tasksFileRelPath}\n2. 转换规范: ${ruleFile}\n\n然后根据任务清单完成转换工作。`;
                       
                       return sendJSON(res, 200, {
@@ -1528,7 +1563,7 @@ export function fileSystemApiPlugin(): Plugin {
                     // 同步执行，等待完成
                     try {
                       const commandResult = runCommandSync({
-                        command: 'node',
+                        command: nodeCommand,
                         args: commandArgs,
                         cwd: projectRoot,
                       });
@@ -1549,7 +1584,7 @@ export function fileSystemApiPlugin(): Plugin {
                       const tasksFileRelPath = `src/${targetType}/${pageName}/${tasksFileName}`;
                       const ruleFile = '/rules/ai-studio-project-converter.md';
                       const prompt = isThemeTarget
-                        ? `AI Studio 项目已上传并预处理完成（主题模式）。\n\n请阅读以下文件：\n1. 主题任务清单: ${tasksFileRelPath}\n2. 转换规范: ${ruleFile}\n\n请同时阅读主题拆分技能文档：\n${formatReferenceList(THEME_IMPORT_SUB_SKILL_DOCS)}\n\n然后基于任务清单生成主题/文档/数据（输出到 \`src/themes/${pageName}/\`、\`src/docs/\`、\`assets/database/\`）。`
+                        ? `AI Studio 项目已上传并预处理完成（主题模式）。\n\n请阅读以下文件：\n1. 主题任务清单: ${tasksFileRelPath}\n2. 转换规范: ${ruleFile}\n\n请同时阅读主题拆分技能文档：\n${formatReferenceList(THEME_IMPORT_SUB_SKILL_DOCS)}\n\n然后基于任务清单生成主题/文档/数据（输出到 \`src/themes/${pageName}/\`、\`src/docs/\`、\`src/database/\`）。`
                         : `AI Studio 项目已上传并预处理完成。\n\n请阅读以下文件：\n1. 任务清单: ${tasksFileRelPath}\n2. 转换规范: ${ruleFile}\n\n然后根据任务清单完成转换工作。`;
                       
                       return sendJSON(res, 200, {
@@ -1708,7 +1743,7 @@ ${formatReferenceList(docs)}
 截图清单（已上传到工作区）：
 ${filePaths.map(p => `- \`${p}\``).join('\n')}
 
-先和用户确认 \`theme-key\` 与输出范围（是否需要文档/数据），然后基于截图生成主题 token、设计规范文档与主题示例入口，必要时补充 \`src/docs/\` 与 \`assets/database/\`。`
+先和用户确认 \`theme-key\` 与输出范围（是否需要文档/数据），然后基于截图生成主题 token、设计规范文档与主题示例入口，必要时补充 \`src/docs/\` 与 \`src/database/\`。`
                 : `**系统指令**：你将作为UI/UX 设计架构师 × 前端工程师（复合型），协助用户「基于截图导入并创建页面/元素」。
 
 请严格按以下技能文档执行（必须完整跑完 Phase 0 → 5）：

@@ -1,4 +1,4 @@
-# 主题生成规范（Design Tokens + Tailwind CSS + 演示页）
+# 主题指南（Design Tokens + Tailwind CSS + 演示页）
 
 本文档约束"主题"的生成产物与实现方式，供 AI 在用户提供任意形式输入（token、设计规范文档、截图、样式提取结果等）时，稳定产出可用的主题文件与演示页面。
 

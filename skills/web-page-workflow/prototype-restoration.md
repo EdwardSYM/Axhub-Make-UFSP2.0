@@ -76,7 +76,7 @@
    @import "tailwindcss";
    ```
    - 变量名必须是 `Component`，使用 `export default Component`
-   - 详细规范见 `rules/development-standards.md`
+   - 详细规范见 `rules/development-guide.md`
 
 5. **验收页面还原**
    - 运行验收命令：`node scripts/check-app-ready.mjs /prototypes/[页面名]`

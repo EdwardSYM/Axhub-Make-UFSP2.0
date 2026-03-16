@@ -30,5 +30,5 @@ description: 使用本项目MCP 提取 Axure 原型资产、生成主题/数据/
 
 ## 参考资源
 
-- `theme-generation-guide.md`
-- `development-standards.md`
+- `theme-guide.md`
+- `development-guide.md`

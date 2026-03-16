@@ -358,12 +358,17 @@
 
         // 动态导入组件（此时组件会使用 window.React）
         import('{{ENTRY}}').then(module => {
-          const Component = module.Component || module.default;
+          const Component = module.default;
+
+          if (!Component) {
+            const exportKeys = Object.keys(module);
+            throw new Error(`模块缺少默认导出${exportKeys.length > 0 ? `，当前导出: ${exportKeys.join(', ')}` : ''}`);
+          }
 
           // 导出到全局（供调试使用）
           window.AxhubDevComponent = Component;
 
-          console.log('[Dev Template] Component 已加载:', Component);
+          console.log('[Dev Template] 组件默认导出已加载:', Component);
           console.log('[Dev Template] 开始渲染');
 
           // 渲染组件
@@ -388,11 +393,13 @@
               errorDetails.push('  2. 查看浏览器 Network 面板，检查该文件的 HTTP 状态码');
               errorDetails.push('  3. 查看 Vite 开发服务器终端输出，是否有编译错误');
               errorDetails.push('  4. 尝试直接访问该文件 URL，查看具体错误信息');
-            } else if (err.message.includes('does not provide an export')) {
-              errorDetails.push('• 错误原因：模块导出格式不正确');
+            } else if (err.message.includes('does not provide an export') || err.message.includes('模块缺少默认导出')) {
+              errorDetails.push('• 错误原因：组件模块未按当前规范导出');
+              errorDetails.push('• 当前规范：组件文件必须使用 default export');
               errorDetails.push('• 建议检查：');
-              errorDetails.push('  1. 确认组件文件导出了 Component 或 default');
-              errorDetails.push('  2. 检查 export 语法是否正确');
+              errorDetails.push('  1. 确认文件包含 `export default ...`');
+              errorDetails.push('  2. 如果组件主体定义为 `const Component = ...`，请在文件末尾使用 `export default Component`');
+              errorDetails.push('  3. 检查 export 语法是否正确，且没有被条件逻辑包裹');
             } else {
               errorDetails.push(`• 错误信息: ${err.message}`);
             }

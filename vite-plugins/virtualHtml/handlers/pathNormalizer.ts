@@ -76,6 +76,11 @@ export function normalizePath(url: string): NormalizedPath | null {
 
   if (pathParts.length === 0) return null;
 
+  // 文档静态资源路径不参与页面路由标准化，交给资源处理器兜底。
+  if (pathParts[0] === 'docs' && pathParts.includes('assets')) {
+    return null;
+  }
+
   // 情况 1: /prototypes/{name} 或 /prototypes/{name}/spec 或 /prototypes/{name}/index
   if (pathParts[0] === 'prototypes' && pathParts.length >= 2) {
     const name = pathParts[1];
