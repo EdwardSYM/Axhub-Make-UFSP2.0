@@ -12,7 +12,8 @@ export function handleHackCssClear(req: IncomingMessage, res: ServerResponse): b
     
     req.on('end', () => {
       try {
-        const { path: targetPath } = JSON.parse(body);
+        const { path: rawTargetPath } = JSON.parse(body);
+        const targetPath = decodeURIComponent(String(rawTargetPath || ''));
         
         if (!targetPath) {
           res.statusCode = 400;

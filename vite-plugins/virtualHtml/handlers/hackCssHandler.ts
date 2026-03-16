@@ -6,10 +6,11 @@ export function handleHackCssRequest(req: IncomingMessage, res: ServerResponse):
   const requestPath = req.url ? req.url.split('?')[0] : '';
   
   if (req.method === 'GET' && requestPath.endsWith('/hack.css')) {
-    const pathParts = requestPath.split('/').filter(Boolean);
+    const decodedRequestPath = decodeURIComponent(requestPath);
+    const pathParts = decodedRequestPath.split('/').filter(Boolean);
     
     if (pathParts.length >= 2 && ['components', 'prototypes'].includes(pathParts[0])) {
-      const hackCssPath = path.resolve(process.cwd(), 'src', requestPath.slice(1));
+      const hackCssPath = path.resolve(process.cwd(), 'src', decodedRequestPath.slice(1));
       
       if (fs.existsSync(hackCssPath)) {
         try {

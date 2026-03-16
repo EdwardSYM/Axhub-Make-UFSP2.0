@@ -6,7 +6,8 @@ export function handleDocsMarkdown(req: IncomingMessage, res: ServerResponse): b
   // 处理 /prototypes/*.md 和 /components/*.md
   if ((req.url?.includes('/prototypes/') || req.url?.includes('/components/')) && req.url?.endsWith('.md')) {
     const urlWithoutQuery = req.url.split('?')[0];
-    const mdPath = path.resolve(process.cwd(), 'src' + urlWithoutQuery);
+    const decodedUrlPath = decodeURIComponent(urlWithoutQuery);
+    const mdPath = path.resolve(process.cwd(), 'src' + decodedUrlPath);
 
     console.log('[虚拟HTML] 请求 page/element markdown:', req.url, '-> 路径:', mdPath, '存在:', fs.existsSync(mdPath));
 

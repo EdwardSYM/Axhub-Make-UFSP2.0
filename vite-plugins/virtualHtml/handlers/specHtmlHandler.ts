@@ -1,7 +1,7 @@
 import type { IncomingMessage, ServerResponse } from 'http';
 import fs from 'fs';
 import path from 'path';
-import { normalizePath } from './pathNormalizer';
+import { encodeRoutePath, normalizePath } from './pathNormalizer';
 
 export function handleSpecHtml(req: IncomingMessage, res: ServerResponse, specTemplate: string): boolean {
   if (!req.url) return false;
@@ -50,7 +50,7 @@ export function handleSpecHtml(req: IncomingMessage, res: ServerResponse, specTe
 
       // 收集所有存在的文档
       const docs: Array<{ key: string; label: string; url: string }> = [];
-      const urlPath = `/${type}/${name}`;
+      const urlPath = encodeRoutePath(`/${type}/${name}`);
 
       if (fs.existsSync(specMdPath)) {
         const docUrl = versionId

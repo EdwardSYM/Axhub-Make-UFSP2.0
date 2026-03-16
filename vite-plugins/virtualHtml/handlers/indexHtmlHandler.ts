@@ -1,7 +1,7 @@
 import type { IncomingMessage, ServerResponse } from 'http';
 import fs from 'fs';
 import path from 'path';
-import { normalizePath } from './pathNormalizer';
+import { encodeRoutePath, normalizePath } from './pathNormalizer';
 
 export function handleIndexHtml(req: IncomingMessage, res: ServerResponse, devTemplate: string, htmlTemplate: string): boolean {
   if (!req.url) return false;
@@ -16,7 +16,7 @@ export function handleIndexHtml(req: IncomingMessage, res: ServerResponse, devTe
     console.log('[虚拟HTML] 预览请求:', normalized.originalUrl, '→', normalized.normalizedUrl);
 
     if (['components', 'prototypes', 'themes'].includes(type)) {
-      const urlPath = `/${type}/${name}`;
+      const urlPath = encodeRoutePath(`/${type}/${name}`);
       let tsxPath: string;
       let basePath: string;
 
