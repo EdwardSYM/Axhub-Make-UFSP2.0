@@ -33,8 +33,23 @@ function sendFile(res: ServerResponse, filePath: string): void {
   res.end(fs.readFileSync(filePath));
 }
 
+function hasViteModuleQuery(url: string): boolean {
+  const query = url.split('?')[1];
+  if (!query) return false;
+
+  const params = new URLSearchParams(query);
+  return (
+    params.has('import') ||
+    params.has('url') ||
+    params.has('raw') ||
+    params.has('worker') ||
+    params.has('sharedworker')
+  );
+}
+
 export function handleDocImageAssets(req: IncomingMessage, res: ServerResponse): boolean {
   if (!req.url) return false;
+  if (hasViteModuleQuery(req.url)) return false;
 
   const rawPathname = req.url.split('?')[0];
   const pathname = tryDecodeUrlPath(rawPathname);

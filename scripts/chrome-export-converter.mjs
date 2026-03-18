@@ -16,7 +16,7 @@
 
 import fs from 'node:fs';
 import path from 'node:path';
-import { fileURLToPath } from 'node:url';
+import { fileURLToPath, pathToFileURL } from 'node:url';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -25,6 +25,34 @@ const CONFIG = {
   projectRoot: path.resolve(__dirname, '..'),
   pagesDir: path.resolve(__dirname, '../src/prototypes')
 };
+
+const JSX_ATTRIBUTE_REPLACEMENTS = [
+  ['class', 'className'],
+  ['for', 'htmlFor'],
+  ['tabindex', 'tabIndex'],
+  ['readonly', 'readOnly'],
+  ['maxlength', 'maxLength'],
+  ['minlength', 'minLength'],
+  ['colspan', 'colSpan'],
+  ['rowspan', 'rowSpan'],
+  ['viewbox', 'viewBox'],
+  ['preserveaspectratio', 'preserveAspectRatio'],
+  ['clip-path', 'clipPath'],
+  ['fill-rule', 'fillRule'],
+  ['clip-rule', 'clipRule'],
+  ['stroke-width', 'strokeWidth'],
+  ['stroke-dasharray', 'strokeDasharray'],
+  ['stroke-dashoffset', 'strokeDashoffset'],
+  ['stroke-linecap', 'strokeLinecap'],
+  ['stroke-linejoin', 'strokeLinejoin'],
+  ['stroke-miterlimit', 'strokeMiterlimit'],
+  ['stroke-opacity', 'strokeOpacity'],
+  ['fill-opacity', 'fillOpacity'],
+  ['stop-color', 'stopColor'],
+  ['stop-opacity', 'stopOpacity'],
+  ['xlink:href', 'xlinkHref'],
+  ['xmlns:xlink', 'xmlnsXlink'],
+];
 
 function log(message, type = 'info') {
   const prefix = { info: '✓', warn: '⚠', error: '✗', progress: '⏳' }[type] || 'ℹ';
@@ -175,31 +203,39 @@ function escapeTextBraces(html) {
   
   return parts.join('')
     .replace(/__LBRACE__/g, "{'{'}")
-    .replace(/__RBRACE__/g, "{'}'}")
+	    .replace(/__RBRACE__/g, "{'}'}")
 }
 
-/**
- * 提取并转换 body 内容
- */
-function extractBodyContent(html) {
-  const bodyMatch = html.match(/(<body[^>]*>)([\s\S]*)(<\/body>)/i);
-  if (!bodyMatch) return '';
-  
-  const [, openTag, innerContent, closeTag] = bodyMatch;
-  
-  // 移除 <root> 标签（Chrome 扩展导出特有的包装标签）
-  let cleanedContent = innerContent.trim()
-    .replace(/^\s*<root>\s*/i, '')
-    .replace(/\s*<\/root>\s*$/i, '');
-  
-  // 检查是否有嵌套的 body 标签
-  const hasNestedBody = /<body[^>]*>/i.test(cleanedContent);
-  
-  // 如果有嵌套的 body，直接返回内容（不添加外层 body）
-  // 如果没有嵌套的 body，添加外层 body 标签
-  let content = cleanedContent
-    .replace(/<!--([\s\S]*?)-->/g, '{/* $1 */}')
-    .replace(/(\s)class=/g, '$1className=')
+function convertCommonAttributesToJSX(content) {
+  let nextContent = content;
+
+  JSX_ATTRIBUTE_REPLACEMENTS.forEach(([from, to]) => {
+    nextContent = nextContent.replace(new RegExp(`(\\s)${from}=`, 'gi'), `$1${to}=`);
+  });
+
+  return nextContent;
+}
+
+function createCommentPlaceholders(content) {
+  const comments = [];
+  const withPlaceholders = content.replace(/<!--([\s\S]*?)-->/g, (_, commentBody) => {
+    const placeholder = `__HTML_COMMENT_${comments.length}__`;
+    comments.push(`{/* ${commentBody} */}`);
+    return placeholder;
+  });
+
+  return { withPlaceholders, comments };
+}
+
+function restoreCommentPlaceholders(content, comments) {
+  return comments.reduce(
+    (currentContent, comment, index) => currentContent.replaceAll(`__HTML_COMMENT_${index}__`, comment),
+    content,
+  );
+}
+
+function convertHtmlToJSX(content) {
+  let nextContent = convertCommonAttributesToJSX(content)
     .replace(/(<pre[^>]*>)([\s\S]*?)(<\/pre>)/gi, (_, openTag, preContent) => {
       const escapedContent = preContent
         .replace(/\\/g, '\\\\')
@@ -208,43 +244,47 @@ function extractBodyContent(html) {
         .replace(/\{/g, '\\{');
       return `${openTag.slice(0, -1)} dangerouslySetInnerHTML={{ __html: \`${escapedContent}\` }} />`;
     })
-    .replace(/(\s)for=/g, '$1htmlFor=')
-    // Convert SVG attributes to camelCase
-    .replace(/(\s)(stroke-width|stroke-linecap|stroke-linejoin|stroke-miterlimit|stroke-dasharray|stroke-dashoffset|fill-rule|fill-opacity|stroke-opacity|clip-path|clip-rule)=/g, (match, space, attr) => {
-      const camelCase = attr.replace(/-([a-z])/g, (g) => g[1].toUpperCase());
-      return `${space}${camelCase}=`;
-    })
-    .replace(/style='([^']*)'/g, (_, styleStr) => convertStyleToJSX(styleStr))
-    .replace(/style="([^"]*)"/g, (_, styleStr) => convertStyleToJSX(styleStr))
-    // Convert self-closing tags - first remove closing tags, then convert to self-closing
+    .replace(/style='([^']*)'/gi, (_, styleStr) => convertStyleToJSX(styleStr))
+    .replace(/style="([^"]*)"/gi, (_, styleStr) => convertStyleToJSX(styleStr))
     .replace(/<\/(br|hr|img|input|meta|link)>/gi, '')
     .replace(/<(br|hr|img|input|meta|link)([^>]*)>/gi, '<$1$2 />')
-    // Convert HTML entities to placeholders first
-    .replace(/&lt;\//g, '__LTSLASH__')  // 先处理 &lt;/
+    .replace(/<body\b([^>]*)>/gi, '<div data-chrome-export-body="true"$1>')
+    .replace(/<\/body>/gi, '</div>')
+    .replace(/&lt;\//g, '__LTSLASH__')
     .replace(/&lt;/g, '__LT__')
     .replace(/&gt;/g, '__GT__')
     .replace(/&amp;/g, '__AMP__');
-  
-  // 转义文本节点中的花括号
-  content = escapeTextBraces(content);
-  
-  // 将占位符替换为 JSX 表达式
-  content = content
+
+  const { withPlaceholders, comments } = createCommentPlaceholders(nextContent);
+  nextContent = escapeTextBraces(withPlaceholders);
+  nextContent = restoreCommentPlaceholders(nextContent, comments);
+
+  return nextContent
     .replace(/__LTSLASH__/g, "{'</'}")
     .replace(/__LT__/g, "{'<'}")
     .replace(/__GT__/g, "{'>'}")
     .replace(/__AMP__/g, '&');
+}
+
+/**
+ * 提取并转换 body 内容
+ */
+function extractBodyContent(html) {
+  const bodyMatch = html.match(/(<body[^>]*>)([\s\S]*?)(<\/body>)/i);
+  if (!bodyMatch) return '';
   
-  if (hasNestedBody) {
-    // 已经有内层 body 标签，直接返回
-    return content;
-  } else {
-    // 没有内层 body，添加外层 body
-    let convertedOpenTag = openTag
-      .replace(/(\s)class=/g, '$1className=')
-      .replace(/(\s)for=/g, '$1htmlFor=');
-    return convertedOpenTag + '\n' + content + '\n    </body>';
-  }
+  const [, openTag, innerContent] = bodyMatch;
+  
+  // 移除 <root> 标签（Chrome 扩展导出特有的包装标签）
+  let cleanedContent = innerContent.trim()
+    .replace(/^\s*<root>\s*/i, '')
+    .replace(/\s*<\/root>\s*$/i, '');
+
+  const convertedOpenTag = convertCommonAttributesToJSX(openTag)
+    .replace(/^<body\b/i, '<div data-chrome-export-root="true"');
+  const content = convertHtmlToJSX(cleanedContent);
+
+  return `${convertedOpenTag}\n${content}\n    </div>`;
 }
 
 function convertStyleToJSX(styleStr) {
@@ -284,7 +324,9 @@ function convertStyleToJSX(styleStr) {
       const value = s.substring(colonIndex + 1).trim();
       if (!key || !value) return '';
       
-      const camelKey = key.replace(/-([a-z])/g, (g) => g[1].toUpperCase());
+      const camelKey = key.startsWith('-')
+        ? JSON.stringify(key)
+        : key.replace(/-([a-z])/g, (g) => g[1].toUpperCase());
       let jsxValue;
       if (value.startsWith('url(') || value.includes('var(')) {
         jsxValue = `'${value.replace(/'/g, "\\'")}'`;
@@ -759,4 +801,13 @@ Chrome 扩展导出转换器
   }
 }
 
-main();
+if (process.argv[1] && import.meta.url === pathToFileURL(path.resolve(process.argv[1])).href) {
+  main();
+}
+
+export {
+  convertCommonAttributesToJSX,
+  convertHtmlToJSX,
+  convertStyleToJSX,
+  extractBodyContent,
+};

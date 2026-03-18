@@ -1,4 +1,5 @@
 import type { IncomingMessage, ServerResponse } from 'http';
+import { logVirtualHtmlDebug } from '../logger';
 import fs from 'fs';
 import path from 'path';
 import { readEntriesManifest } from '../../utils/entriesManifest';
@@ -318,7 +319,7 @@ export function handlePathRedirect(req: IncomingMessage, res: ServerResponse): b
 
   if (normalized && normalized.isLegacy) {
     // 旧格式，重定向到新格式
-    console.log('[路径标准化] 重定向:', normalized.originalUrl, '→', normalized.normalizedUrl);
+    logVirtualHtmlDebug('路径重定向:', normalized.originalUrl, '→', normalized.normalizedUrl);
 
     res.statusCode = 301; // 永久重定向
     res.setHeader('Location', normalized.normalizedUrl);

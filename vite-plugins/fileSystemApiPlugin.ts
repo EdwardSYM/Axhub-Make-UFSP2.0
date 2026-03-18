@@ -958,12 +958,6 @@ export function fileSystemApiPlugin(): Plugin {
             return sendJSON(res, 404, { error: 'Directory not found' });
           }
 
-          // 检查是否是参考项目（文件夹名以 'ref-' 开头）
-          const folderName = path.basename(deletePath);
-          if (folderName.startsWith('ref-')) {
-            return sendJSON(res, 403, { error: '参考项目无法删除，请先取消参考状态' });
-          }
-
           // 删除目录
           fs.rmSync(deletePath, { recursive: true, force: true });
 

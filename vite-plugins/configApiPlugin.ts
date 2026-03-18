@@ -153,11 +153,16 @@ const DEFAULT_ASSISTANT_HEALTH_URL = `${DEFAULT_ASSISTANT_WEB_BASE_URL}/health`;
 const ASSISTANT_SERVICE_ID = '@axhub/genie';
 const ASSISTANT_SERVICE_NAME = 'Axhub Genie';
 const ASSISTANT_RUNTIME_LOG_PREFIX = '[assistant-runtime]';
+const ASSISTANT_RUNTIME_DEBUG_LOGS_ENABLED = false;
 const ASSISTANT_STATUS_TIMEOUT_MS = 8_000;
 const COMMAND_AVAILABILITY_TIMEOUT_MS = 2_000;
 const PROJECT_OVERVIEW_DOC_RELATIVE_PATH = 'src/docs/project-overview.md';
 
 function logAssistantRuntime(level: 'info' | 'warn' | 'error', message: string, meta?: Record<string, unknown>) {
+  if (!ASSISTANT_RUNTIME_DEBUG_LOGS_ENABLED && level !== 'error') {
+    return;
+  }
+
   const payload = meta ? `${ASSISTANT_RUNTIME_LOG_PREFIX} ${message}` : `${ASSISTANT_RUNTIME_LOG_PREFIX} ${message}`;
   if (level === 'error') {
     if (meta) {
@@ -183,13 +188,8 @@ function logAssistantRuntime(level: 'info' | 'warn' | 'error', message: string, 
 }
 
 function getAssistantHealthHints(): AssistantHealthHints {
-  const installBaseCommand = 'npm install -g @axhub/genie';
-  const installGlobal = process.platform === 'darwin'
-    ? `sudo ${installBaseCommand}`
-    : installBaseCommand;
-
   return {
-    installGlobal,
+    installGlobal: 'npx @axhub/genie',
     start: 'axhub-genie',
     status: 'axhub-genie status',
   };
