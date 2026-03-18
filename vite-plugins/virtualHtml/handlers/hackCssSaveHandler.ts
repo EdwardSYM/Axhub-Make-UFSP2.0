@@ -13,7 +13,8 @@ export function handleHackCssSave(req: IncomingMessage, res: ServerResponse): bo
     
     req.on('end', () => {
       try {
-        const { path: targetPath, content } = JSON.parse(body);
+        const { path: rawTargetPath, content } = JSON.parse(body);
+        const targetPath = decodeURIComponent(String(rawTargetPath || ''));
         
         if (!targetPath) {
           res.statusCode = 400;

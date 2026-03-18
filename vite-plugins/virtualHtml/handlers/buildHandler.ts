@@ -6,7 +6,8 @@ import { readEntriesManifest } from '../../utils/entriesManifest';
 
 export function handleBuildRequest(req: IncomingMessage, res: ServerResponse): boolean {
   if (req.url && req.url.startsWith('/build/') && req.url.endsWith('.js')) {
-    const urlPath = req.url.replace('/build/', '').replace('.js', '');
+    const encodedUrlPath = req.url.replace('/build/', '').replace('.js', '');
+    const urlPath = decodeURIComponent(encodedUrlPath);
     const projectRoot = process.cwd();
     const directEntryPath = path.resolve(projectRoot, 'src', urlPath, 'index.tsx');
     let hasEntry = fs.existsSync(directEntryPath);

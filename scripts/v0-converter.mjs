@@ -414,7 +414,7 @@ function generateThemeTasksDocument(report, targetInfo, outputName, tempDir) {
   markdown += `**要求**：文档需与主题风格、信息结构和业务语境保持一致\n\n`;
 
   markdown += `### 任务 4：按需生成数据模型\n\n`;
-  markdown += `**目标**：在 \`assets/database/\` 下补充或更新数据模型\n\n`;
+  markdown += `**目标**：在 \`src/database/\` 下补充或更新数据模型\n\n`;
   markdown += `**要求**：\n`;
   markdown += `- 文件名英文、\`tableName\` 中文\n`;
   markdown += `- 每个表包含 \`records\` 数组，记录 id 唯一\n\n`;
@@ -428,7 +428,7 @@ function generateThemeTasksDocument(report, targetInfo, outputName, tempDir) {
   markdown += `## 🔍 验收建议\n\n`;
   markdown += `- 目录检查：\`${targetInfo.relativeOutputDir}/\` 是否包含 token 文件、\`DESIGN-SPEC.md\` 与 \`index.tsx\`\n`;
   markdown += `- 文档检查：\`src/docs/\` 是否按需补充\n`;
-  markdown += `- 数据检查：\`assets/database/\` JSON 结构是否满足约束\n\n`;
+  markdown += `- 数据检查：\`src/database/\` JSON 结构是否满足约束\n\n`;
 
   markdown += `## 📎 产物索引\n\n`;
   markdown += `- 任务清单：\`${targetInfo.tasksFileName}\`\n`;

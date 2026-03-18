@@ -1,4 +1,4 @@
-# Axure API 使用指南
+# Axure API 指南
 
 本文档说明如何在本项目原型中使用 Axure API 实现交互功能。
 

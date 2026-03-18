@@ -63,7 +63,7 @@
    @import "tailwindcss";
    ```
    - 变量名必须是 `Component`，使用 `export default Component`
-   - 详细规范见 `rules/development-standards.md`
+   - 详细规范见 `rules/development-guide.md`
 
 5. **验收页面还原**
    - 运行验收命令：`node scripts/check-app-ready.mjs /prototypes/[页面名]`
@@ -83,4 +83,3 @@
 7. **最终交付**
    - 告知用户页面还原和规格文档已完成
    - 说明可进行二次生成（修复问题或优化重构）
-

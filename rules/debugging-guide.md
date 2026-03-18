@@ -1,4 +1,4 @@
-# AI Agent 调试与验收指南
+# 调试指南
 
 核心思想：先定位规范与目标页面，再用自动化完成复现、修复与回归；尽量不要求用户提供技术细节。
 
@@ -8,7 +8,7 @@
 
 - 目标目录下的 `spec.md`、`index.tsx`、`style.css`（如有）
 - 相关主题文件：`DESIGN-SPEC.md`、`designToken.json`、`globals.css`（如有）
-- 验收规则：`rules/development-standards.md`
+- 验收规则：`rules/development-guide.md`
 - 涉及视觉或布局问题时，额外参考 `rules/design-guide.md`
 
 ### 1.1 视觉问题的设计规范优先级

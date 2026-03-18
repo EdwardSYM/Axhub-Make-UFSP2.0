@@ -39,6 +39,14 @@ export interface EntryScanResult {
 
 const MANIFEST_SCANNED_GROUPS: ScannableGroup[] = ['components', 'prototypes', 'themes'];
 
+function encodeUrlPathSegments(value: string): string {
+  return value
+    .split('/')
+    .filter(Boolean)
+    .map((segment) => encodeURIComponent(segment))
+    .join('/');
+}
+
 function isScannedGroupKey(key: string): boolean {
   return MANIFEST_SCANNED_GROUPS.some((group) => key.startsWith(`${group}/`));
 }
@@ -74,12 +82,13 @@ function scanGroup(projectRoot: string, group: ScannableGroup): {
 
     const displayName = getDisplayName(jsEntry) || name;
     const isReference = name.startsWith('ref-');
+    const encodedKey = encodeUrlPathSegments(key);
     items.push({
       name,
       displayName,
-      demoUrl: `/${key}`,
-      specUrl: `/${key}/spec`,
-      jsUrl: `/build/${key}.js`,
+      demoUrl: `/${encodedKey}`,
+      specUrl: `/${encodedKey}/spec`,
+      jsUrl: `/build/${encodedKey}.js`,
       isReference,
       filePath: jsEntry,
     });

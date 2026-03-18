@@ -25,4 +25,4 @@ description: 基于网页或 App 截图进行视觉分析与原型还原的流�
 
 ## 参考资源
 
-- `development-standards.md`
+- `development-guide.md`

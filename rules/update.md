@@ -1,4 +1,4 @@
-# 更新规则（更新现有 Axhub Make 项目）
+# 更新指南（更新现有 Axhub Make 项目）
 
 本文档的阅读对象是 **AI Agent**。
 

@@ -37,7 +37,7 @@ export class LowDBService {
   private dbCache: Map<string, Low<TableMetadata>> = new Map();
   private locks: Map<string, Promise<void>> = new Map();
 
-  constructor(dbPath: string = 'assets/database') {
+  constructor(dbPath: string = 'src/database') {
     this.dbPath = dbPath;
   }
 

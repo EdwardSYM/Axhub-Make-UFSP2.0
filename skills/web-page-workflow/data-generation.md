@@ -12,7 +12,7 @@
 
 ## 输出规范（强约束）
 
-输出目录：`assets/database/`
+输出目录：`src/database/`
 
 文件约束：
 - 文件名英文（如 `products.json`）

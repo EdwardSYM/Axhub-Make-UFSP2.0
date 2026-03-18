@@ -1,4 +1,4 @@
-# 安装规则（初始化 Axhub Make 项目）
+# 安装指南（初始化 Axhub Make 项目）
 
 本文档的阅读对象是 **AI Agent**。
 

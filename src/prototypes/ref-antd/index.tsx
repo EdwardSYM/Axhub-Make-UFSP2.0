@@ -2,7 +2,7 @@
  * @name Antd 电商后台
  * 
  * 参考资料：
- * - /rules/development-standards.md
+ * - /rules/development-guide.md
  * - /rules/axure-api-guide.md
  * - /docs/设计规范.UIGuidelines.md
  * - /src/themes/antd-new/designToken.json (Ant Design 主题)

@@ -73,7 +73,7 @@
 
 **输出位置**：`src/themes/<theme-key>/`
 **必需文件**：
-- `globals.css` 或 `designToken.json`（`designToken.json` 必须包含 `name` 字段，二选一，遵循 `theme-generation-guide.md`）
+- `globals.css` 或 `designToken.json`（`designToken.json` 必须包含 `name` 字段，二选一，遵循 `theme-guide.md`）
 - `DESIGN-SPEC.md`（基于多页面截图总结设计规范）
 - `index.tsx`（主题演示页）
 
@@ -81,7 +81,7 @@
 
 截图包含列表/表格/表单时识别数据结构并生成数据库文件。
 
-**输出位置**：`assets/database/`
+**输出位置**：`src/database/`
 **文件命名**：英文文件名（如 `users.json`、`products.json`）
 
 **文件格式**：
@@ -145,5 +145,5 @@
 生成的资产：
 - 设计主题：src/themes/<theme-key>/
 - 设计规范文档：src/themes/<theme-key>/DESIGN-SPEC.md
-- 数据模型：assets/database/（如有）
+- 数据模型：src/database/（如有）
 ```

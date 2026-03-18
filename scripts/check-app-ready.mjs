@@ -527,7 +527,7 @@ async function scanEntries() {
   logs.push('Scanning entries...')
   
   return new Promise((resolve) => {
-    const scanProcess = spawn('node', ['scripts/scan-entries.js'], {
+    const scanProcess = spawn(process.execPath, ['scripts/scan-entries.js'], {
       cwd: APP_ROOT,
       stdio: ['ignore', 'pipe', 'pipe']
     })

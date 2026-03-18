@@ -29,5 +29,5 @@ description: 使用本项目MCP 与 Firecrawl MCP 处理普通网页资产提取
 
 ## 参考资源
 
-- `theme-generation-guide.md`
-- `development-standards.md`
+- `theme-guide.md`
+- `development-guide.md`

@@ -53,7 +53,7 @@ node scripts/v0-converter.mjs "temp/my-v0-project" my-page
  * @name 页面名称
  * 
  * 参考资料：
- * - /rules/development-standards.md
+ * - /rules/development-guide.md
  * - /skills/default-resource-recommendations/SKILL.md
  */
 
@@ -189,6 +189,6 @@ pnpm add [依赖名称]
 
 ## 参考资源
 
-- **开发规范**：`/rules/development-standards.md`
+- **开发规范**：`/rules/development-guide.md`
 - **调试指南**：`/rules/debugging-guide.md`
 - **Tailwind CSS**：`/skills/default-resource-recommendations/SKILL.md`
