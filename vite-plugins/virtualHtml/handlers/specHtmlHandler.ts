@@ -3,6 +3,7 @@ import fs from 'fs';
 import path from 'path';
 import { encodeRoutePath, normalizePath } from './pathNormalizer';
 import { logVirtualHtmlDebug } from '../logger';
+import { buildDocApiPath } from '../../utils/docUtils';
 
 export function handleSpecHtml(req: IncomingMessage, res: ServerResponse, specTemplate: string): boolean {
   if (!req.url) return false;
@@ -117,7 +118,7 @@ export function handleSpecHtml(req: IncomingMessage, res: ServerResponse, specTe
 
       if (fs.existsSync(mdPath)) {
         const title = `Docs: ${decodedDocName || 'Index'}`;
-        const specMdUrl = `/api/docs/${encodeURIComponent(decodedDocName + '.md')}`;
+        const specMdUrl = buildDocApiPath(`${decodedDocName}.md`);
 
         let html = specTemplate.replace(/\{\{TITLE\}\}/g, title);
         html = html.replace(/\{\{SPEC_URL\}\}/g, specMdUrl);

@@ -25,6 +25,7 @@ import { configApiPlugin } from './vite-plugins/configApiPlugin';
 import { aiCliPlugin } from './vite-plugins/aiCliPlugin';
 import { gitVersionApiPlugin } from './vite-plugins/gitVersionApiPlugin';
 import { buildAttachmentContentDisposition } from './vite-plugins/utils/contentDisposition';
+import { buildDocApiPath } from './vite-plugins/utils/docUtils';
 import { readEntriesManifest, scanProjectEntries, writeEntriesManifestAtomic } from './vite-plugins/utils/entriesManifest';
 
 const MAKE_STATE_DIR = path.join('.axhub', 'make');
@@ -781,7 +782,7 @@ function serveAdminPlugin(): Plugin {
             let html = fs.readFileSync(specTemplatePath, 'utf8');
             const docName = decodeURIComponent(encodedDocName);
             const docFileName = docName.endsWith('.md') ? docName : `${docName}.md`;
-            const specUrl = `/api/docs/${encodeURIComponent(docFileName)}`;
+            const specUrl = buildDocApiPath(docFileName);
             html = html.replace(/\{\{SPEC_URL\}\}/g, specUrl);
             html = html.replace(/\{\{TITLE\}\}/g, docName);
             html = html.replace(/\{\{MULTI_DOC\}\}/g, 'false');
@@ -1974,6 +1975,64 @@ function docsApiPlugin(): Plugin {
           return next();
         }
         const docsDir = path.resolve(__dirname, 'src/docs');
+        const templatesDir = path.resolve(__dirname, 'assets/templates');
+        const encodedDocName = pathname.startsWith('/api/docs/')
+          ? pathname.slice('/api/docs/'.length)
+          : '';
+        const decodedDocName = safeDecodeURIComponent(encodedDocName);
+        const isCompatTemplateRequest = Boolean(encodedDocName) && decodedDocName.startsWith('templates/');
+
+        if (isCompatTemplateRequest && (req.method === 'GET' || req.method === 'PUT')) {
+          try {
+            const templateName = decodedDocName.slice('templates/'.length);
+            if (!templateName) {
+              res.statusCode = 400;
+              res.setHeader('Content-Type', 'application/json; charset=utf-8');
+              res.end(JSON.stringify({ error: 'Missing template name' }));
+              return;
+            }
+
+            const templatePath = path.join(templatesDir, templateName);
+            if (!templatePath.startsWith(templatesDir)) {
+              res.statusCode = 403;
+              res.setHeader('Content-Type', 'application/json; charset=utf-8');
+              res.end(JSON.stringify({ error: 'Forbidden' }));
+              return;
+            }
+
+            if (!fs.existsSync(templatePath)) {
+              res.statusCode = 404;
+              res.setHeader('Content-Type', 'application/json; charset=utf-8');
+              res.end(JSON.stringify({ error: 'Template not found' }));
+              return;
+            }
+
+            if (req.method === 'GET') {
+              res.setHeader('Content-Type', 'text/markdown; charset=utf-8');
+              res.end(fs.readFileSync(templatePath, 'utf8'));
+              return;
+            }
+
+            const bodyData = await readJsonBody(req);
+            if (typeof bodyData?.content !== 'string') {
+              res.statusCode = 400;
+              res.setHeader('Content-Type', 'application/json; charset=utf-8');
+              res.end(JSON.stringify({ error: 'Missing content parameter' }));
+              return;
+            }
+
+            fs.writeFileSync(templatePath, String(bodyData.content), 'utf8');
+            res.setHeader('Content-Type', 'application/json; charset=utf-8');
+            res.end(JSON.stringify({ success: true, name: templateName }));
+            return;
+          } catch (error: any) {
+            console.error('Error handling encoded template doc path:', error);
+            res.statusCode = 500;
+            res.setHeader('Content-Type', 'application/json; charset=utf-8');
+            res.end(JSON.stringify({ error: error?.message || 'Template request failed' }));
+            return;
+          }
+        }
 
         // POST /api/docs/manual-create - 手动创建文档
         if (
