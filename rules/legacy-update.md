@@ -1,4 +1,4 @@
-# 旧架构更新规则（旧版 Axhub Make 项目升级到新架构）
+# 旧架构更新指南（旧版 Axhub Make 项目升级到新架构）
 
 本文档的阅读对象是 **AI Agent**。
 
@@ -8,11 +8,13 @@
 - `src/elements/`
 - `src/pages/`
 - `assets/docs/`
+- `assets/database/`
 
 升级后的目标新结构为：
 - `src/components/`
 - `src/prototypes/`
 - `src/docs/`
+- `src/database/`
 
 ---
 
@@ -48,8 +50,9 @@
   - `src/elements/`
   - `src/pages/`
   - `assets/docs/`
+  - `assets/database/`
 
-如果已经存在合法的 `.axhub/make/make.json`，说明它属于**新架构项目**，应改为使用 `rules/update.md`，不要走本规则。
+如果已经存在合法的 `.axhub/make/make.json`，说明它属于**新架构项目**，应改为使用 `rules/update-guide.md`，不要走本规则。
 
 如果既没有 marker，也没有旧目录特征，则停止并提示用户切到正确项目目录。
 
@@ -81,6 +84,7 @@ mkdir -p .axhub/make/backups/<timestamp>/
 - `src/elements/`
 - `src/pages/`
 - `assets/docs/`
+- `assets/database/`
 - `package.json`
 
 如果目录不存在，跳过即可，但必须在结果里说明“哪些目录实际存在并被备份”。
@@ -91,6 +95,7 @@ mkdir -p .axhub/make/backups/<timestamp>/
 - `src/elements/` → `src/components/`
 - `src/pages/` → `src/prototypes/`
 - `assets/docs/` → `src/docs/`
+- `assets/database/` → `src/database/`
 
 迁移原则：
 - 目标目录不存在：直接迁移
@@ -151,6 +156,7 @@ npm run dev
 - `src/elements/`
 - `src/pages/`
 - `assets/docs/`
+- `assets/database/`
 
 所以对旧架构项目，必须先迁移目录，再执行标准更新。
 
@@ -164,7 +170,8 @@ npm run dev
   - `src/components/`
   - `src/prototypes/`
   - `src/docs/`
-- 可以继续使用标准更新规则 `rules/update.md`
+  - `src/database/`
+- 可以继续使用标准更新规则 `rules/update-guide.md`
 
 ---
 
@@ -182,7 +189,7 @@ ls -la package.json.backup.*
 优先从：
 - `.axhub/make/backups/<timestamp>/`
 
-恢复对应目录，再重新执行升级流程。
+恢复对应目录（例如 `assets/docs/`、`assets/database/`），再重新执行升级流程。
 
 ### 3) 恢复 package.json（仅在确认是依赖问题时）
 

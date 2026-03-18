@@ -1,6 +1,6 @@
 {
   "version": 1,
-  "updatedAt": "2026-03-12T08:38:12.432Z",
+  "updatedAt": "2026-03-18T09:16:33.699Z",
   "prototypes": [
     {
       "id": "folder-1771647506379-zzmigx",
@@ -44,6 +44,72 @@
   ],
   "docs": [
     {
+      "id": "item-docs-templates-memory-log-template-md",
+      "kind": "item",
+      "title": "memory log template.md",
+      "itemKey": "docs/templates/memory-log-template.md"
+    },
+    {
+      "id": "item-docs-templates-business-flow-template-md",
+      "kind": "item",
+      "title": "business flow template.md",
+      "itemKey": "docs/templates/business-flow-template.md"
+    },
+    {
+      "id": "item-docs-templates-data-model-template-md",
+      "kind": "item",
+      "title": "data model template.md",
+      "itemKey": "docs/templates/data-model-template.md"
+    },
+    {
+      "id": "item-docs-templates-information-architecture-template-md",
+      "kind": "item",
+      "title": "information architecture template.md",
+      "itemKey": "docs/templates/information-architecture-template.md"
+    },
+    {
+      "id": "item-docs-templates-lite-prd-template-md",
+      "kind": "item",
+      "title": "lite prd template.md",
+      "itemKey": "docs/templates/lite-prd-template.md"
+    },
+    {
+      "id": "item-docs-templates-page-map-template-md",
+      "kind": "item",
+      "title": "page map template.md",
+      "itemKey": "docs/templates/page-map-template.md"
+    },
+    {
+      "id": "item-docs-templates-permission-model-template-md",
+      "kind": "item",
+      "title": "permission model template.md",
+      "itemKey": "docs/templates/permission-model-template.md"
+    },
+    {
+      "id": "item-docs-templates-prd-template-md",
+      "kind": "item",
+      "title": "prd template.md",
+      "itemKey": "docs/templates/prd-template.md"
+    },
+    {
+      "id": "item-docs-templates-project-overview-template-md",
+      "kind": "item",
+      "title": "project overview template.md",
+      "itemKey": "docs/templates/project-overview-template.md"
+    },
+    {
+      "id": "item-docs-templates-spec-template-md",
+      "kind": "item",
+      "title": "spec template.md",
+      "itemKey": "docs/templates/spec-template.md"
+    },
+    {
+      "id": "item-docs-templates-state-lifecycle-template-md",
+      "kind": "item",
+      "title": "state lifecycle template.md",
+      "itemKey": "docs/templates/state-lifecycle-template.md"
+    },
+    {
       "id": "folder-1772009037892-gyrfpg",
       "kind": "folder",
       "title": "演示文档",
@@ -73,6 +139,14 @@
     "orders"
   ],
   "templates": [
+    "memory-log-template.md",
+    "business-flow-template.md",
+    "data-model-template.md",
+    "information-architecture-template.md",
+    "page-map-template.md",
+    "permission-model-template.md",
+    "project-overview-template.md",
+    "state-lifecycle-template.md",
     "lite-prd-template.md",
     "prd-template.md",
     "spec-template.md"

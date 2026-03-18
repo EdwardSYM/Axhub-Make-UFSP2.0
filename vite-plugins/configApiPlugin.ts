@@ -12,7 +12,6 @@ import {
 } from '../scripts/utils/command-runtime.mjs';
 
 type ProjectDefaults = {
-  defaultDoc?: string | null;
   defaultTheme?: string | null;
 };
 
@@ -31,13 +30,24 @@ const MAIN_IDE_VALUES: MainIDE[] = ['cursor', 'trae', 'vscode', 'trae_cn', 'wind
 
 const MAIN_IDE_APP_NAMES: Record<MainIDE, string> = {
   cursor: 'Cursor',
-  trae: 'TRAE',
+  trae: 'Trae',
   vscode: 'Visual Studio Code',
-  trae_cn: 'TRAE CN',
+  trae_cn: 'Trae CN',
   windsurf: 'Windsurf',
   kiro: 'Kiro',
   qoder: 'Qoder',
   antigravity: 'Antigravity',
+};
+
+const MAIN_IDE_WINDOWS_APP_PATH_NAMES: Record<MainIDE, string[]> = {
+  cursor: ['Cursor'],
+  trae: ['Trae', 'TRAE'],
+  vscode: ['Visual Studio Code', 'Visual Studio Code Insiders'],
+  trae_cn: ['Trae CN', 'TRAE CN', 'Trae', 'TRAE'],
+  windsurf: ['Windsurf'],
+  kiro: ['Kiro'],
+  qoder: ['Qoder'],
+  antigravity: ['Antigravity'],
 };
 
 const MAIN_IDE_WINDOWS_COMMAND_CANDIDATES: Record<MainIDE, string[]> = {
@@ -55,7 +65,7 @@ const MAIN_IDE_WINDOWS_EXECUTABLE_NAMES: Record<MainIDE, string[]> = {
   cursor: ['Cursor.exe'],
   trae: ['TRAE.exe', 'Trae.exe'],
   vscode: ['Code.exe', 'Code - Insiders.exe'],
-  trae_cn: ['TRAE CN.exe', 'TRAE.exe', 'Trae.exe'],
+  trae_cn: ['Trae CN.exe', 'TRAE CN.exe', 'TRAE.exe', 'Trae.exe'],
   windsurf: ['Windsurf.exe'],
   kiro: ['Kiro.exe'],
   qoder: ['Qoder.exe'],
@@ -121,8 +131,6 @@ type AssistantProbeResult = {
 };
 
 const ASSISTANT_START_CHECK_DELAY_MS = 500;
-const ASSISTANT_START_MAX_PROBE_ATTEMPTS = 6;
-const ASSISTANT_START_PROBE_INTERVAL_MS = 700;
 
 type SystemConfig = {
   server: Record<string, any>;
@@ -145,10 +153,16 @@ const DEFAULT_ASSISTANT_HEALTH_URL = `${DEFAULT_ASSISTANT_WEB_BASE_URL}/health`;
 const ASSISTANT_SERVICE_ID = '@axhub/genie';
 const ASSISTANT_SERVICE_NAME = 'Axhub Genie';
 const ASSISTANT_RUNTIME_LOG_PREFIX = '[assistant-runtime]';
+const ASSISTANT_RUNTIME_DEBUG_LOGS_ENABLED = false;
 const ASSISTANT_STATUS_TIMEOUT_MS = 8_000;
 const COMMAND_AVAILABILITY_TIMEOUT_MS = 2_000;
+const PROJECT_OVERVIEW_DOC_RELATIVE_PATH = 'src/docs/project-overview.md';
 
 function logAssistantRuntime(level: 'info' | 'warn' | 'error', message: string, meta?: Record<string, unknown>) {
+  if (!ASSISTANT_RUNTIME_DEBUG_LOGS_ENABLED && level !== 'error') {
+    return;
+  }
+
   const payload = meta ? `${ASSISTANT_RUNTIME_LOG_PREFIX} ${message}` : `${ASSISTANT_RUNTIME_LOG_PREFIX} ${message}`;
   if (level === 'error') {
     if (meta) {
@@ -174,13 +188,8 @@ function logAssistantRuntime(level: 'info' | 'warn' | 'error', message: string, 
 }
 
 function getAssistantHealthHints(): AssistantHealthHints {
-  const installBaseCommand = 'npm install -g @axhub/genie';
-  const installGlobal = process.platform === 'darwin'
-    ? `sudo ${installBaseCommand}`
-    : installBaseCommand;
-
   return {
-    installGlobal,
+    installGlobal: 'npx @axhub/genie',
     start: 'axhub-genie',
     status: 'axhub-genie status',
   };
@@ -201,11 +210,10 @@ function normalizeInlineText(value: unknown): string | null {
 
 function normalizeProjectDefaults(value: unknown): ProjectDefaults {
   if (!value || typeof value !== 'object') {
-    return { defaultDoc: null, defaultTheme: null };
+    return { defaultTheme: null };
   }
   const defaults = value as ProjectDefaults;
   return {
-    defaultDoc: normalizeOptionalString(defaults.defaultDoc),
     defaultTheme: normalizeOptionalString(defaults.defaultTheme)
   };
 }
@@ -655,71 +663,46 @@ async function startAxhubGenieAndWait(projectPath: string): Promise<AssistantPro
   }
 
   await sleep(ASSISTANT_START_CHECK_DELAY_MS);
+  const probe = readAxhubGenieStatus();
 
-  let lastProbe: AssistantProbeResult = {
-    status: 'not_running',
-    message: 'Axhub Genie 服务未启动',
-    commandSource: 'axhub-genie',
-    config: null,
-  };
-
-  for (let attempt = 0; attempt < ASSISTANT_START_MAX_PROBE_ATTEMPTS; attempt += 1) {
-    const probe = readAxhubGenieStatus();
-    lastProbe = probe;
-
-    logAssistantRuntime(probe.status === 'ready' ? 'info' : 'warn', '自动启动后状态探测', {
-      attempt: attempt + 1,
-      maxAttempts: ASSISTANT_START_MAX_PROBE_ATTEMPTS,
-      status: probe.status,
-      message: probe.message,
+  if (probe.status === 'ready') {
+    logAssistantRuntime('info', 'Axhub Genie 自动启动成功', {
       config: probe.config || null,
     });
-
-    if (probe.status === 'ready') {
-      logAssistantRuntime('info', 'Axhub Genie 自动启动成功', {
-        attempt: attempt + 1,
-        config: probe.config || null,
-      });
-      return {
-        ...probe,
-        message: 'Axhub Genie 已自动启动并就绪',
-      };
-    }
-
-    if (probe.status === 'missing_cli' || probe.status === 'needs_update') {
-      logAssistantRuntime('warn', '自动启动提前结束', {
-        reason: probe.status,
-        message: probe.message,
-      });
-      return probe;
-    }
-
-    if (probe.status === 'cli_error') {
-      logAssistantRuntime('error', '自动启动失败（cli_error）', {
-        message: probe.message,
-      });
-      return {
-        ...probe,
-        status: 'not_running',
-        message: `${probe.message}。Axhub Genie 自动启动失败，请手动执行 axhub-genie 后重试`,
-      };
-    }
-
-    if (attempt < ASSISTANT_START_MAX_PROBE_ATTEMPTS - 1) {
-      await sleep(ASSISTANT_START_PROBE_INTERVAL_MS);
-    }
+    return {
+      ...probe,
+      message: 'Axhub Genie 已自动启动并就绪',
+    };
   }
 
-  logAssistantRuntime('error', '自动启动失败（多次检查未就绪）', {
-    status: lastProbe.status,
-    message: lastProbe.message,
-    config: lastProbe.config || null,
-    attempts: ASSISTANT_START_MAX_PROBE_ATTEMPTS,
+  if (probe.status === 'missing_cli' || probe.status === 'needs_update') {
+    logAssistantRuntime('warn', '自动启动提前结束', {
+      reason: probe.status,
+      message: probe.message,
+    });
+    return probe;
+  }
+
+  if (probe.status === 'cli_error') {
+    logAssistantRuntime('error', '自动启动失败（cli_error）', {
+      message: probe.message,
+    });
+    return {
+      ...probe,
+      status: 'not_running',
+      message: `${probe.message}。Axhub Genie 自动启动失败，请手动执行 axhub-genie 后重试`,
+    };
+  }
+
+  logAssistantRuntime('error', '自动启动失败（启动后单次检查未就绪）', {
+    status: probe.status,
+    message: probe.message,
+    config: probe.config || null,
   });
   return {
-    ...lastProbe,
+    ...probe,
     status: 'not_running',
-    message: `${lastProbe.message || 'Axhub Genie 未在预期时间内就绪'}。请手动执行 axhub-genie 后重试`,
+    message: 'Axhub Genie 自动启动失败，请手动执行 axhub-genie 后重试',
   };
 }
 
@@ -1116,24 +1099,70 @@ function resolveWindowsExecutableFromRegistry(executableNames: string[]): string
   return null;
 }
 
-function buildProjectInfoSection(projectInfo: ProjectInfo, projectDefaults: ProjectDefaults): string {
+function tryOpenWindowsIDEByAppPathNames(
+  appPathNames: string[],
+  targetPath: string,
+  callback: (error: Error | null, stdout?: string | Buffer, stderr?: string | Buffer) => void,
+) {
+  const candidates = appPathNames.map((name) => name.trim()).filter(Boolean);
+
+  const tryNext = (index: number) => {
+    if (index >= candidates.length) {
+      callback(new Error('No compatible Windows app path name found'));
+      return;
+    }
+
+    execFile(
+      'powershell',
+      [
+        '-NoProfile',
+        '-NonInteractive',
+        '-WindowStyle',
+        'Hidden',
+        '-Command',
+        `Start-Process -FilePath ${quoteForPowerShellSingle(candidates[index])} -ArgumentList ${quoteForPowerShellSingle(targetPath)} -ErrorAction Stop`,
+      ],
+      { windowsHide: true },
+      (error, stdout, stderr) => {
+        if (!error) {
+          callback(null, stdout, stderr);
+          return;
+        }
+
+        tryNext(index + 1);
+      },
+    );
+  };
+
+  tryNext(0);
+}
+
+function buildProjectInfoSection(
+  projectInfo: ProjectInfo,
+  projectDefaults: ProjectDefaults,
+  hasProjectOverviewDoc: boolean
+): string {
   const lines: string[] = [];
   const projectName = normalizeInlineText(projectInfo.name);
   const projectDescription = normalizeInlineText(projectInfo.description);
-  const defaultDoc = normalizeOptionalString(projectDefaults.defaultDoc);
   const defaultTheme = normalizeOptionalString(projectDefaults.defaultTheme);
 
   if (projectName) lines.push(`- 项目名称：${projectName}`);
   if (projectDescription) lines.push(`- 项目简介：${projectDescription}`);
-  if (defaultDoc) lines.push(`- 项目总文档：\`src/docs/${defaultDoc}\``);
+  if (hasProjectOverviewDoc) lines.push(`- 项目总文档：\`${PROJECT_OVERVIEW_DOC_RELATIVE_PATH}\``);
   if (defaultTheme) lines.push(`- 默认主题：\`src/themes/${defaultTheme}\``);
 
   if (!lines.length) return '';
   return ['## 📌 项目信息', '', ...lines].join('\n');
 }
 
-function renderAgentsTemplate(template: string, projectInfo: ProjectInfo, projectDefaults: ProjectDefaults) {
-  const projectInfoSection = buildProjectInfoSection(projectInfo, projectDefaults);
+function renderAgentsTemplate(
+  template: string,
+  projectInfo: ProjectInfo,
+  projectDefaults: ProjectDefaults,
+  hasProjectOverviewDoc: boolean
+) {
+  const projectInfoSection = buildProjectInfoSection(projectInfo, projectDefaults, hasProjectOverviewDoc);
   let content = template;
 
   if (content.includes('{{PROJECT_INFO_SECTION}}')) {
@@ -1158,7 +1187,14 @@ function writeAgentDocs(
 ): boolean {
   if (!fs.existsSync(templatePath)) return false;
   const template = fs.readFileSync(templatePath, 'utf8');
-  const nextAgentsContent = renderAgentsTemplate(template, projectInfo, projectDefaults);
+  const projectRoot = path.dirname(templatePath);
+  const projectOverviewDocPath = path.resolve(projectRoot, PROJECT_OVERVIEW_DOC_RELATIVE_PATH);
+  const nextAgentsContent = renderAgentsTemplate(
+    template,
+    projectInfo,
+    projectDefaults,
+    fs.existsSync(projectOverviewDocPath)
+  );
   fs.writeFileSync(agentsPath, nextAgentsContent, 'utf8');
   fs.writeFileSync(claudePath, nextAgentsContent, 'utf8');
   return true;
@@ -1436,9 +1472,10 @@ export function configApiPlugin(): Plugin {
               const targetPath = rawTargetPath ? rawTargetPath : projectRoot;
               const absoluteTargetPath = path.isAbsolute(targetPath) ? targetPath : path.resolve(projectRoot, targetPath);
               const ideAppName = MAIN_IDE_APP_NAMES[ide];
+              const windowsAppPathNames = MAIN_IDE_WINDOWS_APP_PATH_NAMES[ide] || [ideAppName];
 
               const command = process.platform === 'win32'
-                ? `powershell -NoProfile -Command Start-Process -FilePath ${quoteForPowerShellSingle(ideAppName)} -ArgumentList ${quoteForPowerShellSingle(absoluteTargetPath)} -ErrorAction Stop`
+                ? `powershell -NoProfile -Command Start-Process -FilePath ${quoteForPowerShellSingle(windowsAppPathNames[0] || ideAppName)} -ArgumentList ${quoteForPowerShellSingle(absoluteTargetPath)} -ErrorAction Stop`
                 : `open -a ${quoteForShell(ideAppName)} ${quoteForShell(absoluteTargetPath)}`;
 
               const handleOpenCommandResult = (error: Error | null, _stdout?: string | Buffer, stderr?: string | Buffer) => {
@@ -1508,17 +1545,9 @@ export function configApiPlugin(): Plugin {
                   return;
                 }
 
-                execFile(
-                  'powershell',
-                  [
-                    '-NoProfile',
-                    '-NonInteractive',
-                    '-WindowStyle',
-                    'Hidden',
-                    '-Command',
-                    `Start-Process -FilePath ${quoteForPowerShellSingle(ideAppName)} -ArgumentList ${quoteForPowerShellSingle(absoluteTargetPath)} -ErrorAction Stop`,
-                  ],
-                  { windowsHide: true },
+                tryOpenWindowsIDEByAppPathNames(
+                  windowsAppPathNames,
+                  absoluteTargetPath,
                   handleOpenCommandResult,
                 );
               } else {

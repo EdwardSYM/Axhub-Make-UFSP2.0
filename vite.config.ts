@@ -2,6 +2,8 @@ import { defineConfig } from 'vite';
 import type { Plugin } from 'vite';
 import fs from 'fs';
 import path from 'path';
+import * as http from 'node:http';
+import * as https from 'node:https';
 import { spawnSync } from 'child_process';
 import { networkInterfaces, tmpdir } from 'os';
 import formidable from 'formidable';
@@ -30,6 +32,13 @@ const MAKE_CONFIG_RELATIVE_PATH = path.join(MAKE_STATE_DIR, 'axhub.config.json')
 const MAKE_DEV_SERVER_INFO_RELATIVE_PATH = path.join(MAKE_STATE_DIR, '.dev-server-info.json');
 const MAKE_ENTRIES_RELATIVE_PATH = path.join(MAKE_STATE_DIR, 'entries.json');
 const AXURE_BRIDGE_BASE_URL = 'http://localhost:32767';
+
+type UpstreamResponse = {
+  status: number;
+  statusText: string;
+  headers: http.IncomingHttpHeaders;
+  bodyText: string;
+};
 
 /**
  * ⚠️ 运行时配置注入说明
@@ -96,6 +105,91 @@ function readJsonBody(req: any): Promise<any> {
 
 function readErrorString(value: unknown): string {
   return typeof value === 'string' ? value.trim() : '';
+}
+
+function readHeaderValue(value: string | string[] | undefined): string {
+  if (Array.isArray(value)) {
+    return value.join(', ');
+  }
+  return String(value || '');
+}
+
+async function requestAxureBridge(
+  upstreamUrl: string,
+  options: {
+    method: 'GET' | 'POST';
+    headers?: Record<string, string>;
+    body?: Buffer;
+    timeoutMs?: number;
+  },
+): Promise<UpstreamResponse> {
+  const targetUrl = new URL(upstreamUrl);
+  const transport = targetUrl.protocol === 'https:' ? https : http;
+
+  return new Promise((resolve, reject) => {
+    const request = transport.request(
+      {
+        protocol: targetUrl.protocol,
+        hostname: targetUrl.hostname,
+        port: targetUrl.port ? Number(targetUrl.port) : undefined,
+        path: `${targetUrl.pathname}${targetUrl.search}`,
+        method: options.method,
+        headers: {
+          Connection: 'close',
+          ...options.headers,
+        },
+        agent: false,
+      },
+      (response) => {
+        const chunks: Buffer[] = [];
+
+        response.on('data', (chunk: Buffer | string) => {
+          chunks.push(Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk));
+        });
+        response.on('end', () => {
+          resolve({
+            status: response.statusCode || 502,
+            statusText: response.statusMessage || '',
+            headers: response.headers,
+            bodyText: Buffer.concat(chunks).toString('utf8'),
+          });
+        });
+        response.on('error', reject);
+      },
+    );
+
+    request.setTimeout(options.timeoutMs ?? 15_000, () => {
+      request.destroy(new Error(`Axure Bridge request timed out after ${options.timeoutMs ?? 15_000}ms`));
+    });
+    request.on('error', reject);
+
+    if (options.body && options.body.length > 0) {
+      request.write(options.body);
+    }
+
+    request.end();
+  });
+}
+
+async function requestAxureBridgeWithRetry(
+  upstreamUrl: string,
+  options: {
+    method: 'GET' | 'POST';
+    headers?: Record<string, string>;
+    body?: Buffer;
+    timeoutMs?: number;
+  },
+): Promise<UpstreamResponse> {
+  try {
+    return await requestAxureBridge(upstreamUrl, options);
+  } catch (error: any) {
+    const code = error?.code || error?.cause?.code;
+    if (code !== 'ECONNRESET') {
+      throw error;
+    }
+
+    return requestAxureBridge(upstreamUrl, options);
+  }
 }
 
 function limitErrorText(value: string, maxLength: number = 500): string {
@@ -790,11 +884,12 @@ function axureBridgeProxyPlugin(): Plugin {
         let payloadBytes = 0;
 
         try {
-          let upstreamResponse: any;
+          let upstreamResponse: UpstreamResponse;
 
           if (isAvailableRoute) {
-            upstreamResponse = await fetch(upstreamUrl, {
+            upstreamResponse = await requestAxureBridgeWithRetry(upstreamUrl, {
               method: 'GET',
+              timeoutMs: 5_000,
             });
           } else {
             let rawBody = '';
@@ -811,20 +906,21 @@ function axureBridgeProxyPlugin(): Plugin {
             const requestBuffer = Buffer.from(requestBody, 'utf8');
             payloadBytes = requestBuffer.byteLength;
 
-            upstreamResponse = await fetch(upstreamUrl, {
+            upstreamResponse = await requestAxureBridgeWithRetry(upstreamUrl, {
               method: 'POST',
               headers: {
                 'Content-Type': 'text/plain; charset=utf-8',
                 'Content-Length': String(payloadBytes),
               },
               body: requestBuffer,
+              timeoutMs: 30_000,
             });
           }
 
-          const contentType = String(upstreamResponse.headers.get('content-type') || '').toLowerCase();
-          const responseText = await upstreamResponse.text();
+          const contentType = readHeaderValue(upstreamResponse.headers['content-type']).toLowerCase();
+          const responseText = upstreamResponse.bodyText;
 
-          if (!upstreamResponse.ok) {
+          if (upstreamResponse.status < 200 || upstreamResponse.status >= 300) {
             console.warn('[axure-bridge-proxy] upstream responded with error', {
               route: pathname,
               method: req.method,

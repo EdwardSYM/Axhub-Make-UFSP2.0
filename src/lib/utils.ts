@@ -1,29 +1,35 @@
-type ClassDictionary = Record<string, boolean | null | undefined>;
-type ClassValue = ClassArray | ClassDictionary | number | string | false | null | undefined;
-type ClassArray = ClassValue[];
+export type ClassDictionary = Record<string, boolean | null | undefined>
 
-function collectClassNames(value: ClassValue, result: string[]): void {
-  if (!value) return;
+export type ClassValue =
+  | string
+  | number
+  | null
+  | undefined
+  | false
+  | ClassDictionary
+  | ClassValue[]
 
-  if (typeof value === 'string' || typeof value === 'number') {
-    result.push(String(value));
-    return;
+function flattenClassValue(value: ClassValue, tokens: string[]) {
+  if (!value) return
+
+  if (typeof value === "string" || typeof value === "number") {
+    tokens.push(String(value))
+    return
   }
 
   if (Array.isArray(value)) {
-    value.forEach((item) => collectClassNames(item, result));
-    return;
+    value.forEach((item) => flattenClassValue(item, tokens))
+    return
   }
 
-  Object.entries(value).forEach(([className, enabled]) => {
-    if (enabled) result.push(className);
-  });
+  Object.entries(value).forEach(([key, enabled]) => {
+    if (enabled) tokens.push(key)
+  })
 }
 
-export function cn(...inputs: ClassValue[]): string {
-  const classNames: string[] = [];
+export function cn(...inputs: ClassValue[]) {
+  const tokens: string[] = []
+  inputs.forEach((input) => flattenClassValue(input, tokens))
 
-  inputs.forEach((input) => collectClassNames(input, classNames));
-
-  return classNames.join(' ');
+  return [...new Set(tokens.join(" ").split(/\s+/).filter(Boolean))].join(" ")
 }

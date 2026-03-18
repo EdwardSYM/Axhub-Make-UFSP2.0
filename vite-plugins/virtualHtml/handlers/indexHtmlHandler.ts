@@ -1,7 +1,8 @@
 import type { IncomingMessage, ServerResponse } from 'http';
 import fs from 'fs';
 import path from 'path';
-import { normalizePath } from './pathNormalizer';
+import { encodeRoutePath, normalizePath } from './pathNormalizer';
+import { logVirtualHtmlDebug, logVirtualHtmlWarn } from '../logger';
 
 export function handleIndexHtml(req: IncomingMessage, res: ServerResponse, devTemplate: string, htmlTemplate: string): boolean {
   if (!req.url) return false;
@@ -13,10 +14,10 @@ export function handleIndexHtml(req: IncomingMessage, res: ServerResponse, devTe
   if (normalized && normalized.action === 'preview') {
     const { type, name, versionId } = normalized;
 
-    console.log('[虚拟HTML] 预览请求:', normalized.originalUrl, '→', normalized.normalizedUrl);
+    logVirtualHtmlDebug('预览请求:', normalized.originalUrl, '→', normalized.normalizedUrl);
 
     if (['components', 'prototypes', 'themes'].includes(type)) {
-      const urlPath = `/${type}/${name}`;
+      const urlPath = encodeRoutePath(`/${type}/${name}`);
       let tsxPath: string;
       let basePath: string;
 
@@ -25,14 +26,14 @@ export function handleIndexHtml(req: IncomingMessage, res: ServerResponse, devTe
         const gitVersionsDir = path.resolve(process.cwd(), '.git-versions', versionId);
         basePath = path.join(gitVersionsDir, 'src', type, name);
         tsxPath = path.join(basePath, 'index.tsx');
-        console.log('[虚拟HTML] 从 Git 版本读取:', versionId, tsxPath);
+        logVirtualHtmlDebug('从 Git 版本读取:', versionId, tsxPath);
       } else {
         // 否则从当前工作目录读取
         basePath = path.resolve(process.cwd(), 'src', type, name);
         tsxPath = path.join(basePath, 'index.tsx');
       }
 
-      console.log('[虚拟HTML] 检查 TSX 文件:', tsxPath, '存在:', fs.existsSync(tsxPath));
+      logVirtualHtmlDebug('检查 TSX 文件:', tsxPath, '存在:', fs.existsSync(tsxPath));
 
       if (fs.existsSync(tsxPath)) {
         const typeLabel = type === 'components' ? 'Component' : type === 'prototypes' ? 'Prototype' : 'Theme';
@@ -59,11 +60,11 @@ export function handleIndexHtml(req: IncomingMessage, res: ServerResponse, devTe
 
         const hackCssPath = path.resolve(process.cwd(), 'src', type, name, 'hack.css');
         if (fs.existsSync(hackCssPath)) {
-          console.log('[虚拟HTML] 注入 hack.css:', hackCssPath);
+          logVirtualHtmlDebug('注入 hack.css:', hackCssPath);
           html = html.replace('</head>', '  <link rel="stylesheet" href="./hack.css">\n  </head>');
         }
 
-        console.log('[虚拟HTML] ✅ 返回虚拟 HTML:', normalized.normalizedUrl);
+        logVirtualHtmlDebug('返回虚拟 HTML:', normalized.normalizedUrl);
 
         res.setHeader('Content-Type', 'text/html');
         res.statusCode = 200;
@@ -135,11 +136,11 @@ export function handleIndexHtml(req: IncomingMessage, res: ServerResponse, devTe
     const params = new URLSearchParams(queryString || '');
     const versionId = params.get('ver');
 
-    console.log('[虚拟HTML] 旧格式请求路径:', req.url, '解析部分:', pathParts);
+    logVirtualHtmlDebug('旧格式请求路径:', req.url, '解析部分:', pathParts);
 
     if (pathParts.length >= 2 && ['components', 'prototypes', 'themes'].includes(pathParts[0])) {
       // 这种情况应该已经被标准化处理了，如果到这里说明有问题
-      console.warn('[虚拟HTML] ⚠️ 未被标准化处理的路径:', req.url);
+      logVirtualHtmlWarn('未被标准化处理的路径:', req.url);
     }
   }
 

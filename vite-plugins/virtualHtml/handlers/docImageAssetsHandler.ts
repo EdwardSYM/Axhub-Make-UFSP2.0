@@ -33,12 +33,28 @@ function sendFile(res: ServerResponse, filePath: string): void {
   res.end(fs.readFileSync(filePath));
 }
 
+function hasViteModuleQuery(url: string): boolean {
+  const query = url.split('?')[1];
+  if (!query) return false;
+
+  const params = new URLSearchParams(query);
+  return (
+    params.has('import') ||
+    params.has('url') ||
+    params.has('raw') ||
+    params.has('worker') ||
+    params.has('sharedworker')
+  );
+}
+
 export function handleDocImageAssets(req: IncomingMessage, res: ServerResponse): boolean {
   if (!req.url) return false;
+  if (hasViteModuleQuery(req.url)) return false;
 
   const rawPathname = req.url.split('?')[0];
   const pathname = tryDecodeUrlPath(rawPathname);
-  if (!pathname.includes('/assets/images/')) {
+  const isDocsAssetRequest = pathname.startsWith('/docs/') && pathname.includes('/assets/');
+  if (!pathname.includes('/assets/images/') && !isDocsAssetRequest) {
     return false;
   }
 
@@ -75,27 +91,41 @@ export function handleDocImageAssets(req: IncomingMessage, res: ServerResponse):
     return true;
   }
 
+  // /docs/assets/{file}
   // /docs/assets/images/{file}
+  // /docs/{subdir}/assets/{file}
   // /docs/{subdir}/assets/images/{file}
   if (pathname.startsWith('/docs/')) {
     const afterDocs = pathname.slice('/docs/'.length);
     let docsSubDir = '';
     let relativeAssetPath = '';
+    let assetDirSegments: string[] = ['assets'];
 
     if (afterDocs.startsWith('assets/images/')) {
+      assetDirSegments = ['assets', 'images'];
       relativeAssetPath = afterDocs.slice('assets/images/'.length);
+    } else if (afterDocs.startsWith('assets/')) {
+      relativeAssetPath = afterDocs.slice('assets/'.length);
     } else {
-      const marker = '/assets/images/';
-      const markerIndex = afterDocs.indexOf(marker);
-      if (markerIndex > 0) {
-        docsSubDir = afterDocs.slice(0, markerIndex);
-        relativeAssetPath = afterDocs.slice(markerIndex + marker.length);
+      const imageMarker = '/assets/images/';
+      const imageMarkerIndex = afterDocs.indexOf(imageMarker);
+      if (imageMarkerIndex > 0) {
+        docsSubDir = afterDocs.slice(0, imageMarkerIndex);
+        assetDirSegments = ['assets', 'images'];
+        relativeAssetPath = afterDocs.slice(imageMarkerIndex + imageMarker.length);
+      } else {
+        const assetMarker = '/assets/';
+        const assetMarkerIndex = afterDocs.indexOf(assetMarker);
+        if (assetMarkerIndex > 0) {
+          docsSubDir = afterDocs.slice(0, assetMarkerIndex);
+          relativeAssetPath = afterDocs.slice(assetMarkerIndex + assetMarker.length);
+        }
       }
     }
 
     if (relativeAssetPath) {
       const docsRoot = path.resolve(process.cwd(), 'src', 'docs');
-      const baseDir = path.resolve(docsRoot, docsSubDir, 'assets', 'images');
+      const baseDir = path.resolve(docsRoot, docsSubDir, ...assetDirSegments);
       if (!isPathInside(docsRoot, baseDir)) {
         res.statusCode = 403;
         res.end('Forbidden');
