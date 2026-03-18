@@ -4,6 +4,7 @@ import path from 'path';
 
 import { getLocalIP, getRequestPathname } from './utils/httpUtils';
 import { MAKE_ENTRIES_RELATIVE_PATH } from './utils/makeConstants';
+import { buildDocApiPath } from './utils/docUtils';
 
 function readInjectedHtml(htmlPath: string, injectScript: string) {
   let html = fs.readFileSync(htmlPath, 'utf8');
@@ -141,7 +142,7 @@ export function serveAdminPlugin(): Plugin {
             let html = fs.readFileSync(specTemplatePath, 'utf8');
             const docName = decodeURIComponent(encodedDocName);
             const docFileName = docName.endsWith('.md') ? docName : `${docName}.md`;
-            const specUrl = `/api/docs/${encodeURIComponent(docFileName)}`;
+            const specUrl = buildDocApiPath(docFileName);
             html = html.replace(/\{\{SPEC_URL\}\}/g, specUrl);
             html = html.replace(/\{\{TITLE\}\}/g, docName);
             html = html.replace(/\{\{MULTI_DOC\}\}/g, 'false');

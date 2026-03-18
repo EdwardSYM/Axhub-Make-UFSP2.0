@@ -106,6 +106,24 @@ export function isTemplateDocName(docName: string) {
   return normalizedName === 'templates' || normalizedName.startsWith('templates/');
 }
 
+export function buildDocApiPath(docName: string) {
+  const normalizedName = normalizePathSegments(docName);
+  if (!normalizedName) {
+    return '/api/docs';
+  }
+
+  if (isTemplateDocName(normalizedName)) {
+    const templateName = normalizedName === 'templates'
+      ? ''
+      : normalizedName.slice('templates/'.length);
+    return templateName
+      ? `/api/docs/templates/${encodeURIComponent(templateName)}`
+      : '/api/docs/templates';
+  }
+
+  return `/api/docs/${encodeURIComponent(normalizedName)}`;
+}
+
 function buildDocReferencePatterns(docName: string): RegExp[] {
   const normalizedDocName = normalizePathSegments(docName);
   if (!normalizedDocName) {

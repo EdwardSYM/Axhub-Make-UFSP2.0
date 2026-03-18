@@ -5,8 +5,10 @@ import path from 'path';
 import {
   createManualDocTemplate,
   getDocsDir,
+  getTemplatesDir,
   isTemplateDocName,
   isProtectedDocName,
+  safeDecodeURIComponent,
   sanitizeDocBaseName,
   scanDocReferences,
 } from './utils/docUtils';
@@ -63,6 +65,64 @@ export function docsApiPlugin(): Plugin {
           return next();
         }
         const docsDir = getDocsDir(process.cwd());
+        const encodedDocName = pathname.startsWith('/api/docs/')
+          ? pathname.slice('/api/docs/'.length)
+          : '';
+        const decodedDocName = safeDecodeURIComponent(encodedDocName);
+        const isCompatTemplateRequest = Boolean(encodedDocName) && isTemplateDocName(decodedDocName);
+
+        if (isCompatTemplateRequest && (req.method === 'GET' || req.method === 'PUT')) {
+          try {
+            const templateName = decodedDocName.slice('templates/'.length);
+            if (!templateName) {
+              res.statusCode = 400;
+              res.setHeader('Content-Type', 'application/json; charset=utf-8');
+              res.end(JSON.stringify({ error: 'Missing template name' }));
+              return;
+            }
+
+            const templatesDir = getTemplatesDir(process.cwd());
+            const templatePath = path.join(templatesDir, templateName);
+            if (!templatePath.startsWith(templatesDir)) {
+              res.statusCode = 403;
+              res.setHeader('Content-Type', 'application/json; charset=utf-8');
+              res.end(JSON.stringify({ error: 'Forbidden' }));
+              return;
+            }
+
+            if (!fs.existsSync(templatePath)) {
+              res.statusCode = 404;
+              res.setHeader('Content-Type', 'application/json; charset=utf-8');
+              res.end(JSON.stringify({ error: 'Template not found' }));
+              return;
+            }
+
+            if (req.method === 'GET') {
+              res.setHeader('Content-Type', 'text/markdown; charset=utf-8');
+              res.end(fs.readFileSync(templatePath, 'utf8'));
+              return;
+            }
+
+            const bodyData = await readJsonBody(req);
+            if (typeof bodyData?.content !== 'string') {
+              res.statusCode = 400;
+              res.setHeader('Content-Type', 'application/json; charset=utf-8');
+              res.end(JSON.stringify({ error: 'Missing content parameter' }));
+              return;
+            }
+
+            fs.writeFileSync(templatePath, String(bodyData.content), 'utf8');
+            res.setHeader('Content-Type', 'application/json; charset=utf-8');
+            res.end(JSON.stringify({ success: true, name: templateName }));
+            return;
+          } catch (error: any) {
+            console.error('Error handling encoded template doc path:', error);
+            res.statusCode = 500;
+            res.setHeader('Content-Type', 'application/json; charset=utf-8');
+            res.end(JSON.stringify({ error: error?.message || 'Template request failed' }));
+            return;
+          }
+        }
 
         if (req.method === 'POST' && (pathname === '/api/docs/check-references' || pathname === '/api/docs/check-references/')) {
           try {
