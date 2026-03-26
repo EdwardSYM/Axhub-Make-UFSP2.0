@@ -17,13 +17,16 @@
   },
   "devDependencies": {
     "@ant-design/icons": "^6.1.0",
-    "@tailwindcss/vite": "^4.1.18",
+    "@tailwindcss/postcss": "^4.0.0-alpha.13",
+    "@types/react": "^18.3.24",
+    "@types/react-dom": "^18.3.7",
     "@vitejs/plugin-react": "^5.0.0",
     "antd": "^6.1.2",
     "echarts": "^6.0.0",
     "execa": "^9.6.1",
     "react": "^18.2.0",
     "react-dom": "^18.2.0",
+    "tailwindcss": "^4.0.0-alpha.13",
     "typescript": "^5.9.3",
     "vite": "^5.0.0",
     "vitest": "^4.0.16",
@@ -37,6 +40,7 @@
     "lowdb": "^7.0.1",
     "lucide-react": "^0.562.0",
     "papaparse": "^5.5.3",
+    "react-router-dom": "^7.13.2",
     "uuid": "^13.0.0"
   }
 }

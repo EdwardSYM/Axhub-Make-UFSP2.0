@@ -1,0 +1,20 @@
+{
+  "version": 1,
+  "skills": {
+    "design-lab": {
+      "source": "0xdesign/design-plugin",
+      "sourceType": "github",
+      "computedHash": "2f91bff63e6e749642f966510755b8912d5d53e56de3f0fb4a86bc8c604da192"
+    },
+    "interaction-design": {
+      "source": "wshobson/agents",
+      "sourceType": "github",
+      "computedHash": "1fac9a5aff8463e98b935a0a1b48452d71afcfa50a3bc4b7af9510bfdd8a1731"
+    },
+    "interface-design": {
+      "source": "dammyjay93/interface-design",
+      "sourceType": "github",
+      "computedHash": "d004c5e5e2e7132e1d64e9c2a339db7f7aaa69053a5c19cddc210dd35dd6fff5"
+    }
+  }
+}

@@ -1,0 +1,152 @@
+@import "tailwindcss";
+
+/* Dribbble Style Theme - Playful, Creative & Soft */
+:root {
+  /* Background Colors */
+  --background: #f8f7f4; /* 暖白色背景，像纸张一样 */
+  --foreground: #333333; /* 柔和的黑色文字 */
+
+  /* Surface Colors */
+  --card: #ffffff;
+  --card-foreground: #333333;
+  --popover: #ffffff;
+  --popover-foreground: #333333;
+
+  /* Primary - Dribbble Pink */
+  --primary: #ea4c89;
+  --primary-foreground: #ffffff;
+
+  /* Secondary - Soft Blue/Purple for accents */
+  --secondary: #f3f3f4;
+  --secondary-foreground: #333333;
+
+  /* Muted */
+  --muted: #f3f3f4;
+  --muted-foreground: #9e9ea7;
+
+  /* Accent */
+  --accent: #ea4c89;
+  --accent-foreground: #ffffff;
+
+  /* Subtle */
+  --subtle: #6e6d7a;
+
+  /* Destructive */
+  --destructive: #ff5555;
+  --destructive-foreground: #ffffff;
+
+  /* Border */
+  --border: #e7e7e9;
+  --border-subtle: #f3f3f4;
+  --input: #f3f3f4;
+  --ring: rgba(234, 76, 137, 0.3);
+
+  /* Radius - Large & Playful */
+  --radius: 12px;
+  --radius-sm: 8px;
+  --radius-md: 12px;
+  --radius-lg: 16px;
+  --radius-xl: 24px;
+  --radius-2xl: 32px;
+  --radius-full: 9999px;
+
+  /* Spacing */
+  --spacing-1: 4px;
+  --spacing-2: 8px;
+  --spacing-3: 12px;
+  --spacing-4: 16px;
+  --spacing-6: 24px;
+  --spacing-8: 32px;
+  --spacing-10: 40px;
+  --spacing-12: 48px;
+  --spacing-20: 80px;
+
+  /* Shadows - Soft & Diffused */
+  --shadow-sm: 0 2px 8px rgba(0, 0, 0, 0.04);
+  --shadow-md: 0 8px 24px rgba(0, 0, 0, 0.08);
+  --shadow-lg: 0 16px 48px rgba(0, 0, 0, 0.12);
+}
+
+.dark {
+  /* Dark Mode */
+  --background: #0d0c22; /* 深蓝色背景 */
+  --foreground: #ffffff;
+
+  --card: #1e1e2e; /* 稍微亮一点的深色卡片 */
+  --card-foreground: #ffffff;
+  --popover: #1e1e2e;
+  --popover-foreground: #ffffff;
+
+  --primary: #ea4c89;
+  --primary-foreground: #ffffff;
+
+  --secondary: #2d2d3b;
+  --secondary-foreground: #ffffff;
+
+  --muted: #2d2d3b;
+  --muted-foreground: #9e9ea7;
+
+  --accent: #ea4c89;
+  --accent-foreground: #ffffff;
+
+  --subtle: #9e9ea7;
+
+  --destructive: #ff5555;
+  --destructive-foreground: #ffffff;
+
+  --border: #2d2d3b;
+  --border-subtle: #1e1e2e;
+  --input: #2d2d3b;
+  --ring: rgba(234, 76, 137, 0.5);
+
+  --shadow-sm: 0 2px 8px rgba(0, 0, 0, 0.2);
+  --shadow-md: 0 8px 24px rgba(0, 0, 0, 0.4);
+  --shadow-lg: 0 16px 48px rgba(0, 0, 0, 0.6);
+}
+
+@theme inline {
+  --font-sans: "Haas Grot Text R Web", "Helvetica Neue", Helvetica, Arial, sans-serif;
+  --font-mono: "Fira Code", monospace;
+
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-card: var(--card);
+  --color-card-foreground: var(--card-foreground);
+  --color-popover: var(--popover);
+  --color-popover-foreground: var(--popover-foreground);
+  --color-primary: var(--primary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-secondary: var(--secondary);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-muted: var(--muted);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-accent: var(--accent);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-subtle: var(--subtle);
+  --color-destructive: var(--destructive);
+  --color-destructive-foreground: var(--destructive-foreground);
+  --color-border: var(--border);
+  --color-border-subtle: var(--border-subtle);
+  --color-input: var(--input);
+  --color-ring: var(--ring);
+
+  --radius-sm: var(--radius-sm);
+  --radius-md: var(--radius-md);
+  --radius-lg: var(--radius-lg);
+  --radius-xl: var(--radius-xl);
+  --radius-2xl: var(--radius-2xl);
+  --radius-full: var(--radius-full);
+  
+  --shadow-sm: var(--shadow-sm);
+  --shadow-md: var(--shadow-md);
+  --shadow-lg: var(--shadow-lg);
+}
+
+@layer base {
+  * {
+    @apply border-border outline-ring/50;
+  }
+  body {
+    @apply bg-background text-foreground transition-colors duration-300;
+  }
+}

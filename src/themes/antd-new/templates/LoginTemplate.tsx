@@ -20,7 +20,7 @@ export const LoginTemplate: React.FC = () => {
             <div className="mx-auto mb-4 h-12 w-12 rounded-2xl bg-neutral-900 text-white flex items-center justify-center text-lg font-semibold">
               AX
             </div>
-            <h2 className="mt-0 text-2xl font-semibold text-neutral-900 mb-1">欢迎登录</h2>
+            <h2 className="text-2xl font-semibold text-neutral-900 mb-1">欢迎登录</h2>
             <p className="text-sm text-neutral-500">请输入您的账号和密码</p>
           </div>
           

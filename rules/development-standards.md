@@ -1,0 +1,152 @@
+# 开发规范
+
+**开发流程**：阅读规格文档 spec.md → 编写代码 → 运行验收脚本 → 根据状态修复或调试
+
+本文档定义本项目元素和页面原型的代码编写规范。
+
+## 📁 项目结构
+
+```
+src/
+├── elements/button/
+│   ├── index.tsx  # 入口文件（必需）
+│   ├── spec.md    # 需求规格（必需）
+│   ├── style.css  # 样式文件（可选）
+│   └── hack.css   # 样式覆盖（可选，AI 不应修改）
+└── pages/sample-page/
+    ├── index.tsx
+    ├── spec.md
+    ├── style.css
+    └── hack.css
+```
+
+**约束**：入口必须是 `index.tsx`，必须包含 `spec.md`，复杂项目可按模块拆分
+
+### 命名规则
+
+| 属性 | 说明 | 示例 |
+|------|------|------|
+| 显示名（displayName） | 用户可读的中文名称 | 登录页、用户列表 |
+| 路径名（name） | 目录名，小写字母、数字、连字符 | login-page、user-list |
+
+**生成规则**：根据显示名生成对应的英文 → `src/elements/[路径名]` 或 `src/pages/[路径名]`
+
+## 🎯 核心要求
+
+### 1. 文件头部注释
+
+每个 `index.tsx` 文件顶部必须包含：
+
+```typescript
+/**
+ * @name 显示名（displayName）
+ * 
+ * 参考资料：
+ * - /assets/docs/设计规范.UIGuidelines.md
+ * - /src/themes/antd/designToken.json (Ant Design 主题)
+ * - /assets/libraries/antd.md (Ant Design 库)
+ */
+```
+
+- `@name`：组件的中文显示名称（必需）
+- `参考资料`：列出与开发相关的文档路径（设计规范、主题配置、前端库文档等），纯视觉设计资料可省略
+
+### 2. 依赖引用
+
+```typescript
+// ✅ 直接导入 React 和 Hooks
+import React, { useState, useCallback } from 'react';
+
+// ✅ 按需导入第三方库
+import { Select, Button } from 'antd';
+```
+
+使用第三方库时需协助用户安装依赖，优先使用按需导入
+
+#### 前端库
+
+当用户指定使用特定前端库时（如 Ant Design、shadcn/ui），这是建议而非强制。
+
+文档通常在 `/assets/libraries/` 目录。
+
+**灵活性**：如果其他库更适合实现需求，可以使用其他库，但需说明理由
+
+#### Axure API（可选但重要）
+
+如果用户要求使用 Axure API，必须完整阅读 `axure-api-guide.md`，严格按照指南实现。
+
+Axure API 提供了与 Axure 原型工具的集成能力，包括 Props 处理、事件处理、Container 使用等。详见后续章节和独立文档。
+
+## 📋 代码结构规范
+
+### Tailwind CSS（优先使用）
+
+```typescript
+import './style.css';
+import React from 'react';
+
+const Component = () => (
+  <div className="p-6 bg-white rounded-xl shadow-md">Component Content</div>
+);
+
+export default Component;
+```
+
+**style.css**：
+```css
+@import "tailwindcss";
+```
+
+### Axure API 代码结构
+
+**⚠️ 如果使用 Axure API，必须阅读 `axure-api-guide.md` 了解，反之则跳过**：
+- Props 处理和类型标注
+- 事件处理规范
+- Container 使用方法
+- forwardRef 和 useImperativeHandle 的使用
+
+## 📦 导出规范
+
+所有组件文件必须使用 `export default Component` 导出：
+
+```typescript
+const Component = function MyComponent() {
+  return <div>Component Content</div>;
+}
+
+export default Component;
+```
+
+- 必须使用变量名 `Component`（大小写敏感）
+- 必须使用 `export default` 语法
+
+## ✅ 代码检查清单
+
+**验收前必过 8 条**
+- [ ] 入口文件为 `index.tsx`
+- [ ] 目录内包含 `spec.md`
+- [ ] 顶部包含 `@name` 注释块
+- [ ] 注释块列出相关参考资料路径
+- [ ] React Hooks 直接从 `react` 导入，第三方库按需导入且依赖已安装
+- [ ] 使用外部库/主题/Axure API 前已阅读对应文档并按版本与 API 开发
+- [ ] 使用 `export default Component` 且变量名为 `Component`
+
+## 🔧 开发后验收流程
+
+### 1. 运行验收脚本
+
+```bash
+node scripts/check-app-ready.mjs /elements/[元素名]
+# 或
+node scripts/check-app-ready.mjs /pages/[页面名]
+```
+
+脚本返回 JSON 格式结果，关键字段包括：
+- `status`: `READY` / `ERROR` / `TIMEOUT`
+- `homeUrl`: Make 首页地址（用于进入管理界面）
+- `targetUrl`: 本次验收目标（元素/页面）的演示地址（最重要）
+- `errors`: 错误列表（含构建/运行时/页面加载等问题）
+
+### 2. 错误处理
+
+**状态为 ERROR**：根据 `errors` 字段中的错误信息直接修复代码，修复后重新运行验收脚本。

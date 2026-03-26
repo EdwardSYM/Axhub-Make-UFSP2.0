@@ -1,23 +1,48 @@
 {
   "version": 1,
-  "updatedAt": "2026-03-18T09:16:33.699Z",
+  "updatedAt": "2026-03-26T03:14:26.854Z",
   "prototypes": [
     {
-      "id": "folder-1771647506379-zzmigx",
+      "id": "item-prototypes-fiscal-supervision-home2",
+      "kind": "item",
+      "title": "首页",
+      "itemKey": "prototypes/fiscal-supervision-home2"
+    },
+    {
+      "id": "folder-1774333293038-umpbs3",
       "kind": "folder",
-      "title": "演示原型",
+      "title": "工作台",
       "children": [
         {
-          "id": "item-prototypes-ref-antd",
+          "id": "item-prototypes-topic-workbench2",
           "kind": "item",
-          "title": "Antd 电商后台",
-          "itemKey": "prototypes/ref-antd"
+          "title": "日常监督工作台",
+          "itemKey": "prototypes/topic-workbench2"
         },
         {
-          "id": "item-prototypes-ref-app-home",
+          "id": "item-prototypes-topic-workbench2-copy2",
           "kind": "item",
-          "title": "健身 App 首页",
-          "itemKey": "prototypes/ref-app-home"
+          "title": "日常监督工作台 副本2",
+          "itemKey": "prototypes/topic-workbench2-copy2"
+        }
+      ]
+    },
+    {
+      "id": "folder-1774404451554-c1tin9",
+      "kind": "folder",
+      "title": "列表页",
+      "children": [
+        {
+          "id": "item-prototypes-topic-function-list",
+          "kind": "item",
+          "title": "日常监督功能列表页",
+          "itemKey": "prototypes/topic-function-list"
+        },
+        {
+          "id": "item-prototypes-topic-function-list-copy",
+          "kind": "item",
+          "title": "重点领域整改功能列表页",
+          "itemKey": "prototypes/topic-function-list-copy"
         }
       ]
     }
@@ -43,6 +68,42 @@
     }
   ],
   "docs": [
+    {
+      "id": "item-docs-----------md",
+      "kind": "item",
+      "title": "设计指导（风格化）.md",
+      "itemKey": "docs/设计指导（风格化）.md"
+    },
+    {
+      "id": "item-docs----------md",
+      "kind": "item",
+      "title": "设计指导（简约）.md",
+      "itemKey": "docs/设计指导（简约）.md"
+    },
+    {
+      "id": "item-docs-default-animation-libraries-md",
+      "kind": "item",
+      "title": "default animation libraries.md",
+      "itemKey": "docs/default-animation-libraries.md"
+    },
+    {
+      "id": "item-docs-default-chart-libraries-md",
+      "kind": "item",
+      "title": "default chart libraries.md",
+      "itemKey": "docs/default-chart-libraries.md"
+    },
+    {
+      "id": "item-docs-default-font-combinations-md",
+      "kind": "item",
+      "title": "default font combinations.md",
+      "itemKey": "docs/default-font-combinations.md"
+    },
+    {
+      "id": "item-docs-default-icon-libraries-md",
+      "kind": "item",
+      "title": "default icon libraries.md",
+      "itemKey": "docs/default-icon-libraries.md"
+    },
     {
       "id": "item-docs-templates-memory-log-template-md",
       "kind": "item",
@@ -131,6 +192,8 @@
   ],
   "canvas": [],
   "themes": [
+    "dribbble",
+    "ufsp-sky",
     "antd-new",
     "trae-design",
     "firecrawl"

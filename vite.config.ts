@@ -3,7 +3,6 @@ import type { Plugin } from 'vite';
 import fs from 'fs';
 import path from 'path';
 import react from '@vitejs/plugin-react';
-import tailwindcss from '@tailwindcss/vite';
 
 import { addAxhubMarker } from './vite-plugins/addAxhubMarker';
 import { aiCliPlugin } from './vite-plugins/aiCliPlugin';
@@ -76,7 +75,6 @@ const isIifeBuild = hasSingleEntry;
 
 const config: any = {
   plugins: [
-    tailwindcss(), // Tailwind CSS Vite 插件
     lanAccessControlPlugin(), // 局域网访问控制（必须在最前面）
     writeDevServerInfoPlugin(), // 写入开发服务器信息
     serveAdminPlugin(), // 服务 admin 目录（需要在最前面）

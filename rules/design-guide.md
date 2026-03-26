@@ -1,4 +1,4 @@
-# 设计指南
+# 页面与元素设计流程
 
 本文档定义页面或元素设计阶段的标准流程、产出规范与质量约束。
 
@@ -23,10 +23,6 @@
 ### 1. 资料收集
 
 按优先级依次阅读以下资料：
-
-**用户指定的技能（若有）**
-- 优先阅读并执行该 Skill 的流程（可能会产出**主题 tokens / 设计规范**等）
-- 如果 Skill 的设计流程和本指导冲突时，以 Skill 为准
 
 **用户提供的资料（最高优先级）**
 - 用户提供的主题、设计规范、业务文档、数据表、参考设计稿等
@@ -60,7 +56,7 @@
 
 **优先级顺序**：
 1. **用户提供** → 严格按提供的数据/文档组织，保持原有语气与术语
-2. **项目数据表** → 检查 `/src/database/` 是否有匹配数据
+2. **项目数据表** → 检查 `/assets/database/` 是否有匹配数据
 3. **合理兜底** → 根据业务场景生成示例：
    - 后台/ToB：真实、专业、完整
    - 落地页/App：吸引力、品牌调性
@@ -85,9 +81,8 @@
 1. **用户指定规范** → 严格遵循用户提供的设计规范文档
 2. **主题内 `DESIGN-SPEC.md`** → 使用主题自带的设计规范
 3. **内置设计指导** → 根据业务场景选择：
-   - **基础型界面**（管理后台 / ToB / 工具 / 设置 / 数据工作台）→ `/skills/third-party/interface-design/SKILL.md`
-   - **风格化界面**（落地页 / ToC / 品牌展示 / 营销页 / 强视觉 App）→ `/skills/third-party/frontend-design/SKILL.md`
-   - **混合场景** → 以核心任务区优先套用基础型界面规范，品牌展示区再补充风格化规范
+   - 管理后台/ToB/效率化 → `/assets/docs/设计指导（简约）.md`
+   - 落地页/ToC/App → `/assets/docs/设计指导（风格化）.md`
 
 ### 3. 弥补缺失事项
 
@@ -97,10 +92,10 @@
 
 | 资源类型 | 触发条件 | 参考文档或内容 |
 |---------|---------|---------|
-| **图表库** | 需要数据可视化 且 用户未指定图表库 且 项目中无现有图表方案 | `/skills/default-resource-recommendations/references/default-chart-libraries.md` |
-| **图标库** | 需要图标 且 用户未指定图标库 且 主题中无自定义图标系统 | `/skills/default-resource-recommendations/references/default-icon-libraries.md` |
-| **字体** | 需要自定义字体 且 用户未提供字体方案 且 主题中无字体定义 | `/skills/default-resource-recommendations/references/default-font-combinations.md` |
-| **动画库** | 页面动画处数 > 5 且 用户未指定动画方案 且 主题中无自定义动画系统 | `/skills/default-resource-recommendations/references/default-animation-libraries.md` |
+| **图表库** | 需要数据可视化 且 用户未指定图表库 且 项目中无现有图表方案 | `/assets/docs/default-chart-libraries.md` |
+| **图标库** | 需要图标 且 用户未指定图标库 且 主题中无自定义图标系统 | `/assets/docs/default-icon-libraries.md` |
+| **字体** | 需要自定义字体 且 用户未提供字体方案 且 主题中无字体定义 | `/assets/docs/default-font-combinations.md` |
+| **动画库** | 页面动画处数 > 5 且 用户未指定动画方案 且 主题中无自定义动画系统 | `/assets/docs/default-animation-libraries.md` |
 | **图片** | 需要图片/插图 且 用户未提供图片资源 且 Agent 无法生成 | 优先级：Unsplash → Pexels → Pixabay → Picsum |
 
 **重要**：不要一次性加载所有默认推荐文档，严格按触发条件按需查阅。
@@ -118,7 +113,7 @@
 ### 1. 生成时机
 
 - 设计方案确认后，立即产出 `spec.md`
-- 使用模板：`src/docs/templates/spec-template.md`
+- 使用模板：`assets/templates/spec-template.md`
 
 ### 2. 文档内容
 
@@ -153,6 +148,7 @@
 ### 1. 技术栈选择
 
 - 默认：Tailwind CSS V4
+- 传统 CSS：使用 BEM 命名 + 组件前缀（避免冲突）
 
 ### 2. 可访问性要求
 

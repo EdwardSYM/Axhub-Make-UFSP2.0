@@ -1,4 +1,4 @@
-# Axure API 指南
+# Axure API 使用指南
 
 本文档说明如何在本项目原型中使用 Axure API 实现交互功能。
 
@@ -433,4 +433,4 @@ export default Component;
 
 - **类型定义**：`/src/common/axure-types.ts`
 - **配置面板类型**：`/src/common/config-panel-types.ts`
-- **示例代码**：查看 `/src/components/` 和 `/src/prototypes/` 目录下以 `ref-` 开头的文件
+- **示例代码**：查看 `/src/elements/` 和 `/src/pages/` 目录下以 `ref-` 开头的文件
