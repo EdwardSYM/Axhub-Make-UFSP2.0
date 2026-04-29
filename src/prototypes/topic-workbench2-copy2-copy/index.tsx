@@ -1,5 +1,5 @@
 /**
- * @name 重点领域整改工作台
+ * @name 内控考评工作台
  */
 import './style.css';
 import '../../themes/ufsp-sky/globals.css';
@@ -9,12 +9,7 @@ import * as echarts from 'echarts/core';
 import { RadarChart, LineChart, BarChart } from 'echarts/charts';
 import { GridComponent, TooltipComponent, LegendComponent, TitleComponent } from 'echarts/components';
 import { CanvasRenderer } from 'echarts/renderers';
-import {
-  analysisData,
-  localDebtAnalysisData,
-  Level1_Dimension,
-  Level2_Indicator,
-} from './data';
+import { analysisData, Level1_Dimension, Level2_Indicator } from './data';
 
 echarts.use([RadarChart, LineChart, BarChart, GridComponent, TooltipComponent, LegendComponent, TitleComponent, CanvasRenderer]);
 import TopBar from '../../common/components/TopBar';
@@ -110,10 +105,6 @@ function FlowNode(props: FlowNodeProps) {
     </div>
   );
 }
-
-type TodoItem = { t: string; d: string; level: string; flowNode: string; module: string; status: string; actions: string[] };
-type FlowStepItem = { key: string; name: string; mainCount: number; status: Array<{ label: string; value: number }> };
-type ResourceItem = { key: string; icon: string; title: string; count: number; path: string };
 
 const Component = forwardRef<AxureHandle, AxureProps>(function Component(innerProps, ref) {
   const configSource = innerProps && typeof innerProps.config === 'object' && innerProps.config ? innerProps.config : {};
@@ -219,38 +210,27 @@ const Component = forwardRef<AxureHandle, AxureProps>(function Component(innerPr
   };
 
   const topicKey = String(query.topic || '').toLowerCase();
-  const isLocalDebt = topicKey === 'yearly/local-debt';
-  const localDebtFlowSteps: FlowStepItem[] = [
-    { key: 'debt-ledger-manage', name: '债务台账管理', mainCount: 11, status: [{ label: '临期', value: 2 }, { label: '超期', value: 1 }, { label: '被退回', value: 0 }] },
-    { key: 'debt-risk-verify', name: '债务风险核验', mainCount: 7, status: [{ label: '临期', value: 2 }, { label: '超期', value: 2 }, { label: '被退回', value: 1 }] },
-    { key: 'debt-rectify-assign', name: '整改任务下发', mainCount: 5, status: [{ label: '临期', value: 1 }, { label: '超期', value: 0 }, { label: '被退回', value: 1 }] },
-    { key: 'debt-progress-track', name: '整改进度跟踪', mainCount: 9, status: [{ label: '临期', value: 3 }, { label: '超期', value: 2 }, { label: '被退回', value: 0 }] },
-    { key: 'debt-fund-review', name: '化债资金复核', mainCount: 4, status: [{ label: '临期', value: 1 }, { label: '超期', value: 1 }, { label: '被退回', value: 0 }] },
-    { key: 'debt-report-submit', name: '报告报送', mainCount: 3, status: [{ label: '临期', value: 1 }, { label: '超期', value: 0 }, { label: '被退回', value: 0 }] },
-    { key: 'debt-detail-query', name: '债务明细查询', mainCount: 0, status: [] },
-  ];
-  const defaultFlowSteps: FlowStepItem[] = [
-    { key: 'work台账管理', name: '工作台账管理', mainCount: 0, status: [] },
-    { key: 'work台账录入', name: '工作台账录入', mainCount: 8, status: [] },
-    { key: 'work台账审核', name: '工作台账审核', mainCount: 6, status: [{ label: '临期', value: 2 }, { label: '超期', value: 1 }, { label: '被退回', value: 1 }] },
-    { key: 'work台账上报', name: '工作台账上报', mainCount: 4, status: [{ label: '临期', value: 2 }, { label: '超期', value: 0 }, { label: '被退回', value: 1 }] },
-    { key: 'rectify督办管理', name: '整改督办管理', mainCount: 9, status: [{ label: '临期', value: 3 }, { label: '超期', value: 2 }, { label: '被退回', value: 0 }] },
-    { key: 'rectify下发管理', name: '整改下发管理', mainCount: 7, status: [{ label: '临期', value: 2 }, { label: '超期', value: 0 }, { label: '被退回', value: 0 }] },
-    { key: 'rectify情况审核', name: '整改情况审核', mainCount: 5, status: [{ label: '临期', value: 1 }, { label: '超期', value: 0 }, { label: '被退回', value: 1 }] },
-    { key: 'rectify明细查询', name: '整改明细查询', mainCount: 0, status: [] },
-  ];
-  const localDebtTodos: TodoItem[] = [
-    { t: '核验平台公司隐性债务线索台账', d: '03-28', level: '高', flowNode: '债务台账管理', module: '债务台账管理', status: '待处理', actions: ['处理'] },
-    { t: '复核地方政府专项债项目资金闭环材料', d: '03-30', level: '高', flowNode: '化债资金复核', module: '化债资金复核', status: '待审核', actions: ['处理'] },
-    { t: '下发地方政府债务风险整改清单', d: '03-26', level: '高', flowNode: '整改任务下发', module: '整改任务下发', status: '待下发', actions: ['处理'] },
-    { t: '跟踪高风险地区债务压降进展', d: '03-25', level: '高', flowNode: '整改进度跟踪', module: '整改进度跟踪', status: '处理中', actions: ['处理'] },
-    { t: '核对债务化解方案与实际执行偏差', d: '03-24', level: '中', flowNode: '债务风险核验', module: '债务风险核验', status: '待核验', actions: ['处理'] },
-    { t: '汇总地方政府债务整改周报', d: '03-27', level: '中', flowNode: '报告报送', module: '报告报送', status: '待报送', actions: ['处理'] },
-    { t: '抽查融资平台新增债务材料', d: '03-29', level: '中', flowNode: '债务风险核验', module: '债务风险核验', status: '待处理', actions: ['处理'] },
-    { t: '补录债务台账附件缺失项', d: '03-22', level: '低', flowNode: '债务台账管理', module: '债务台账管理', status: '待补录', actions: ['处理'] },
-    { t: '导出债务整改明细报表', d: '04-02', level: '低', flowNode: '债务明细查询', module: '债务明细查询', status: '待处理', actions: ['处理'] },
-  ];
-  const defaultTodos: TodoItem[] = [
+  const isSanbao = topicKey === 'sanbao';
+  const displayName = '专项领域整改工作台';
+  const descText = '用于汇聚重点领域整改相关任务，支撑台账分发录入、问题整改更新及整改进展跟踪。';
+  const stageData = isSanbao
+    ? [
+        { name: '受理', count: 14, rate: 0.82 },
+        { name: '研判', count: 8, rate: 0.66 },
+        { name: '督办', count: 5, rate: 0.54 },
+        { name: '复核', count: 3, rate: 0.47 },
+        { name: '催办', count: 2, rate: 0.3 },
+        { name: '闭环', count: 1, rate: 0.12 }
+      ]
+    : [
+        { name: '受理', count: 9, rate: 0.6 },
+        { name: '研判', count: 6, rate: 0.5 },
+        { name: '督办', count: 3, rate: 0.38 },
+        { name: '复核', count: 2, rate: 0.26 },
+        { name: '催办', count: 1, rate: 0.18 },
+        { name: '闭环', count: 0, rate: 0.1 }
+      ];
+  const todos = [
     // 第一组：台账分发录入
     { t: '录入2026年第一季度工作台账', d: '03-10', level: '高', flowNode: '台账分发录入', module: '工作台账录入', status: '待提交', actions: ['处理'] },
     { t: '审核县区上报的工作台账数据', d: '03-08', level: '高', flowNode: '台账分发录入', module: '工作台账审核', status: '待审核', actions: ['处理'] },
@@ -278,64 +258,6 @@ const Component = forwardRef<AxureHandle, AxureProps>(function Component(innerPr
     { t: '制定下季度工作计划', d: '04-01', level: '中', flowNode: '台账分发录入', module: '工作台账管理', status: '待处理', actions: ['处理'] },
     { t: '组织部门业务培训', d: '04-05', level: '低', flowNode: '问题整改更新', module: '整改督办管理', status: '待安排', actions: ['处理'] }
   ];
-  const currentAnalysisData = useMemo(() => (isLocalDebt ? localDebtAnalysisData : analysisData), [isLocalDebt]);
-  const topicProfile = useMemo(() => {
-    if (isLocalDebt) {
-      return {
-        displayName: '地方政府债务专项工作台',
-        descText: '用于汇聚地方政府债务风险识别、整改督办、化债资金复核和整改闭环跟踪等重点任务。',
-        stageData: [
-          { name: '识别', count: 17, rate: 0.88 },
-          { name: '核验', count: 12, rate: 0.72 },
-          { name: '下发', count: 9, rate: 0.55 },
-          { name: '整改', count: 7, rate: 0.43 },
-          { name: '复核', count: 4, rate: 0.26 },
-          { name: '闭环', count: 2, rate: 0.14 },
-        ],
-        todos: localDebtTodos,
-        resources: [
-          { key: 'law', icon: '📜', title: '债务法规', count: 42, path: '/resources?tab=law' },
-          { key: 'rule', icon: '📘', title: '债务规则', count: 28, path: '/resources?tab=rule' },
-          { key: 'case', icon: '🧰', title: '债务案例', count: 19, path: '/resources?tab=case' },
-          { key: 'archive', icon: '🗂️', title: '债务台账/数据', count: 156, path: '/resources?tab=archive' },
-        ] as ResourceItem[],
-        flowSteps: localDebtFlowSteps,
-        evaluationIntro: '当前评价体系分析区已切换为 Excel 定义视图，严格展示地方政府债务专项监督评价体系中的一级、二级、三级指标、权重、计算公式和依据条款，不代表实时业务结果。',
-        weakestDimension: '高权重维度：偿债能力与风险预警 / 专项债项目与资金绩效',
-        focusIndicator: '高权重指标：新增隐性债务发生额/案件数',
-        smartSummary: '当前展示的是“地方政府债务.xlsx”中的评价体系定义，不展示实时业务结果。权重、公式和依据已按表接入；实际当前值、得分、趋势需接入业务数据后才能展示。',
-        ruleHitTitle: '当前模式：评价体系定义展示',
-        ruleHitPolicy: '说明：未接入真实业务结果时，不展示规则触发结论',
-      };
-    }
-    return {
-      displayName: '专项领域整改工作台',
-      descText: '用于汇聚重点领域整改相关任务，支撑台账分发录入、问题整改更新及整改进展跟踪。',
-      stageData: [
-        { name: '受理', count: 9, rate: 0.6 },
-        { name: '研判', count: 6, rate: 0.5 },
-        { name: '督办', count: 3, rate: 0.38 },
-        { name: '复核', count: 2, rate: 0.26 },
-        { name: '催办', count: 1, rate: 0.18 },
-        { name: '闭环', count: 0, rate: 0.1 },
-      ],
-      todos: defaultTodos,
-      resources: [
-        { key: 'law', icon: '📜', title: '法制库', count: 120, path: '/resources?tab=law' },
-        { key: 'rule', icon: '📘', title: '规则库', count: 70, path: '/resources?tab=rule' },
-        { key: 'case', icon: '🧰', title: '案例库', count: 63, path: '/resources?tab=case' },
-        { key: 'archive', icon: '🗂️', title: '档案/数据', count: 342, path: '/resources?tab=archive' },
-      ] as ResourceItem[],
-      flowSteps: defaultFlowSteps,
-      evaluationIntro: '当前评价体系围绕重点领域整改工作构建，从整改进度、整改时效、责任落实、资金安全、治理成效、数据质量六个一级维度，对整改任务推进情况、问题闭环水平、资金规范性及治理改进成效进行综合分析与预警。',
-      weakestDimension: '资金整改与风险控制',
-      focusIndicator: '问题金额整改到位率',
-      smartSummary: '本季度执行与支付保障风险有所上升，重点问题集中在工资发放延迟、资金沉淀率偏高和台账更新不及时。建议优先排查支付链路和库款管理情况。',
-      ruleHitTitle: '触发规则：问题整改率低于阈值',
-      ruleHitPolicy: '关联制度：三保资金监督整改办法',
-    };
-  }, [isLocalDebt]);
-  const { displayName, descText, stageData, todos, resources } = topicProfile;
   const [todoTab, setTodoTab] = useState<'pending' | 'overdue' | 'due' | 'returned'>('pending');
   const displayTodos = useMemo(() => {
     const today = new Date();
@@ -363,12 +285,93 @@ const Component = forwardRef<AxureHandle, AxureProps>(function Component(innerPr
   const featureHref = (featureKey: string) =>
     `/prototypes/topic-function-list-copy?topic=${topicParam}&category=${categoryParam}&feature=${encodeURIComponent(featureKey)}`;
   const FLOW_STEPS = useMemo(() => {
-    return topicProfile.flowSteps.map((step) => ({
-      ...step,
-      path: featureHref(step.key),
-    }));
-  }, [categoryParam, topicParam, topicProfile]);
-  
+    return [
+      {
+        key: 'work台账管理',
+        name: '工作台账管理',
+        mainCount: 0,
+        status: [],
+        path: featureHref('work台账管理')
+      },
+      {
+        key: 'work台账录入',
+        name: '工作台账录入',
+        mainCount: 8,
+        status: [],
+        path: featureHref('work台账录入')
+      },
+      {
+        key: 'work台账审核',
+        name: '工作台账审核',
+        mainCount: 6,
+        status: [
+          { label: '临期', value: 2 },
+          { label: '超期', value: 1 },
+          { label: '被退回', value: 1 }
+        ],
+        path: featureHref('work台账审核')
+      },
+      {
+        key: 'work台账上报',
+        name: '工作台账上报',
+        mainCount: 4,
+        status: [
+          { label: '临期', value: 2 },
+          { label: '超期', value: 0 },
+          { label: '被退回', value: 1 }
+        ],
+        path: featureHref('work台账上报')
+      },
+      {
+        key: 'rectify督办管理',
+        name: '整改督办管理',
+        mainCount: 9,
+        status: [
+          { label: '临期', value: 3 },
+          { label: '超期', value: 2 },
+          { label: '被退回', value: 0 }
+        ],
+        path: featureHref('rectify督办管理')
+      },
+      {
+        key: 'rectify下发管理',
+        name: '整改下发管理',
+        mainCount: 7,
+        status: [
+          { label: '临期', value: 2 },
+          { label: '超期', value: 0 },
+          { label: '被退回', value: 0 }
+        ],
+        path: featureHref('rectify下发管理')
+      },
+      {
+        key: 'rectify情况审核',
+        name: '整改情况审核',
+        mainCount: 5,
+        status: [
+          { label: '临期', value: 1 },
+          { label: '超期', value: 0 },
+          { label: '被退回', value: 1 }
+        ],
+        path: featureHref('rectify情况审核')
+      },
+      {
+        key: 'rectify明细查询',
+        name: '整改明细查询',
+        mainCount: 0,
+        status: [],
+        path: featureHref('rectify明细查询')
+      }
+    ];
+  }, [categoryParam, topicParam]);
+  const resources = useMemo(() => {
+    return [
+      { key: 'law', icon: '📜', title: '法制库', count: isSanbao ? 128 : 120, path: '/resources?tab=law' },
+      { key: 'rule', icon: '📘', title: '规则库', count: isSanbao ? 76 : 70, path: '/resources?tab=rule' },
+      { key: 'case', icon: '🧰', title: '案例库', count: 63, path: '/resources?tab=case' },
+      { key: 'archive', icon: '🗂️', title: '档案/数据', count: 342, path: '/resources?tab=archive' }
+    ];
+  }, [isSanbao]);
   const [selectedFlowStep, setSelectedFlowStep] = useState<string | null>(null);
   const [showFullProcess, setShowFullProcess] = useState<boolean>(false);
   const [showLeftArrow, setShowLeftArrow] = useState<boolean>(false);
@@ -389,124 +392,6 @@ const Component = forwardRef<AxureHandle, AxureProps>(function Component(innerPr
   const [showAllConclusions, setShowAllConclusions] = useState<boolean>(false);
 
   const smartAnalysisData = useMemo(() => {
-    if (isLocalDebt) {
-      const createConclusions = (timeLabel: string) => ([
-        {
-          id: 'c-1',
-          title: '高风险地区隐性债务核验滞后',
-          summary: `说明债务线索穿透识别和核验链路仍有堵点，建议按地区建立专项核验台账（${timeLabel}）。`,
-          dimension: '债务风险识别与纳管',
-          regions: ['A市', 'B县', 'C区'],
-          risk: '高风险',
-          ruleIds: ['r-1'],
-          report: {
-            id: 'report-1',
-            name: '地方政府债务风险识别分析报告',
-            generatedAt: '2025-02-18 10:32',
-            dimension: '债务风险识别与纳管',
-            indicators: ['风险债务识别覆盖率', '隐性债务线索入库及时率', '债务台账穿透完整率'],
-            scope: 'A市、B县、C区',
-            overview: '本期分析发现高风险地区隐性债务线索核验滞后，部分平台公司材料补录不及时。',
-            impact: '影响债务风险底数掌握和后续整改任务分派准确性。',
-            trend: ['2024Q1 82', '2024Q2 83', '2024Q3 84', '2024Q4 85', '2025Q1 86', '2025Q2 84'],
-            triggeredRules: ['隐性债务线索入库及时率偏低', '债务台账穿透完整率不足'],
-            basis: ['《地方政府债务风险监督办法》', '《债务台账穿透管理细则》'],
-            suggestions: '优先核验高风险地区平台公司债务线索，按周补齐台账穿透信息。',
-          }
-        },
-        {
-          id: 'c-2',
-          title: '化债资金闭环复核不足',
-          summary: `说明资金整改闭环和佐证链路不完整，建议补充复核材料和资金流向校验规则（${timeLabel}）。`,
-          dimension: '债务资金整改与风险控制',
-          regions: ['D区', 'E县'],
-          risk: '中风险',
-          ruleIds: ['r-2'],
-          report: {
-            id: 'report-2',
-            name: '化债资金闭环复核分析报告',
-            generatedAt: '2025-02-18 10:32',
-            dimension: '债务资金整改与风险控制',
-            indicators: ['问题金额整改到位率', '化债资金闭环率', '风险项目预警命中率'],
-            scope: 'D区、E县',
-            overview: '部分化债资金拨付后缺少闭环复核材料，资金用途核验存在延迟。',
-            impact: '影响债务整改成效判断和资金风险压降评估。',
-            trend: ['2024Q1 76', '2024Q2 77', '2024Q3 78', '2024Q4 79', '2025Q1 80', '2025Q2 79'],
-            triggeredRules: ['问题金额整改到位率偏低', '化债资金闭环率不足'],
-            basis: ['《地方政府化债资金管理要求》', '《债务整改闭环复核规范》'],
-            suggestions: '补齐化债资金闭环佐证材料，对高风险项目增加复核节点。',
-          }
-        },
-        {
-          id: 'c-3',
-          title: '违规举债压降率低于预期',
-          summary: `说明重点地区债务压降推进偏慢，建议按风险等级分类督办（${timeLabel}）。`,
-          dimension: '债务整改时效与进度管理',
-          regions: ['F市', 'G区'],
-          risk: '中风险',
-          ruleIds: ['r-3'],
-          report: {
-            id: 'report-3',
-            name: '违规举债整改进度分析报告',
-            generatedAt: '2025-02-18 10:32',
-            dimension: '债务整改时效与进度管理',
-            indicators: ['超期整改占比', '整改进度更新及时率', '违规举债压降率'],
-            scope: 'F市、G区',
-            overview: '重点地区违规举债压降推进慢于计划，超期整改事项集中在资金平衡方案落实环节。',
-            impact: '导致部分高风险事项长期挂账，影响年度债务风险压降目标达成。',
-            trend: ['2024Q1 72', '2024Q2 73', '2024Q3 74', '2024Q4 75', '2025Q1 76', '2025Q2 74'],
-            triggeredRules: ['违规举债压降率偏低', '超期整改占比过高'],
-            basis: ['《地方政府债务整改督办规则》', '《违规举债问题整改工作指引》'],
-            suggestions: '对超期地区开展分层督办，按月复盘压降进度和堵点。',
-          }
-        }
-      ]);
-
-      const ruleItems = [
-        {
-          id: 'r-1',
-          name: '隐性债务线索入库及时率偏低',
-          basis: '触发《地方政府债务风险监督办法》',
-          status: '本期触发',
-          definition: '当隐性债务线索在发现后5个工作日内未完成入库时触发。',
-          threshold: '入库时长 > 5个工作日',
-          source: '债务台账、线索核验记录',
-          logic: '比对线索发现时间和入库完成时间，按地区计算延迟比例。',
-          recent: '最近30天触发 4 次，集中在高风险地区。',
-        },
-        {
-          id: 'r-2',
-          name: '化债资金闭环率不足',
-          basis: '触发《地方政府化债资金管理要求》',
-          status: '高频触发',
-          definition: '当化债资金闭环复核率低于85%时触发。',
-          threshold: '闭环率 < 85%',
-          source: '化债资金台账、复核附件',
-          logic: '按项目校验资金流向、佐证材料和复核结论完整性。',
-          recent: '最近30天触发 5 次，主要集中在区县项目。',
-        },
-        {
-          id: 'r-3',
-          name: '违规举债压降率偏低',
-          basis: '触发《违规举债问题整改工作指引》',
-          status: '新增触发',
-          definition: '当违规举债压降率低于80%且连续两期未改善时触发。',
-          threshold: '压降率 < 80%',
-          source: '债务整改台账、督办进度日志',
-          logic: '按整改事项聚合计算压降完成率和连续改进情况。',
-          recent: '最近30天触发 3 次，较上期增加 1 次。',
-        }
-      ];
-
-      return {
-        '最近7天': { generatedAt: '2025-02-18 10:32', conclusions: createConclusions('最近7天'), rules: ruleItems },
-        '最近30天': { generatedAt: '2025-02-18 10:32', conclusions: createConclusions('最近30天'), rules: ruleItems },
-        '本月': { generatedAt: '2025-02-18 10:32', conclusions: createConclusions('本月'), rules: ruleItems },
-        '本季度': { generatedAt: '2025-02-18 10:32', conclusions: createConclusions('本季度'), rules: ruleItems },
-        '自定义': { generatedAt: '2025-02-18 10:32', conclusions: createConclusions(`${analysisCustomRange.start}~${analysisCustomRange.end}`), rules: ruleItems }
-      };
-    }
-
     const createConclusions = (timeLabel: string) => ([
       {
         id: 'c-1',
@@ -622,7 +507,7 @@ const Component = forwardRef<AxureHandle, AxureProps>(function Component(innerPr
       '本季度': { generatedAt: '2025-02-18 10:32', conclusions: createConclusions('本季度'), rules: ruleItems },
       '自定义': { generatedAt: '2025-02-18 10:32', conclusions: createConclusions(`${analysisCustomRange.start}~${analysisCustomRange.end}`), rules: ruleItems }
     };
-  }, [analysisCustomRange, isLocalDebt]);
+  }, [analysisCustomRange]);
 
   const currentSmartAnalysis = smartAnalysisData[analysisTimeRange];
   const linkedRuleIds = useMemo(() => {
@@ -746,7 +631,7 @@ const Component = forwardRef<AxureHandle, AxureProps>(function Component(innerPr
     if (!chartInstanceRef.current) return;
     const clickHandler = (params: any) => {
       if (currentLevel === 3) return;
-      const radarData = currentLevel === 1 ? currentAnalysisData : selectedL1?.indicators || [];
+      const radarData = currentLevel === 1 ? analysisData : selectedL1?.indicators || [];
       const name = params?.name || '';
       const axisName = params?.axisValue || '';
       const targetName = name || axisName;
@@ -754,7 +639,7 @@ const Component = forwardRef<AxureHandle, AxureProps>(function Component(innerPr
 
       if (targetName) {
         if (currentLevel === 1) {
-          const dim = currentAnalysisData.find(d => d.name === targetName);
+          const dim = analysisData.find(d => d.name === targetName);
           if (dim) {
             setSelectedL1(dim);
             setSelectedL2(null);
@@ -790,7 +675,7 @@ const Component = forwardRef<AxureHandle, AxureProps>(function Component(innerPr
     return () => {
       chartInstanceRef.current?.off('click', clickHandler);
     };
-  }, [currentLevel, selectedL1, currentAnalysisData]);
+  }, [currentLevel, selectedL1]);
 
   useEffect(() => {
     if (!chartInstanceRef.current) return;
@@ -798,7 +683,7 @@ const Component = forwardRef<AxureHandle, AxureProps>(function Component(innerPr
     let option: any = {};
 
     if (currentLevel === 1 || currentLevel === 2) {
-      const data = currentLevel === 1 ? currentAnalysisData : selectedL1?.indicators || [];
+      const data = currentLevel === 1 ? analysisData : selectedL1?.indicators || [];
 
       option = {
         radar: {
@@ -850,7 +735,7 @@ const Component = forwardRef<AxureHandle, AxureProps>(function Component(innerPr
     } else if (currentLevel === 3 && selectedL2) {
       option = {
         title: {
-          text: isLocalDebt ? '权重参考趋势' : '指标变化趋势',
+          text: '指标变化趋势',
           textStyle: { fontSize: 12, color: '#333' },
           left: 'center',
           top: 0
@@ -885,10 +770,10 @@ const Component = forwardRef<AxureHandle, AxureProps>(function Component(innerPr
     }
 
     chartInstanceRef.current.setOption(option, true);
-  }, [currentLevel, selectedL1, selectedL2, isLocalDebt, currentAnalysisData]);
+  }, [currentLevel, selectedL1, selectedL2]);
 
   const radarOverlayItems = useMemo(() => {
-    const items = currentLevel === 1 ? currentAnalysisData : currentLevel === 2 ? selectedL1?.indicators || [] : [];
+    const items = currentLevel === 1 ? analysisData : currentLevel === 2 ? selectedL1?.indicators || [] : [];
     return items.map((item, index) => {
       const total = items.length || 1;
       const angle = ((-90 + (360 / total) * index) * Math.PI) / 180;
@@ -901,7 +786,7 @@ const Component = forwardRef<AxureHandle, AxureProps>(function Component(innerPr
         top: `${y}%`,
       };
     });
-  }, [currentLevel, selectedL1, currentAnalysisData]);
+  }, [currentLevel, selectedL1]);
 
   const getRiskLabel = (score: number) => {
     if (score >= 90) return { text: '低风险', cls: 'text-green-600 bg-green-50' };
@@ -934,20 +819,24 @@ const Component = forwardRef<AxureHandle, AxureProps>(function Component(innerPr
   }, [selectedL1]);
 
   const overallScore = useMemo(() => {
-    const weights = isLocalDebt ? [0.18, 0.22, 0.22, 0.18, 0.1, 0.1] : [0.25, 0.2, 0.15, 0.2, 0.1, 0.1];
-    const weighted = currentAnalysisData.reduce((acc, dim, idx) => acc + dim.score * (weights[idx] ?? 0), 0);
+    const weights = [0.25, 0.2, 0.15, 0.2, 0.1, 0.1];
+    const weighted = analysisData.reduce((acc, dim, idx) => acc + dim.score * (weights[idx] ?? 0), 0);
     return Math.round(weighted);
-  }, [currentAnalysisData, isLocalDebt]);
+  }, []);
 
   const scoreTitle = useMemo(() => {
-    const weights = currentAnalysisData.map((dimension, index) => ({
-      name: dimension.name,
-      w: isLocalDebt ? [0.18, 0.22, 0.22, 0.18, 0.1, 0.1][index] ?? 0.1 : [0.25, 0.2, 0.15, 0.2, 0.1, 0.1][index] ?? 0.1,
-    }));
+    const weights = [
+      { name: '整改推进与任务完成', w: 0.25 },
+      { name: '整改时效与进度管理', w: 0.2 },
+      { name: '责任落实与审核把关', w: 0.15 },
+      { name: '资金整改与风险控制', w: 0.2 },
+      { name: '治理改进与制度完善', w: 0.1 },
+      { name: '数据规范与材料完备', w: 0.1 },
+    ];
 
-        const overallFormula = `${isLocalDebt ? '权重参考' : '综合得分'}：${overallScore}分\n计算方式：${isLocalDebt ? '按 Excel 一级指标权重换算为结构参考值' : '一级维度得分加权平均'}\n计算公式：${isLocalDebt ? '结构参考值 = 一级权重 / 最大一级权重 × 100' : '综合得分'} = ${weights
+    const overallFormula = `综合得分：${overallScore}分\n计算方式：一级维度得分加权平均\n计算公式：综合得分 = ${weights
       .map(({ name, w }) => {
-        const score = currentAnalysisData.find((d) => d.name === name)?.score ?? 0;
+        const score = analysisData.find((d) => d.name === name)?.score ?? 0;
         return `${w.toFixed(2)}×${score}`;
       })
       .join(' + ')} = ${overallScore}分\n含义说明：用于反映评价体系整体运行质量，分值越高表示整体运行越好。`;
@@ -963,11 +852,11 @@ const Component = forwardRef<AxureHandle, AxureProps>(function Component(innerPr
     const indicatorTitle = (indicator: Level2_Indicator) => {
       const cv = indicator.detail.currentValue;
       const sv = indicator.detail.standardValue;
-      return `${indicator.name}：${indicator.score}分\n指标定义：${indicator.detail.definition}\n本期值：${cv}\n标准值：${sv}\n${isLocalDebt ? '当前为 Excel 定义展示模式，分值仅代表权重参考，不代表业务结果。' : '评分方式：指标得分 = 0.7×本期值折算分 + 0.3×趋势稳定性得分'}\n当前状态：${indicator.result}`;
+      return `${indicator.name}：${indicator.score}分\n指标定义：${indicator.detail.definition}\n本期值：${cv}\n本期值口径：按本期业务数据统计口径汇总\n标准值：${sv}\n评分方式：指标得分 = 0.7×本期值折算分 + 0.3×趋势稳定性得分\n当前状态：${indicator.result}`;
     };
 
     return { overallFormula, dimensionTitle, indicatorTitle };
-  }, [currentAnalysisData, isLocalDebt, overallScore]);
+  }, [overallScore]);
 
   const weakestIndicator = useMemo(() => {
     if (!selectedL1 || selectedL1.indicators.length === 0) return null;
@@ -1052,8 +941,8 @@ const Component = forwardRef<AxureHandle, AxureProps>(function Component(innerPr
               <div className="text-[15px] font-bold text-slate-700">规则命中情况</div>
             </div>
             <div className="p-2 rounded-lg bg-slate-50">
-              <div className="text-sm text-slate-700">{topicProfile.ruleHitTitle}</div>
-              <div className="text-xs text-slate-500 mt-1">{topicProfile.ruleHitPolicy}</div>
+              <div className="text-sm text-slate-700">触发规则：问题整改率低于阈值</div>
+              <div className="text-xs text-slate-500 mt-1">关联制度：三保资金监督整改办法</div>
             </div>
           </div>
         </div>
@@ -1351,20 +1240,10 @@ const Component = forwardRef<AxureHandle, AxureProps>(function Component(innerPr
                 <div className="col-span-5 bg-[#F9FBFF] rounded-xl p-4 shadow-sm relative">
                   <div className="text-sm font-semibold text-slate-700 mb-4 flex items-center justify-between">
                     <span>
-                      {isLocalDebt
-                        ? currentLevel === 1
-                          ? '评价体系总览'
-                          : currentLevel === 2
-                          ? `${selectedL1?.name || '维度'} - 指标构成`
-                          : `${selectedL2?.name} - 详情分析`
-                        : currentLevel === 1
-                        ? '评价体系总览'
-                        : currentLevel === 2
-                        ? `${selectedL1?.name || '维度'} - 指标构成`
-                        : `${selectedL2?.name} - 详情分析`}
+                      {currentLevel === 1 ? '评价体系总览' : currentLevel === 2 ? `${selectedL1?.name || '维度'} - 指标构成` : `${selectedL2?.name} - 详情分析`}
                     </span>
                     {currentLevel === 1 && !selectedL1 ? (
-                      <span className="text-[10px] text-slate-400 font-normal">{isLocalDebt ? '点击一级或二级查看层级结构' : '点击维度查看详细分析'}</span>
+                      <span className="text-[10px] text-slate-400 font-normal">点击维度查看详细分析</span>
                     ) : (
                       <button
                         type="button"
@@ -1402,7 +1281,7 @@ const Component = forwardRef<AxureHandle, AxureProps>(function Component(innerPr
                               style={{ left: overlayItem.left, top: overlayItem.top }}
                               onClick={() => {
                                 if (currentLevel === 1) {
-                                  const dim = currentAnalysisData.find(item => item.name === overlayItem.name);
+                                  const dim = analysisData.find(item => item.name === overlayItem.name);
                                   if (dim) {
                                     setSelectedL1(dim);
                                     setSelectedL2(null);
@@ -1430,11 +1309,7 @@ const Component = forwardRef<AxureHandle, AxureProps>(function Component(innerPr
                   <div className="mt-6 space-y-3">
                     <div className="flex items-center justify-between">
                       <div className="text-sm font-semibold text-slate-700">
-                        {currentLevel === 1
-                          ? (isLocalDebt ? '一级权重参考' : '综合得分')
-                          : currentLevel === 2
-                          ? (isLocalDebt ? '二级权重参考' : '维度平均分')
-                          : (isLocalDebt ? '三级权重参考' : '当前指标得分')}
+                        {currentLevel === 1 ? '综合得分' : currentLevel === 2 ? '维度平均分' : '当前指标得分'}
                       </div>
                       <div className="text-2xl font-bold text-[#4E73C8]">
                         {currentLevel === 1 ? (
@@ -1451,11 +1326,11 @@ const Component = forwardRef<AxureHandle, AxureProps>(function Component(innerPr
                       <div className="space-y-2 pt-2 border-t border-slate-100">
                         <div className="flex items-center gap-2 text-xs text-slate-600">
                           <span className="w-1.5 h-1.5 rounded-full bg-red-500"></span>
-                          {isLocalDebt ? '当前高权重维度' : '当前最低维度'}：{topicProfile.weakestDimension}（{currentAnalysisData[3]?.score ?? 0}分）
+                          当前最低维度：资金整改与风险控制（79分）
                         </div>
                         <div className="flex items-center gap-2 text-xs text-slate-600">
                           <span className="w-1.5 h-1.5 rounded-full bg-amber-500"></span>
-                          {isLocalDebt ? '当前高权重指标' : '当前重点关注'}：{topicProfile.focusIndicator}（{currentAnalysisData[3]?.indicators[0]?.score ?? 0}分）
+                          当前重点关注：问题金额整改到位率（78分）
                         </div>
                       </div>
                     )}
@@ -1476,7 +1351,7 @@ const Component = forwardRef<AxureHandle, AxureProps>(function Component(innerPr
                     {currentLevel === 3 && selectedL2 && (
                       <div className="space-y-2 pt-2 border-t border-slate-100">
                         <div className="text-xs text-slate-600 leading-relaxed">
-                          {isLocalDebt ? '业务结果：' : '本期值：'}
+                          本期值：
                           <span
                             className="font-semibold text-slate-800"
                             title={`本期值口径：当前周期该指标的业务原始数据。\n指标：${selectedL2.name}\n本期值：${selectedL2.detail.currentValue}`}
@@ -1485,7 +1360,7 @@ const Component = forwardRef<AxureHandle, AxureProps>(function Component(innerPr
                           </span>
                         </div>
                         <div className="text-xs text-slate-600 leading-relaxed">
-                          {isLocalDebt ? '参考阈值：' : '标准值：'}
+                          标准值：
                           <span
                             className="font-semibold text-slate-800"
                             title={`标准值口径：该指标设定的合规/目标阈值。\n指标：${selectedL2.name}\n标准值：${selectedL2.detail.standardValue}`}
@@ -1508,62 +1383,37 @@ const Component = forwardRef<AxureHandle, AxureProps>(function Component(innerPr
                       <div className="flex items-center gap-2">
                         <div className="w-1 h-3.5 bg-[#4E73C8] rounded-full"></div>
                         <div className="text-sm font-bold text-slate-800">
-                          {isLocalDebt
-                            ? currentLevel === 1
-                              ? '一级维度概览'
-                            : currentLevel === 2
-                              ? (selectedL1?.name || '一级维度')
-                              : (selectedL2?.name || '二级指标分析')
-                            : currentLevel === 1
-                            ? '一级概览'
-                            : currentLevel === 2
-                            ? (selectedL1?.name || '一级维度')
-                            : (selectedL2?.name || '二级指标分析')}
+                          {currentLevel === 1 ? '一级概览' : currentLevel === 2 ? (selectedL1?.name || '一级维度') : (selectedL2?.name || '二级指标分析')}
                         </div>
                       </div>
                       {currentLevel === 2 && selectedL1 && (
                         <div className="ml-auto w-fit flex items-center gap-1 bg-[#EEF3FF] rounded-full p-1">
-                          {(isLocalDebt ? ['overview', 'topics'] : ['overview', 'topics', 'closure', 'trend']).map(t => (
+                          {['overview', 'topics', 'closure', 'trend'].map(t => (
                             <button 
                               key={t}
                               className={`h-7 px-3 rounded-full text-xs whitespace-nowrap transition-all ${activeTab === t ? 'bg-white text-[#0F3D8A] shadow-sm font-semibold' : 'text-slate-600 hover:text-[#0F3D8A]'}`}
                               onClick={() => setActiveTab(t)}
                             >
-                              {t === 'overview' ? '维度概览' : t === 'topics' ? (isLocalDebt ? '二级分布' : '类型拆解') : t === 'closure' ? '闭环建议' : '趋势概览'}
+                              {t === 'overview' ? '维度概览' : t === 'topics' ? '类型拆解' : t === 'closure' ? '闭环建议' : '趋势概览'}
                             </button>
                           ))}
                         </div>
                       )}
                       {currentLevel === 3 && (
-                        <div className="ml-auto flex items-center gap-2">
-                          {isLocalDebt && (
-                            <div className="w-fit flex items-center gap-1 bg-[#EEF3FF] rounded-full p-1">
-                              {['overview', 'analysis'].map(t => (
-                                <button
-                                  key={t}
-                                  className={`h-7 px-3 rounded-full text-xs whitespace-nowrap transition-all ${activeTab === t ? 'bg-white text-[#0F3D8A] shadow-sm font-semibold' : 'text-slate-600 hover:text-[#0F3D8A]'}`}
-                                  onClick={() => setActiveTab(t)}
-                                >
-                                  {t === 'overview' ? '三级指标' : '指标详情'}
-                                </button>
-                              ))}
-                            </div>
-                          )}
-                          <button
-                            type="button"
-                            className="h-7 px-3 rounded-full text-xs bg-[#EEF3FF] text-[#4E73C8] hover:bg-[#dfe9ff] transition-colors whitespace-nowrap"
-                            onClick={() => {
-                              setCurrentLevel(2);
-                              setActiveTab('analysis');
-                            }}
-                          >
-                            返回图2
-                          </button>
-                        </div>
+                        <button
+                          type="button"
+                          className="h-7 px-3 rounded-full text-xs bg-[#EEF3FF] text-[#4E73C8] hover:bg-[#dfe9ff] transition-colors whitespace-nowrap"
+                          onClick={() => {
+                            setCurrentLevel(2);
+                            setActiveTab('analysis');
+                          }}
+                        >
+                          返回图2
+                        </button>
                       )}
                     </div>
                     <div className={`overflow-x-auto no-scrollbar ${currentLevel === 2 ? 'hidden' : 'flex gap-6'}`}>
-                      {currentLevel === 3 && !isLocalDebt && (
+                      {currentLevel === 3 && (
                         <>
                           {['overview', 'analysis', 'anomaly', 'closure', 'trend'].map(t => (
                             <button 
@@ -1597,23 +1447,23 @@ const Component = forwardRef<AxureHandle, AxureProps>(function Component(innerPr
                                 <div className="text-[15px] font-bold text-slate-700">评价体系说明</div>
                               </div>
                               <div className="text-xs text-slate-600 leading-relaxed">
-                                {topicProfile.evaluationIntro}
+                                当前评价体系围绕重点领域整改工作构建，从整改进度、整改时效、责任落实、资金安全、治理成效、数据质量六个一级维度，对整改任务推进情况、问题闭环水平、资金规范性及治理改进成效进行综合分析与预警。
                               </div>
                             </div>
                             <div className="grid grid-cols-3 gap-3">
                               <div className="bg-white p-3 rounded-lg ">
-                                <div className="text-[10px] text-slate-400 mb-1">{isLocalDebt ? '一级权重参考' : '当前综合得分'}</div>
+                                <div className="text-[10px] text-slate-400 mb-1">当前综合得分</div>
                                 <div className="text-lg font-bold text-[#4E73C8]">
                                   <span>83分</span>
                                 </div>
                               </div>
                               <div className="bg-white p-3 rounded-lg ">
-                                <div className="text-[10px] text-slate-400 mb-1">{isLocalDebt ? '当前高权重维度' : '当前最低维度'}</div>
-                                <div className="text-xs font-semibold text-red-600">{topicProfile.weakestDimension}</div>
+                                <div className="text-[10px] text-slate-400 mb-1">当前最低维度</div>
+                                <div className="text-xs font-semibold text-red-600">资金整改与风险控制</div>
                               </div>
                               <div className="bg-white p-3 rounded-lg ">
-                                <div className="text-[10px] text-slate-400 mb-1">{isLocalDebt ? '当前高权重指标' : '当前重点关注'}</div>
-                                <div className="text-xs font-semibold text-amber-600">{topicProfile.focusIndicator}</div>
+                                <div className="text-[10px] text-slate-400 mb-1">当前重点关注</div>
+                                <div className="text-xs font-semibold text-amber-600">问题金额整改到位率</div>
                               </div>
                             </div>
 
@@ -1625,7 +1475,7 @@ const Component = forwardRef<AxureHandle, AxureProps>(function Component(innerPr
                                 <div className="text-[15px] font-bold text-slate-700">一级维度说明列表</div>
                               </div>
                               <div className="grid grid-cols-2 gap-2">
-                                {currentAnalysisData.map((dimension) => (
+                                {analysisData.map((dimension) => (
                                   <button
                                     key={dimension.id}
                                     type="button"
@@ -1659,13 +1509,13 @@ const Component = forwardRef<AxureHandle, AxureProps>(function Component(innerPr
                               <div className="text-xs text-slate-600 leading-relaxed mb-2">{selectedL1.description}</div>
                               <div className="flex items-center gap-4">
                                 <div>
-                                  <div className="text-[10px] text-slate-400">{isLocalDebt ? '维度权重参考' : '当前得分'}</div>
+                                  <div className="text-[10px] text-slate-400">当前得分</div>
                                   <div className="text-lg font-bold text-[#4E73C8]">
                                     <span title={scoreTitle.dimensionTitle(selectedL1)}>{selectedL1.score}分</span>
                                   </div>
                                 </div>
                                 <div>
-                                  <div className="text-[10px] text-slate-400">{isLocalDebt ? '结构状态' : '风险判断'}</div>
+                                  <div className="text-[10px] text-slate-400">风险判断</div>
                                   <div className={`text-sm font-semibold ${selectedL1.status === '良好' ? 'text-green-600' : selectedL1.status === '一般' ? 'text-amber-600' : 'text-red-600'}`}>{selectedL1.status}</div>
                                 </div>
                               </div>
@@ -1733,7 +1583,7 @@ const Component = forwardRef<AxureHandle, AxureProps>(function Component(innerPr
                                 <div className="text-[15px] font-bold text-slate-800">问题识别</div>
                               </div>
                               <div className="text-xs text-slate-600 leading-relaxed">
-                                {weakestIndicator ? (isLocalDebt ? `${weakestIndicator.name} 在当前维度中权重参考为 ${weakestIndicator.score}分。` : `${weakestIndicator.name} 当前得分 ${weakestIndicator.score}分，为该维度短板指标。`) : '当前维度暂无可识别问题。'}
+                                {weakestIndicator ? `${weakestIndicator.name} 当前得分 ${weakestIndicator.score}分，为该维度短板指标。` : '当前维度暂无可识别问题。'}
                               </div>
                             </div>
                             <div className="p-3 rounded-lg bg-slate-50 ">
@@ -1810,13 +1660,13 @@ const Component = forwardRef<AxureHandle, AxureProps>(function Component(innerPr
                             <div className="bg-blue-50/50 p-4 rounded-xl ">
                               <div className="grid grid-cols-3 gap-6 mb-4">
                                 <div>
-                                  <div className="text-[10px] text-slate-400 mb-1">{isLocalDebt ? '指标权重参考' : '当前得分'}</div>
+                                  <div className="text-[10px] text-slate-400 mb-1">当前得分</div>
                                   <div className="text-2xl font-bold text-[#4E73C8]">
                                     <span title={scoreTitle.indicatorTitle(selectedL2)}>{selectedL2.score}分</span>
                                   </div>
                                 </div>
                                 <div>
-                                  <div className="text-[10px] text-slate-400 mb-1">{isLocalDebt ? '业务结果' : '本期值'}</div>
+                                  <div className="text-[10px] text-slate-400 mb-1">本期值</div>
                                   <div className="text-2xl font-bold text-slate-700">
                                     <span title={`本期值口径：当前周期该指标的业务原始数据。\n本期值：${selectedL2.detail.currentValue}`}>
                                       {selectedL2.detail.currentValue}
@@ -1824,7 +1674,7 @@ const Component = forwardRef<AxureHandle, AxureProps>(function Component(innerPr
                                   </div>
                                 </div>
                                 <div>
-                                  <div className="text-[10px] text-slate-400 mb-1">{isLocalDebt ? '结构状态' : '风险判断'}</div>
+                                  <div className="text-[10px] text-slate-400 mb-1">风险判断</div>
                                   <div className={`text-sm font-bold mt-2 ${selectedL2.result === '良好' ? 'text-green-600' : selectedL2.result === '一般' ? 'text-amber-600' : 'text-red-600'}`}>
                                     {selectedL2.result}
                                   </div>
@@ -1855,7 +1705,7 @@ const Component = forwardRef<AxureHandle, AxureProps>(function Component(innerPr
 
                             <div className="grid grid-cols-2 gap-4">
                               <div className="bg-white p-3 rounded-lg  shadow-sm">
-                                <div className="text-[10px] text-slate-400 mb-1">{isLocalDebt ? '参考阈值' : '标准值'}</div>
+                                <div className="text-[10px] text-slate-400 mb-1">标准值</div>
                                   <div className="text-base font-semibold text-slate-700">
                                     <span title={`标准值口径：该指标设定的合规/目标阈值。\n标准值：${selectedL2.detail.standardValue}`}>
                                       {selectedL2.detail.standardValue}
@@ -1865,7 +1715,7 @@ const Component = forwardRef<AxureHandle, AxureProps>(function Component(innerPr
                               <div className="bg-white p-3 rounded-lg  shadow-sm">
                                 <div className="text-[10px] text-slate-400 mb-1">评分口径</div>
                                 <div className="text-[10px] text-slate-500 leading-relaxed">
-                                  {isLocalDebt ? '当前为 Excel 定义展示模式，权重参考仅用于表达指标重要性，不代表业务结果。' : '指标得分为业务本期值与趋势表现折算后的评分结果'}
+                                  指标得分为业务本期值与趋势表现折算后的评分结果
                                 </div>
                               </div>
                             </div>
@@ -1954,7 +1804,7 @@ const Component = forwardRef<AxureHandle, AxureProps>(function Component(innerPr
                                 <div className="text-[15px] font-bold text-slate-800">问题识别</div>
                               </div>
                               <div className="text-xs text-slate-600 leading-relaxed">
-                                {isLocalDebt ? `${selectedL2.name} 当前展示的是定义口径：业务结果 ${selectedL2.detail.currentValue}，参考阈值 ${selectedL2.detail.standardValue}，权重参考为 ${selectedL2.score}分。` : `${selectedL2.name} 当前得分为 ${selectedL2.score}分，本期值为 ${selectedL2.detail.currentValue}，标准值为 ${selectedL2.detail.standardValue}，处于“${selectedL2.result}”状态。`}
+                                {selectedL2.name} 当前得分为 {selectedL2.score}分，本期值为 {selectedL2.detail.currentValue}，标准值为 {selectedL2.detail.standardValue}，处于“{selectedL2.result}”状态。
                               </div>
                             </div>
                             <div className="p-3 rounded-lg bg-slate-50 ">
@@ -2130,7 +1980,11 @@ const Component = forwardRef<AxureHandle, AxureProps>(function Component(innerPr
                   <div className="text-[17px] font-bold text-[#0F3D8A]">智能分析</div>
                 </div>
                 <div className="text-[11px] text-slate-600 leading-normal line-clamp-2 pl-3.5">
-                  {topicProfile.smartSummary}
+                  本季度执行与支付保障风险有所上升，重点问题集中在：
+                  <span className="font-medium text-slate-800 ml-1">工资发放延迟</span>（涉及3个县区）、
+                  <span className="font-medium text-slate-800 ml-1">资金沉淀率偏高</span>和
+                  <span className="font-medium text-slate-800 ml-1">台账更新不及时</span>。
+                  建议优先排查支付链路和库款管理情况。
                 </div>
               </div>
               <div className="flex items-center gap-6">

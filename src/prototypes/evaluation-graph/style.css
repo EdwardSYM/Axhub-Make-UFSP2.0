@@ -1,0 +1,19 @@
+@import "tailwindcss";
+
+.evaluation-graph-scrollbar {
+  scrollbar-width: thin;
+  scrollbar-color: rgba(148, 163, 184, 0.55) transparent;
+}
+
+.evaluation-graph-scrollbar::-webkit-scrollbar {
+  width: 6px;
+}
+
+.evaluation-graph-scrollbar::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.evaluation-graph-scrollbar::-webkit-scrollbar-thumb {
+  background: rgba(148, 163, 184, 0.55);
+  border-radius: 999px;
+}

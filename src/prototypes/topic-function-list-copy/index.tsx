@@ -171,8 +171,6 @@ const Component = forwardRef<AxureHandle, AxureProps>(function Component(innerPr
       : 'daily';
 
   const topicName = '重点领域整改';
-  const activeFeature = FEATURES.find(i => i.key === featureKey);
-
   useImperativeHandle(
     ref,
     function () {
