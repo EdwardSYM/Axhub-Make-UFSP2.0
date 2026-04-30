@@ -1333,77 +1333,277 @@ const Component = forwardRef<AxureHandle, AxureProps>(function Component(innerPr
                   </div>
 
                   <div className="flex-1 overflow-y-auto custom-scrollbar space-y-4">
-                    {/* 评价体系说明 */}
-                    <div className="bg-[#F5F5F5] p-3 rounded-lg">
-                      <div className="text-xs text-slate-600 leading-relaxed">
-                        当前评价体系分析区已切换为 Excel 定义视图，严格展示地方政府债务专项监督评价体系中的一级、二级、三级指标、权重、计算公式和依据条款，不代表实时业务政府债务结果。
-                      </div>
-                    </div>
-
-                    {/* 评价体系综合得分 */}
-                    <div className="flex items-center justify-between">
-                      <div>
-                        <div className="text-xs text-slate-500 mb-1">评价体系综合得分</div>
-                        <div className="text-3xl font-bold text-slate-800">83分</div>
-                      </div>
-                      <div className="bg-[#FEE2E2] px-3 py-2 rounded-lg">
-                        <div className="text-xs text-slate-500">评价体系分析结论</div>
-                        <div className="text-xs font-semibold text-red-600">待接入AI</div>
-                      </div>
-                    </div>
-
-                    {/* 构成指标概览 */}
-                    <div className="space-y-2">
-                      <div className="flex items-center gap-2">
-                        <div className="w-[3px] h-[14px] bg-[#4E73C8] rounded-full"></div>
-                        <div className="text-[15px] font-bold text-slate-700">构成指标概览</div>
-                      </div>
-                      <div className="grid grid-cols-2 gap-2">
-                        {analysisData.map((dimension) => (
-                          <div key={dimension.id} className="flex items-center justify-between p-2.5 bg-white rounded-lg shadow-sm">
-                            <div className="flex items-center gap-2">
-                              <span className={`w-2 h-2 rounded-full ${dimension.status === '良好' ? 'bg-green-500' : dimension.status === '一般' ? 'bg-amber-500' : 'bg-red-500'}`}></span>
-                              <span className="text-xs text-slate-700">{dimension.name}</span>
+                    {/* 三级指标详情 */}
+                    {currentLevel === 3 && selectedL2 && (
+                      <div className="space-y-4">
+                        {/* 指标名称和得分 */}
+                        <div className="bg-white rounded-xl shadow-sm p-4">
+                          <div className="flex items-start justify-between mb-3">
+                            <div>
+                              <div className="text-lg font-bold text-slate-800 mb-1">{selectedL2.name}</div>
+                              <div className="text-xs text-slate-500">{selectedL2.detail.indicatorGroup}</div>
                             </div>
-                            <span className="text-sm font-bold text-slate-800">{dimension.score}分</span>
+                            <div className="text-right">
+                              <div className="text-xs text-slate-500 mb-1">指标得分</div>
+                              <div className="text-3xl font-bold text-[#4E73C8]">{selectedL2.score}分</div>
+                            </div>
                           </div>
-                        ))}
-                      </div>
-                    </div>
+                          
+                          {/* 指标结果标签 */}
+                          <div className="flex items-center gap-2">
+                            <span className={`px-2 py-1 rounded-full text-xs font-medium ${
+                              selectedL2.result === '良好' ? 'bg-green-50 text-green-600' :
+                              selectedL2.result === '一般' ? 'bg-amber-50 text-amber-600' :
+                              'bg-red-50 text-red-600'
+                            }`}>
+                              {selectedL2.result}
+                            </span>
+                            {selectedL2.weightValue && (
+                              <span className="px-2 py-1 rounded-full text-xs bg-blue-50 text-blue-600">
+                                权重 {selectedL2.weightValue}
+                              </span>
+                            )}
+                          </div>
+                        </div>
 
-                    {/* 一级维度说明列表 */}
-                    <div className="space-y-2">
-                      <div className="flex items-center gap-2 mb-2">
-                        <div className="w-[3px] h-[14px] bg-[#4E73C8] rounded-full"></div>
-                        <div className="text-[15px] font-bold text-slate-700">一级维度说明列表</div>
+                        {/* 指标说明 */}
+                        <div className="bg-[#F5F5F5] rounded-lg p-3">
+                          <div className="text-[15px] font-bold text-slate-700 mb-2">指标说明</div>
+                          <div className="text-xs text-slate-600 leading-relaxed">
+                            {selectedL2.detail.definition}
+                          </div>
+                        </div>
+
+                        {/* 当前值与标准值 */}
+                        <div className="grid grid-cols-2 gap-3">
+                          <div className="bg-white rounded-lg shadow-sm p-3">
+                            <div className="text-xs text-slate-500 mb-1">本期值</div>
+                            <div className="text-xl font-bold text-slate-800">{selectedL2.detail.currentValue}</div>
+                          </div>
+                          <div className="bg-white rounded-lg shadow-sm p-3">
+                            <div className="text-xs text-slate-500 mb-1">标准值</div>
+                            <div className="text-xl font-bold text-slate-800">{selectedL2.detail.standardValue}</div>
+                          </div>
+                        </div>
+
+                        {/* 评分标准 */}
+                        <div className="bg-white rounded-lg shadow-sm p-3">
+                          <div className="flex items-center gap-2 mb-2">
+                            <div className="w-[3px] h-[14px] bg-[#4E73C8] rounded-full"></div>
+                            <div className="text-[15px] font-bold text-slate-700">评分标准</div>
+                          </div>
+                          <div className="text-xs text-slate-600 bg-slate-50 rounded-lg p-2">
+                            {selectedL2.detail.scoreFormula || selectedL2.detail.rules.find(r => r.name === '得分口径')?.context || '暂无评分标准'}
+                          </div>
+                        </div>
+
+                        {/* 指标权重及理由 */}
+                        <div className="bg-white rounded-lg shadow-sm p-3">
+                          <div className="flex items-center gap-2 mb-2">
+                            <div className="w-[3px] h-[14px] bg-[#4E73C8] rounded-full"></div>
+                            <div className="text-[15px] font-bold text-slate-700">指标权重</div>
+                          </div>
+                          <div className="space-y-2">
+                            <div className="text-xs text-slate-600">
+                              <span className="text-slate-400">权重值：</span>{selectedL2.detail.weightValue || '暂无'}
+                            </div>
+                            <div className="text-xs text-slate-600">
+                              <span className="text-slate-400">权重理由：</span>{selectedL2.detail.weightReason || '暂无'}
+                            </div>
+                          </div>
+                        </div>
+
+                        {/* 政策依据 */}
+                        <div className="bg-white rounded-lg shadow-sm p-3">
+                          <div className="flex items-center gap-2 mb-2">
+                            <div className="w-[3px] h-[14px] bg-[#4E73C8] rounded-full"></div>
+                            <div className="text-[15px] font-bold text-slate-700">政策依据</div>
+                          </div>
+                          <div className="space-y-2">
+                            <div className="text-xs text-slate-600">
+                              <span className="text-slate-400">层级：</span>{selectedL2.detail.policyLevel || '暂无'}
+                            </div>
+                            <div className="text-xs text-slate-600">
+                              <span className="text-slate-400">条款：</span>{selectedL2.detail.policyClause || '暂无'}
+                            </div>
+                          </div>
+                        </div>
+
+                        {/* 选取理由 */}
+                        <div className="bg-white rounded-lg shadow-sm p-3">
+                          <div className="flex items-center gap-2 mb-2">
+                            <div className="w-[3px] h-[14px] bg-[#4E73C8] rounded-full"></div>
+                            <div className="text-[15px] font-bold text-slate-700">选取理由</div>
+                          </div>
+                          <div className="text-xs text-slate-600">
+                            {selectedL2.detail.pickReason || '暂无'}
+                          </div>
+                        </div>
+
+                        {/* 分析结论 */}
+                        <div className="bg-amber-50/40 rounded-lg p-3">
+                          <div className="flex items-center gap-2 mb-2">
+                            <div className="w-[3px] h-[14px] bg-amber-500 rounded-full"></div>
+                            <div className="text-[15px] font-bold text-slate-700">分析结论</div>
+                          </div>
+                          <div className="text-xs text-slate-600">
+                            {selectedL2.detail.suggestions || '待接入AI分析'}
+                          </div>
+                        </div>
                       </div>
-                      <div className="grid grid-cols-2 gap-2">
-                        {analysisData.map((dimension) => (
-                          <button
-                            key={dimension.id}
-                            type="button"
-                            className="text-left p-2.5 bg-white rounded-lg shadow-sm hover:border-[#4E73C8] hover:bg-blue-50/30 transition-all"
-                            onClick={() => {
-                              setSelectedL1(dimension);
-                              setSelectedL2(null);
-                              setCurrentLevel(2);
-                              setActiveTab('overview');
-                            }}
-                          >
-                            <div className="flex items-center justify-between mb-1">
-                              <div className="text-[11px] font-bold text-slate-800 truncate">{dimension.name}</div>
-                              <div className="text-[10px] font-semibold text-[#4E73C8]">
-                                <span title={scoreTitle.dimensionTitle(dimension)}>{dimension.score}分</span>
+                    )}
+
+                    {/* 二级指标列表（二级页面） */}
+                    {currentLevel === 2 && selectedL1 && !selectedL2 && (
+                      <div className="space-y-4">
+                        {/* 维度信息 */}
+                        <div className="bg-white rounded-xl shadow-sm p-4">
+                          <div className="flex items-start justify-between mb-3">
+                            <div>
+                              <div className="text-lg font-bold text-slate-800 mb-1">{selectedL1.name}</div>
+                              <div className="text-xs text-slate-500">{selectedL1.description}</div>
+                            </div>
+                            <div className="text-right">
+                              <div className="text-xs text-slate-500 mb-1">维度得分</div>
+                              <div className="text-3xl font-bold text-[#4E73C8]">{selectedL1.score}分</div>
+                            </div>
+                          </div>
+                          
+                          <span className={`px-2 py-1 rounded-full text-xs font-medium ${
+                            selectedL1.status === '良好' ? 'bg-green-50 text-green-600' :
+                            selectedL1.status === '一般' ? 'bg-amber-50 text-amber-600' :
+                            'bg-red-50 text-red-600'
+                          }`}>
+                            {selectedL1.status}
+                          </span>
+                        </div>
+
+                        {/* 判断依据 */}
+                        <div className="bg-[#F5F5F5] rounded-lg p-3">
+                          <div className="text-[15px] font-bold text-slate-700 mb-2">判断依据</div>
+                          <ul className="space-y-1">
+                            {selectedL1.judgementBasis.map((basis, idx) => (
+                              <li key={idx} className="text-xs text-slate-600 flex items-start gap-2">
+                                <span className="w-1.5 h-1.5 rounded-full bg-[#4E73C8] mt-1.5 flex-shrink-0"></span>
+                                {basis}
+                              </li>
+                            ))}
+                          </ul>
+                        </div>
+
+                        {/* 二级指标列表 */}
+                        <div className="space-y-2">
+                          <div className="flex items-center gap-2">
+                            <div className="w-[3px] h-[14px] bg-[#4E73C8] rounded-full"></div>
+                            <div className="text-[15px] font-bold text-slate-700">二级指标列表</div>
+                          </div>
+                          <div className="grid grid-cols-1 gap-2">
+                            {selectedL1.indicators.map((indicator) => (
+                              <button
+                                key={indicator.id}
+                                type="button"
+                                className="w-full text-left p-3 bg-white rounded-lg shadow-sm hover:border-[#4E73C8] hover:bg-blue-50/30 transition-all"
+                                onClick={() => {
+                                  setSelectedL2(indicator);
+                                  setCurrentLevel(3);
+                                  setActiveTab('overview');
+                                }}
+                              >
+                                <div className="flex items-center justify-between mb-2">
+                                  <div className="flex items-center gap-2">
+                                    <span className={`w-2 h-2 rounded-full ${
+                                      indicator.result === '良好' ? 'bg-green-500' :
+                                      indicator.result === '一般' ? 'bg-amber-500' :
+                                      'bg-red-500'
+                                    }`}></span>
+                                    <span className="text-sm font-semibold text-slate-800">{indicator.name}</span>
+                                  </div>
+                                  <span className="text-lg font-bold text-[#4E73C8]">{indicator.score}分</span>
+                                </div>
+                                <div className="text-xs text-slate-500 line-clamp-1">{indicator.description}</div>
+                              </button>
+                            ))}
+                          </div>
+                        </div>
+                      </div>
+                    )}
+
+                    {/* 一级维度概览（一级页面） */}
+                    {currentLevel === 1 && !selectedL1 && (
+                      <div className="space-y-4">
+                        {/* 评价体系说明 */}
+                        <div className="bg-[#F5F5F5] p-3 rounded-lg">
+                          <div className="text-xs text-slate-600 leading-relaxed">
+                            当前评价体系分析区已切换为 Excel 定义视图，严格展示地方政府债务专项监督评价体系中的一级、二级、三级指标、权重、计算公式和依据条款，不代表实时业务政府债务结果。
+                          </div>
+                        </div>
+
+                        {/* 评价体系综合得分 */}
+                        <div className="flex items-center justify-between">
+                          <div>
+                            <div className="text-xs text-slate-500 mb-1">评价体系综合得分</div>
+                            <div className="text-3xl font-bold text-slate-800">83分</div>
+                          </div>
+                          <div className="bg-[#FEE2E2] px-3 py-2 rounded-lg">
+                            <div className="text-xs text-slate-500">评价体系分析结论</div>
+                            <div className="text-xs font-semibold text-red-600">待接入AI</div>
+                          </div>
+                        </div>
+
+                        {/* 构成指标概览 */}
+                        <div className="space-y-2">
+                          <div className="flex items-center gap-2">
+                            <div className="w-[3px] h-[14px] bg-[#4E73C8] rounded-full"></div>
+                            <div className="text-[15px] font-bold text-slate-700">构成指标概览</div>
+                          </div>
+                          <div className="grid grid-cols-2 gap-2">
+                            {analysisData.map((dimension) => (
+                              <div key={dimension.id} className="flex items-center justify-between p-2.5 bg-white rounded-lg shadow-sm">
+                                <div className="flex items-center gap-2">
+                                  <span className={`w-2 h-2 rounded-full ${dimension.status === '良好' ? 'bg-green-500' : dimension.status === '一般' ? 'bg-amber-500' : 'bg-red-500'}`}></span>
+                                  <span className="text-xs text-slate-700">{dimension.name}</span>
+                                </div>
+                                <span className="text-sm font-bold text-slate-800">{dimension.score}分</span>
                               </div>
-                            </div>
-                            <div className="flex items-center gap-1 text-[10px] text-slate-500">
-                              <span className={`w-1.5 h-1.5 rounded-full ${dimension.status === '良好' ? 'bg-green-500' : dimension.status === '一般' ? 'bg-amber-500' : 'bg-red-500'}`}></span>
-                              {dimension.status}
-                            </div>
-                          </button>
-                        ))}
+                            ))}
+                          </div>
+                        </div>
+
+                        {/* 一级维度说明列表 */}
+                        <div className="space-y-2">
+                          <div className="flex items-center gap-2 mb-2">
+                            <div className="w-[3px] h-[14px] bg-[#4E73C8] rounded-full"></div>
+                            <div className="text-[15px] font-bold text-slate-700">一级维度说明列表</div>
+                          </div>
+                          <div className="grid grid-cols-2 gap-2">
+                            {analysisData.map((dimension) => (
+                              <button
+                                key={dimension.id}
+                                type="button"
+                                className="text-left p-2.5 bg-white rounded-lg shadow-sm hover:border-[#4E73C8] hover:bg-blue-50/30 transition-all"
+                                onClick={() => {
+                                  setSelectedL1(dimension);
+                                  setSelectedL2(null);
+                                  setCurrentLevel(2);
+                                  setActiveTab('overview');
+                                }}
+                              >
+                                <div className="flex items-center justify-between mb-1">
+                                  <div className="text-[11px] font-bold text-slate-800 truncate">{dimension.name}</div>
+                                  <div className="text-[10px] font-semibold text-[#4E73C8]">
+                                    <span title={scoreTitle.dimensionTitle(dimension)}>{dimension.score}分</span>
+                                  </div>
+                                </div>
+                                <div className="flex items-center gap-1 text-[10px] text-slate-500">
+                                  <span className={`w-1.5 h-1.5 rounded-full ${dimension.status === '良好' ? 'bg-green-500' : dimension.status === '一般' ? 'bg-amber-500' : 'bg-red-500'}`}></span>
+                                  {dimension.status}
+                                </div>
+                              </button>
+                            ))}
+                          </div>
+                        </div>
                       </div>
-                    </div>
+                    )}
                   </div>
                 </div>
               </div>

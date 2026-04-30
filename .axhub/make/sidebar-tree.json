@@ -1,13 +1,7 @@
 {
   "version": 1,
-  "updatedAt": "2026-04-10T05:39:38.273Z",
+  "updatedAt": "2026-04-29T08:38:56.761Z",
   "prototypes": [
-    {
-      "id": "item-prototypes-evaluation-graph",
-      "kind": "item",
-      "title": "evaluation graph",
-      "itemKey": "prototypes/evaluation-graph"
-    },
     {
       "id": "item-prototypes-fiscal-supervision-home2",
       "kind": "item",
@@ -34,7 +28,7 @@
         {
           "id": "item-prototypes-topic-workbench2-copy2-copy",
           "kind": "item",
-          "title": "重点领域整改工作台 副本",
+          "title": "内控考评工作台",
           "itemKey": "prototypes/topic-workbench2-copy2-copy"
         }
       ]
@@ -55,6 +49,12 @@
           "kind": "item",
           "title": "重点领域整改功能列表页",
           "itemKey": "prototypes/topic-function-list-copy"
+        },
+        {
+          "id": "item-prototypes-evaluation-graph",
+          "kind": "item",
+          "title": "评价图谱",
+          "itemKey": "prototypes/evaluation-graph"
         }
       ]
     }

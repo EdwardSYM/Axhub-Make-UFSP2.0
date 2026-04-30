@@ -5,6 +5,16 @@ export interface Level3_IndicatorDetail {
   definition: string;
   currentValue: string;
   standardValue: string;
+  weightValue?: string;
+  weightReason?: string;
+  scoreFormula?: string;
+  policyLevel?: string;
+  policyName?: string;
+  policyCode?: string;
+  policyClause?: string;
+  policyLink?: string;
+  pickReason?: string;
+  indicatorGroup?: string;
   trend: number[];
   regionalDistribution: Array<{ name: string; value: number; status: 'good' | 'warning' | 'bad' }>;
   rules: Array<{ name: string; context: string }>;
@@ -15,6 +25,7 @@ export interface Level2_Indicator {
   id: string;
   name: string;
   score: number;
+  weightValue?: string;
   description: string;
   result: '良好' | '一般' | '偏低';
   detail: Level3_IndicatorDetail;
@@ -24,6 +35,7 @@ export interface Level1_Dimension {
   id: string;
   name: string;
   score: number;
+  weightValue?: string;
   status: '良好' | '一般' | '偏低';
   description: string;
   judgementBasis: string[];
@@ -39,13 +51,24 @@ const buildDetail = (
   trend: number[],
   suggestions: string,
   rules: Array<{ name: string; context: string }>,
-  regionalDistribution?: Array<{ name: string; value: number; status: 'good' | 'warning' | 'bad' }>
+  regionalDistribution?: Array<{ name: string; value: number; status: 'good' | 'warning' | 'bad' }>,
+  extra?: Partial<Pick<Level3_IndicatorDetail, 'weightValue' | 'weightReason' | 'scoreFormula' | 'policyLevel' | 'policyName' | 'policyCode' | 'policyClause' | 'policyLink' | 'pickReason' | 'indicatorGroup'>>
 ): Level3_IndicatorDetail => ({
   id,
   name,
   definition,
   currentValue,
   standardValue,
+  weightValue: extra?.weightValue,
+  weightReason: extra?.weightReason,
+  scoreFormula: extra?.scoreFormula,
+  policyLevel: extra?.policyLevel,
+  policyName: extra?.policyName,
+  policyCode: extra?.policyCode,
+  policyClause: extra?.policyClause,
+  policyLink: extra?.policyLink,
+  pickReason: extra?.pickReason,
+  indicatorGroup: extra?.indicatorGroup,
   trend,
   regionalDistribution: regionalDistribution || [
     { name: '东城区', value: trend[trend.length - 1] - 6, status: trend[trend.length - 1] < 84 ? 'bad' : 'warning' },
@@ -62,11 +85,13 @@ const buildIndicator = (
   score: number,
   description: string,
   result: '良好' | '一般' | '偏低',
-  detail: Level3_IndicatorDetail
+  detail: Level3_IndicatorDetail,
+  weightValue?: string,
 ): Level2_Indicator => ({
   id,
   name,
   score,
+  weightValue,
   description,
   result,
   detail,
@@ -800,6 +825,7 @@ export const localDebtAnalysisData: Level1_Dimension[] = workbookDimensions.map(
     id: `debt-dim-${dimensionIndex + 1}`,
     name: dimension.name,
     score: dimensionScore,
+    weightValue: `${Math.round(dimension.weight * 100)}%`,
     status: getStructureStatus(dimensionScore),
     description: `${dimension.description} 当前页面展示的是 Excel 中的评价体系定义，不代表实际业务结果。`,
     judgementBasis: dimension.judgementBasis,
@@ -820,7 +846,7 @@ export const localDebtAnalysisData: Level1_Dimension[] = workbookDimensions.map(
           `debt-detail-${dimensionIndex + 1}-${indicatorIndex + 1}`,
           indicator.name,
           `${indicator.secondName}。计算公式：${indicator.formula}`,
-          '待接入业务结果',
+          indicator.currentValue || '待接入业务结果',
           indicator.standardValue || '见得分公式',
           trend,
           `${indicator.pickReason}${indicator.extraClause ? ` 补充依据：${indicator.extraClause}` : ''}`,
@@ -834,7 +860,20 @@ export const localDebtAnalysisData: Level1_Dimension[] = workbookDimensions.map(
             { name: '二级参考', value: Math.round(Number(indicator.weight || 0) * 100), status: 'warning' },
             { name: '业务结果', value: 0, status: 'bad' },
           ],
+          {
+            weightValue: `${Math.round(Number(indicator.weight || 0) * 100)}%`,
+            weightReason: indicator.reason,
+            scoreFormula: indicator.scoreFormula,
+            policyLevel: indicator.attr,
+            policyName: '',
+            policyCode: '',
+            policyClause: indicator.coreClause,
+            policyLink: '',
+            pickReason: indicator.pickReason,
+            indicatorGroup: indicator.secondName,
+          },
         ),
+        `${Math.round(Number(indicator.weight || 0) * 100)}%`,
       );
     }),
   };
