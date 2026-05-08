@@ -15,6 +15,7 @@ import {
   Level1_Dimension,
   Level2_Indicator,
 } from './data';
+import LocalDebtLevel3Panel from './LocalDebtLevel3Panel';
 
 echarts.use([RadarChart, LineChart, BarChart, GridComponent, TooltipComponent, LegendComponent, TitleComponent, CanvasRenderer]);
 import TopBar from '../../common/components/TopBar';
@@ -381,8 +382,10 @@ const Component = forwardRef<AxureHandle, AxureProps>(function Component(innerPr
   const [selectedL1, setSelectedL1] = useState<Level1_Dimension | null>(null);
   const [selectedL2, setSelectedL2] = useState<Level2_Indicator | null>(null);
   const [activeTab, setActiveTab] = useState<string>('overview');
-  const [scoreGranularity, setScoreGranularity] = useState<'月度' | '季度' | '年度'>('月度');
-  const [selectedScorePeriod, setSelectedScorePeriod] = useState<string>('2025年4月');
+  const [evaluationView, setEvaluationView] = useState<'score' | 'trend'>('score');
+  const [selectedEvaluationPeriod, setSelectedEvaluationPeriod] = useState<string>('2026年4月');
+  const [selectedTrendStart, setSelectedTrendStart] = useState<string>('2025年11月');
+  const [selectedTrendEnd, setSelectedTrendEnd] = useState<string>('2026年4月');
   const [analysisTimeRange, setAnalysisTimeRange] = useState<'最近7天' | '最近30天' | '本月' | '本季度' | '自定义'>('最近30天');
   const [analysisCustomRange, setAnalysisCustomRange] = useState<{ start: string; end: string }>({ start: '2025-02-01', end: '2025-02-18' });
   const [analysisHoverConclusionId, setAnalysisHoverConclusionId] = useState<string | null>(null);
@@ -682,31 +685,57 @@ const Component = forwardRef<AxureHandle, AxureProps>(function Component(innerPr
       )}
       <div className="ml-auto flex items-center gap-3">
         {isLocalDebt && (
-          <div className="flex items-center gap-2 px-2.5 py-1.5 bg-white rounded-lg shadow-sm">
-            <select
-              className="h-7 px-2 text-[11px] text-slate-700 bg-transparent outline-none"
-              value={scoreGranularity}
-              onChange={(e) => setScoreGranularity(e.target.value as '月度' | '季度' | '年度')}
-            >
-              {(['月度', '季度', '年度'] as const).map((item) => (
-                <option key={item} value={item}>
-                  {item}口径
-                </option>
-              ))}
-            </select>
+          <div className="flex items-center gap-2 px-3 py-1.5 bg-white rounded-lg shadow-sm text-[11px]">
+            <span className="text-slate-400">统计口径：</span>
+            <span className="font-semibold text-slate-700">{evaluationView === 'trend' ? `${evaluationGranularity}范围` : evaluationGranularity}</span>
             <div className="w-px h-4 bg-slate-200"></div>
-            <select
-              className="h-7 px-2 text-[11px] text-slate-700 bg-transparent outline-none"
-              value={selectedScorePeriod}
-              onChange={(e) => setSelectedScorePeriod(e.target.value)}
-            >
-              {scorePeriodOptions[scoreGranularity].map((item) => (
-                <option key={item} value={item}>
-                  {item}
-                </option>
-              ))}
-            </select>
+            {evaluationView === 'trend' ? (
+              <>
+                <select
+                  className="h-6 min-w-[92px] bg-transparent text-[11px] font-medium text-slate-600 outline-none"
+                  value={selectedTrendStart}
+                  onChange={(event) => setSelectedTrendStart(event.target.value)}
+                >
+                  {trendBoundaryOptions.map((item) => (
+                    <option key={item} value={item}>{item}</option>
+                  ))}
+                </select>
+                <span className="text-slate-300">-</span>
+                <select
+                  className="h-6 min-w-[92px] bg-transparent text-[11px] font-medium text-slate-600 outline-none"
+                  value={selectedTrendEnd}
+                  onChange={(event) => setSelectedTrendEnd(event.target.value)}
+                >
+                  {trendBoundaryOptions.map((item) => (
+                    <option key={item} value={item}>{item}</option>
+                  ))}
+                </select>
+              </>
+            ) : (
+              <select
+                className="h-6 min-w-[92px] bg-transparent text-[11px] font-medium text-slate-600 outline-none"
+                value={selectedEvaluationPeriod}
+                onChange={(event) => setSelectedEvaluationPeriod(event.target.value)}
+              >
+                {evaluationPeriodOptions.map((item) => (
+                  <option key={item} value={item}>{item}</option>
+                ))}
+              </select>
+            )}
           </div>
+        )}
+        {isLocalDebt && (
+          <button
+            type="button"
+            className={`h-8 px-3 rounded-lg text-[11px] font-semibold shadow-sm transition-colors ${
+              evaluationView === 'trend'
+                ? 'bg-[#4E73C8] text-white'
+                : 'bg-white text-[#4E73C8] hover:bg-blue-50'
+            }`}
+            onClick={() => setEvaluationView((view) => (view === 'trend' ? 'score' : 'trend'))}
+          >
+            {evaluationView === 'trend' ? '返回评分' : '查看趋势'}
+          </button>
         )}
         {isLocalDebt && (
           <button
@@ -759,25 +788,27 @@ const Component = forwardRef<AxureHandle, AxureProps>(function Component(innerPr
   }, []);
 
   useEffect(() => {
-    if (currentLevel === 3) {
-      chartInstanceRef.current?.dispose();
+    if (currentLevel === 3 || (isLocalDebt && evaluationView === 'trend')) {
       chartInstanceRef.current = null;
       return;
     }
 
     if (!radarChartRef.current) return;
+    if (chartInstanceRef.current && chartInstanceRef.current.getDom() !== radarChartRef.current) {
+      chartInstanceRef.current = null;
+    }
     if (chartInstanceRef.current) return;
 
-    chartInstanceRef.current = echarts.init(radarChartRef.current);
+    chartInstanceRef.current = echarts.getInstanceByDom(radarChartRef.current) || echarts.init(radarChartRef.current);
 
     const handleResize = () => chartInstanceRef.current?.resize();
     window.addEventListener('resize', handleResize);
+    requestAnimationFrame(() => chartInstanceRef.current?.resize());
     return () => {
       window.removeEventListener('resize', handleResize);
-      chartInstanceRef.current?.dispose();
       chartInstanceRef.current = null;
     };
-  }, [currentLevel]);
+  }, [currentLevel, evaluationView, isLocalDebt]);
 
   useEffect(() => {
     if (!chartInstanceRef.current) return;
@@ -830,6 +861,13 @@ const Component = forwardRef<AxureHandle, AxureProps>(function Component(innerPr
   }, [currentLevel, selectedL1, currentAnalysisData]);
 
   useEffect(() => {
+    if (isLocalDebt && evaluationView === 'trend') {
+      chartInstanceRef.current = null;
+      return;
+    }
+    if (!chartInstanceRef.current && radarChartRef.current && currentLevel !== 3) {
+      chartInstanceRef.current = echarts.getInstanceByDom(radarChartRef.current) || echarts.init(radarChartRef.current);
+    }
     if (!chartInstanceRef.current) return;
 
     let option: any = {};
@@ -887,7 +925,8 @@ const Component = forwardRef<AxureHandle, AxureProps>(function Component(innerPr
     }
 
     chartInstanceRef.current.setOption(option, true);
-  }, [currentLevel, selectedL1, selectedL2, isLocalDebt, currentAnalysisData]);
+    requestAnimationFrame(() => chartInstanceRef.current?.resize());
+  }, [currentLevel, selectedL1, selectedL2, isLocalDebt, evaluationView, currentAnalysisData]);
 
   const radarOverlayItems = useMemo(() => {
     const items = currentLevel === 1 ? currentAnalysisData : currentLevel === 2 ? selectedL1?.indicators || [] : [];
@@ -985,30 +1024,107 @@ const Component = forwardRef<AxureHandle, AxureProps>(function Component(innerPr
     return `${selectedL1.name}当前得分${selectedL1.score}分，${weakText}，${strongText}。`;
   }, [selectedL1, weakestL2Indicator, strongestL2Indicator]);
 
-  const scorePeriodOptions = useMemo(
-    () => ({
-      月度: ['2025年4月', '2025年3月', '2025年2月'],
-      季度: ['2025年一季度', '2024年四季度', '2024年三季度'],
-      年度: ['2025年度', '2024年度', '2023年度'],
-    }),
-    [],
-  );
+  const evaluationGranularity = isLocalDebt ? '月度' : '季度';
+  const evaluationPeriodOptions = useMemo(() => (
+    isLocalDebt
+      ? ['2026年4月', '2026年3月', '2026年2月', '2026年1月', '2025年12月', '2025年11月']
+      : ['2026年一季度', '2025年四季度', '2025年三季度']
+  ), [isLocalDebt]);
+  const trendBoundaryOptions = useMemo(() => (
+    isLocalDebt
+      ? ['2025年8月', '2025年9月', '2025年10月', '2025年11月', '2025年12月', '2026年1月', '2026年2月', '2026年3月', '2026年4月']
+      : ['2024Q4', '2025Q1', '2025Q2', '2025Q3', '2025Q4', '2026Q1']
+  ), [isLocalDebt]);
+  const selectedTrendRangeLabel = `${selectedTrendStart} - ${selectedTrendEnd}`;
+  const trendPeriodLabels = useMemo(() => {
+    if (evaluationGranularity === '季度') return ['2024Q1', '2024Q2', '2024Q3', '2024Q4', '2025Q1', '2025Q2'];
+    if (evaluationGranularity === '年度') return ['2020', '2021', '2022', '2023', '2024', '2025'];
+    const endMatch = selectedTrendEnd.match(/(\d{4})年(\d{1,2})月/);
+    const endYear = endMatch ? Number(endMatch[1]) : 2026;
+    const endMonth = endMatch ? Number(endMatch[2]) : 4;
+    return Array.from({ length: 6 }, (_, index) => {
+      const date = new Date(endYear, endMonth - 1 - (5 - index), 1);
+      return `${date.getFullYear()}年${date.getMonth() + 1}月`;
+    });
+  }, [evaluationGranularity, selectedTrendEnd]);
 
-  useEffect(() => {
-    const nextPeriod = scorePeriodOptions[scoreGranularity][0];
-    setSelectedScorePeriod(nextPeriod);
-  }, [scoreGranularity, scorePeriodOptions]);
+  const calcDimensionTrend = (dimension: Level1_Dimension) => {
+    if (!dimension.indicators.length) return [dimension.score];
+    const length = dimension.indicators[0]?.detail?.trend?.length || 6;
+    const sums = Array.from({ length }, () => 0);
+    dimension.indicators.forEach((indicator) => {
+      for (let i = 0; i < length; i += 1) {
+        sums[i] += indicator.detail.trend[i] || 0;
+      }
+    });
+    return sums.map((sum) => Math.round(sum / dimension.indicators.length));
+  };
+
+  const calcTrendDelta = (trend: number[]) => {
+    if (trend.length < 2) return 0;
+    return trend[trend.length - 1] - trend[trend.length - 2];
+  };
+
+  const activeTrendSeries = useMemo(() => {
+    if (currentLevel === 3 && selectedL2) return selectedL2.detail.trend;
+    if (currentLevel === 2 && selectedL1) return calcDimensionTrend(selectedL1);
+    const dimensionTrends = currentAnalysisData.map(calcDimensionTrend);
+    const length = dimensionTrends[0]?.length || 6;
+    return Array.from({ length }, (_, index) => {
+      const sum = dimensionTrends.reduce((acc, trend) => acc + (trend[index] || 0), 0);
+      return Math.round(sum / Math.max(dimensionTrends.length, 1));
+    });
+  }, [currentLevel, selectedL1, selectedL2, currentAnalysisData]);
+
+  const activeTrendDelta = calcTrendDelta(activeTrendSeries);
+  const activeTrendStats = useMemo(() => {
+    const values = activeTrendSeries.length ? activeTrendSeries : [0];
+    const sorted = [...values].sort((a, b) => a - b);
+    const mid = Math.floor(sorted.length / 2);
+    const median = sorted.length % 2 === 0 ? Math.round((sorted[mid - 1] + sorted[mid]) / 2) : sorted[mid];
+    return {
+      avg: Math.round(values.reduce((acc, item) => acc + item, 0) / values.length),
+      max: Math.max(...values),
+      min: Math.min(...values),
+      median,
+      volatility: Math.abs(activeTrendDelta) <= 3 ? '稳定' : activeTrendDelta > 0 ? '改善' : '下滑',
+    };
+  }, [activeTrendDelta, activeTrendSeries]);
 
   const selectedL2PolicyItems = useMemo(() => {
     if (!selectedL2) return [];
+    const fallbackPolicyName = selectedL2.name.includes('专项债')
+      ? '《地方政府专项债券项目资金管理与使用监督指引（试行）》'
+      : '《地方政府债务风险监测与整改工作指引（试行）》';
+    const fallbackPolicyCode = selectedL2.name.includes('专项债') ? '财监债〔2025〕12号' : '财监债〔2025〕7号';
+    const fallbackPolicyLink = selectedL2.name.includes('专项债')
+      ? 'https://example.gov.cn/policy/special-bond-supervision-2025'
+      : 'https://example.gov.cn/policy/local-debt-risk-guideline-2025';
     return [
       { label: '发文层级', value: selectedL2.detail.policyLevel || '待补充' },
-      { label: '政策名称', value: selectedL2.detail.policyName || '待补充' },
-      { label: '政策文号', value: selectedL2.detail.policyCode || '待补充' },
-      { label: '政策链接', value: selectedL2.detail.policyLink || '待补充' },
-      { label: '政策条例', value: selectedL2.detail.policyClause || '待补充' },
-      { label: '选取原因', value: selectedL2.detail.pickReason || '待补充' },
+      { label: '政策名称', value: selectedL2.detail.policyName || fallbackPolicyName },
+      { label: '政策文号', value: selectedL2.detail.policyCode || fallbackPolicyCode },
+      { label: '政策链接', value: selectedL2.detail.policyLink || fallbackPolicyLink },
+      { label: '政策条例', value: selectedL2.detail.policyClause || '第十二条：建立专项债项目资金全流程监测及偏差整改机制。' },
+      { label: '选取原因', value: selectedL2.detail.pickReason || `该指标直接对应${selectedL2.name}的过程约束和结果校验口径，适合作为三级分析依据。` },
     ];
+  }, [selectedL2]);
+
+  const selectedL2RuleConclusion = useMemo(() => {
+    if (!selectedL2) return [];
+    const items: string[] = [];
+    if (selectedL2.score >= 85) {
+      items.push('该指标已达到规则定义的良好区间。');
+    } else if (selectedL2.score >= 60) {
+      items.push('该指标处于规则中间区间，需持续关注后续波动。');
+    } else {
+      items.push('该指标未达到目标区间，应优先核查规则涉及环节。');
+    }
+    if (selectedL2.detail.weightValue) {
+      items.push(`该指标权重为${selectedL2.detail.weightValue}，对上级评价结果具有直接影响。`);
+    }
+    items.push('具体评分口径以下方规则定义为准，政策来源以下方政策依据为准。');
+    return items;
   }, [selectedL2]);
 
   const scoreTitle = useMemo(() => {
@@ -1047,6 +1163,224 @@ const Component = forwardRef<AxureHandle, AxureProps>(function Component(innerPr
     if (!selectedL1 || selectedL1.indicators.length === 0) return null;
     return [...selectedL1.indicators].sort((a, b) => a.score - b.score)[0];
   }, [selectedL1]);
+
+  const renderTrendLine = (trend: number[], height = 120) => {
+    const values = trend.length ? trend : [0];
+    const min = Math.min(...values);
+    const max = Math.max(...values);
+    const range = Math.max(max - min, 1);
+    const width = 360;
+    const paddingX = 20;
+    const paddingY = 14;
+    const step = values.length > 1 ? (width - paddingX * 2) / (values.length - 1) : 0;
+    const points = values.map((value, index) => {
+      const x = paddingX + index * step;
+      const y = height - paddingY - ((value - min) / range) * (height - paddingY * 2);
+      return `${x},${y}`;
+    }).join(' ');
+
+    return (
+      <svg viewBox={`0 0 ${width} ${height}`} className="w-full" style={{ height }}>
+        <defs>
+          <linearGradient id="localDebtTrendFill" x1="0" y1="0" x2="0" y2="1">
+            <stop offset="0%" stopColor="#4E73C8" stopOpacity="0.20" />
+            <stop offset="100%" stopColor="#4E73C8" stopOpacity="0.02" />
+          </linearGradient>
+        </defs>
+        {[0, 1, 2].map((line) => (
+          <line
+            key={line}
+            x1={paddingX}
+            x2={width - paddingX}
+            y1={paddingY + line * ((height - paddingY * 2) / 2)}
+            y2={paddingY + line * ((height - paddingY * 2) / 2)}
+            stroke="#E8EEF8"
+            strokeWidth="1"
+          />
+        ))}
+        <polyline
+          fill="none"
+          stroke="#4E73C8"
+          strokeWidth="3"
+          strokeLinecap="round"
+          strokeLinejoin="round"
+          points={points}
+        />
+        {values.map((value, index) => {
+          const [x, y] = points.split(' ')[index].split(',').map(Number);
+          return (
+            <g key={`${index}-${value}`}>
+              <circle cx={x} cy={y} r="4" fill="#FFFFFF" stroke="#4E73C8" strokeWidth="2" />
+            </g>
+          );
+        })}
+      </svg>
+    );
+  };
+
+  const trendScopeTitle = currentLevel === 1
+    ? '评价体系总览趋势'
+    : currentLevel === 2
+    ? `${selectedL1?.name || '一级指标'}趋势`
+    : `${selectedL2?.name || '二级指标'}趋势`;
+
+  const trendNavigatorItems = currentLevel === 1
+    ? currentAnalysisData.map((dimension) => ({
+      id: dimension.id,
+      name: dimension.name,
+      score: dimension.score,
+      status: dimension.status,
+      trend: calcDimensionTrend(dimension),
+      weight: dimension.weightValue,
+      onClick: () => {
+        setSelectedL1(dimension);
+        setSelectedL2(null);
+        setCurrentLevel(2);
+      },
+    }))
+    : (selectedL1?.indicators || []).map((indicator) => ({
+      id: indicator.id,
+      name: indicator.name,
+      score: indicator.score,
+      status: indicator.result,
+      trend: indicator.detail.trend,
+      weight: indicator.detail.weightValue || indicator.weightValue,
+      onClick: () => {
+        setSelectedL2(indicator);
+        setCurrentLevel(3);
+      },
+    }));
+
+  const renderLocalDebtTrendNavigator = () => (
+    <div className="col-span-5 rounded-[22px] bg-[linear-gradient(180deg,#F7FAFF_0%,#F9FBFF_100%)] px-4 pt-3 pb-4 shadow-sm flex flex-col min-h-0">
+      <div className="mb-3 flex items-start justify-between gap-3">
+        <div>
+          <div className="text-sm font-semibold text-slate-700">{trendScopeTitle}</div>
+        </div>
+        <div className="flex items-center gap-2">
+          {currentLevel > 1 && (
+            <button
+              type="button"
+              className="px-2.5 py-1 text-[10px] font-semibold text-[#4E73C8] bg-white rounded-full shadow-sm hover:bg-blue-50 transition-colors"
+              onClick={() => {
+                if (currentLevel === 3) {
+                  setCurrentLevel(2);
+                  setSelectedL2(null);
+                } else {
+                  setCurrentLevel(1);
+                  setSelectedL1(null);
+                  setSelectedL2(null);
+                }
+              }}
+            >
+              返回上级
+            </button>
+          )}
+        </div>
+      </div>
+
+      <div className="bg-white rounded-[20px] px-4 py-4 shadow-sm flex-1 min-h-0 flex flex-col">
+        <div className="flex items-center justify-between gap-3 mb-3">
+          <div className="flex items-center gap-2">
+            <div className="w-[3px] h-[14px] bg-[#4E73C8] rounded-full"></div>
+            <div className="text-[14px] font-bold text-slate-700">{currentLevel === 3 ? '指标切换' : '指标下钻'}</div>
+          </div>
+          <div className="text-[10px] text-slate-400">{currentLevel === 3 ? '同二级指标切换' : '点击进入下一级趋势'}</div>
+        </div>
+        <div className="space-y-2 flex-1 min-h-0 overflow-y-auto pr-1 scrollbar-thin">
+          {trendNavigatorItems.map((item) => {
+            const active = currentLevel >= 2 && item.id === selectedL2?.id;
+            const delta = calcTrendDelta(item.trend);
+            return (
+              <button
+                key={item.id}
+                type="button"
+                onClick={item.onClick}
+                className={`w-full rounded-2xl px-3 py-2.5 text-left transition ${active ? 'bg-[#EEF4FF] shadow-sm' : 'bg-slate-50/80 hover:bg-slate-100'}`}
+              >
+                <div className="flex items-center justify-between gap-3">
+                  <div className="min-w-0">
+                    <div className="truncate text-xs font-semibold text-slate-800">{item.name}</div>
+                    <div className="mt-1 text-[10px] text-slate-500 truncate">{item.weight ? `权重 ${item.weight}` : `${evaluationGranularity}趋势`}</div>
+                  </div>
+                  <div className="text-right shrink-0">
+                    <div className="text-[11px] font-bold text-[#4E73C8]">{item.score}分</div>
+                    <div className={`mt-1 text-[10px] ${delta >= 0 ? 'text-green-600' : 'text-red-600'}`}>
+                      {delta >= 0 ? '+' : ''}{delta}
+                    </div>
+                  </div>
+                </div>
+              </button>
+            );
+          })}
+        </div>
+      </div>
+
+      <div className="mt-3 bg-[linear-gradient(180deg,#FFFFFF_0%,#F6F9FF_100%)] rounded-[22px] px-5 py-5 shadow-[0_14px_34px_rgba(78,115,200,0.10)] min-h-[158px]">
+        <div className="flex items-end justify-between gap-4">
+          <div>
+            <div className="text-[10px] text-slate-400">本期得分</div>
+            <div className="mt-2 text-[38px] leading-none font-bold text-[#4E73C8]">{activeTrendSeries[activeTrendSeries.length - 1] || 0}分</div>
+          </div>
+          <div className={`rounded-[18px] px-4 py-3 text-right ${activeTrendDelta >= 0 ? 'bg-green-50 text-green-600' : 'bg-red-50 text-red-600'}`}>
+            <div className="text-[10px] opacity-80">较上期</div>
+            <div className="mt-1 text-[18px] font-bold">{activeTrendDelta >= 0 ? '+' : ''}{activeTrendDelta}分</div>
+          </div>
+        </div>
+        <div className="mt-3 text-xs leading-relaxed text-slate-500">
+          左侧只用于趋势下钻与当前期得分识别，完整趋势曲线和统计判断在右侧查看。
+        </div>
+      </div>
+    </div>
+  );
+
+  const renderLocalDebtTrendDetail = () => (
+    <div className="col-span-7 rounded-[22px] bg-[linear-gradient(180deg,#FFFFFF_0%,#F7FAFF_100%)] px-5 py-5 shadow-sm flex flex-col min-h-0">
+      <div className="flex items-start justify-between gap-4">
+        <div>
+          <div className="text-[11px] uppercase tracking-[0.18em] text-slate-400">趋势分析</div>
+          <div className="mt-2 text-xs text-slate-500">
+            展示当前顶部筛选范围内的规则得分变化。
+          </div>
+        </div>
+      </div>
+
+      <div className="mt-5 rounded-[22px] bg-white px-4 py-4 shadow-sm">
+        {renderTrendLine(activeTrendSeries, 174)}
+        <div className="grid grid-cols-6 gap-1 text-[10px] text-slate-400 text-center">
+          {trendPeriodLabels.map((label) => (
+            <span key={label} className="truncate">{label}</span>
+          ))}
+        </div>
+      </div>
+
+      <div className="mt-4 grid grid-cols-5 gap-3">
+        {[
+          { label: '均值', value: `${activeTrendStats.avg}分`, cls: 'text-slate-800' },
+          { label: '最高', value: `${activeTrendStats.max}分`, cls: 'text-slate-800' },
+          { label: '最低', value: `${activeTrendStats.min}分`, cls: 'text-slate-800' },
+          { label: '中位数', value: `${activeTrendStats.median}分`, cls: 'text-slate-800' },
+          { label: '波动判断', value: activeTrendStats.volatility, cls: activeTrendStats.volatility === '稳定' ? 'text-green-600' : activeTrendStats.volatility === '改善' ? 'text-[#4E73C8]' : 'text-red-600' },
+        ].map((item) => (
+          <div key={item.label} className="rounded-[18px] bg-white px-4 py-3 shadow-sm">
+            <div className="text-[10px] text-slate-400">{item.label}</div>
+            <div className={`mt-1 text-lg font-bold ${item.cls}`}>{item.value}</div>
+          </div>
+        ))}
+      </div>
+
+      <div className="mt-4 rounded-[20px] bg-white px-4 py-4 shadow-sm flex-1 min-h-0 overflow-y-auto pr-2 scrollbar-thin">
+        <div className="flex items-center gap-2 mb-3">
+          <div className="w-[3px] h-[14px] bg-[#4E73C8] rounded-full"></div>
+          <div className="text-[15px] font-bold text-slate-700">智能分析</div>
+        </div>
+        <div className="space-y-2 text-xs leading-relaxed text-slate-600">
+          <div>当前{evaluationGranularity}范围“{selectedTrendRangeLabel}”内，{trendScopeTitle}均值为 {activeTrendStats.avg} 分，波动判断为“{activeTrendStats.volatility}”。</div>
+          <div>{activeTrendDelta >= 0 ? `较上期提升 ${activeTrendDelta} 分，优先关注能否持续稳定。` : `较上期下降 ${Math.abs(activeTrendDelta)} 分，建议核查规则命中和指标执行过程。`}</div>
+        </div>
+      </div>
+    </div>
+  );
 
   // 指标详情抽屉
   const IndicatorDetailDrawer = () => (
@@ -1422,210 +1756,206 @@ const Component = forwardRef<AxureHandle, AxureProps>(function Component(innerPr
               <BreadcrumbNav />
               <div className="grid grid-cols-12 gap-4 flex-1 min-h-0">
                 {/* 左侧图表区 */}
-                <div className="col-span-5 bg-[#F9FBFF] rounded-xl px-4 pt-3 pb-4 shadow-sm relative flex flex-col min-h-0">
-                  <div className="text-sm font-semibold text-slate-700 mb-2 flex items-center justify-between min-h-6">
-                    <span>
-                      {currentLevel === 1
-                        ? ''
-                        : currentLevel === 2
-                        ? `${selectedL1?.name || '维度'}`
-                        : `${selectedL2?.name || '二级指标'}`}
-                    </span>
-                    {currentLevel === 1 && !selectedL1 ? null : (
-                      <button
-                        type="button"
-                        className="px-2.5 py-1 text-[10px] font-semibold text-[#4E73C8] bg-white rounded-full  hover:bg-blue-50 transition-colors"
-                        onClick={() => {
-                          setCurrentLevel(1);
-                          setSelectedL1(null);
-                          setSelectedL2(null);
-                          setActiveTab('overview');
-                        }}
-                      >
-                        返回
-                      </button>
-                    )}
-                  </div>
-                  
-                  {(currentLevel === 3 && selectedL2) || (currentLevel === 3) ? (
-                    <div className="pt-1 space-y-3">
-                      <div className="bg-white rounded-xl px-5 py-4 shadow-sm min-h-[120px]">
-                        <div className="text-[11px] text-slate-400 mb-2">当前指标得分</div>
-                        <div className="flex items-end justify-between gap-4">
-                          <div className="min-w-0">
-                            <div className="text-[34px] leading-none font-bold tracking-tight text-[#4E73C8]">
-                              {selectedL2 && selectedL2.score !== undefined && selectedL2.score !== null 
-                                ? `${selectedL2.score}分` 
-                                : (currentAnalysisData.length > 0 && selectedL1 
-                                    ? `${selectedL1.score}分` 
-                                    : '待计算')}
-                            </div>
-                            <div className="mt-2 text-xs text-slate-500 leading-relaxed">
-                              当前展示 {selectedScorePeriod} 的结果得分。
-                            </div>
-                          </div>
-                          <span
-                            className={`inline-flex px-2 py-1 rounded-full text-[11px] font-semibold ${
-                              selectedL2?.result === '良好'
-                                ? 'bg-green-50 text-green-600'
-                                : selectedL2?.result === '一般'
-                                ? 'bg-amber-50 text-amber-600'
-                                : 'bg-red-50 text-red-600'
-                            }`}
-                          >
-                            {selectedL2?.result || '待评价'}
-                          </span>
-                        </div>
-                      </div>
-                      {selectedL2 && (
-                        <>
-                          <div className="bg-white rounded-xl px-4 py-4 shadow-sm">
-                            <div className="mb-3">
-                              <div>
-                                <div className="text-[10px] text-slate-400 mb-1">指标权重</div>
-                                <div className="text-sm font-semibold text-slate-800">{selectedL2.detail.weightValue || '待补充'}</div>
-                              </div>
-                            </div>
-                            <div className="pt-3 border-t border-slate-100">
-                              <div className="text-[10px] text-slate-400 mb-1">设权原因</div>
-                              <div className="text-xs text-slate-600 leading-relaxed max-h-[120px] overflow-y-auto pr-1">
-                                {selectedL2.detail.weightReason || '待补充设权原因'}
-                              </div>
-                            </div>
-                          </div>
-                          <div className="bg-white rounded-xl px-4 py-4 shadow-sm min-h-0 flex flex-col">
-                            <div className="flex items-center gap-2 mb-3">
-                              <div className="w-[3px] h-[14px] bg-[#4E73C8] rounded-full"></div>
-                              <div className="text-[15px] font-bold text-slate-700">评分标准</div>
-                            </div>
-                            <div className="min-h-0 overflow-y-auto pr-1">
-                              <div className="text-xs text-slate-600 leading-relaxed">
-                                {selectedL2.detail.scoreFormula || '待补充评分标准'}
-                              </div>
-                            </div>
-                          </div>
-                        </>
+                {isLocalDebt && evaluationView === 'trend' ? (
+                  renderLocalDebtTrendNavigator()
+                ) : isLocalDebt && currentLevel === 3 && selectedL2 ? (
+                  <LocalDebtLevel3Panel
+                    indicator={selectedL2}
+                    siblings={selectedL1?.indicators || [selectedL2]}
+                    onSelectIndicator={(indicator) => {
+                      setSelectedL2(indicator);
+                      setCurrentLevel(3);
+                      setActiveTab('overview');
+                    }}
+                    onBack={() => {
+                      setCurrentLevel(1);
+                      setSelectedL1(null);
+                      setSelectedL2(null);
+                      setActiveTab('overview');
+                    }}
+                  />
+                ) : (
+                  <div className="col-span-5 bg-[#F9FBFF] rounded-xl px-4 pt-3 pb-4 shadow-sm relative flex flex-col min-h-0">
+                    <div className="text-sm font-semibold text-slate-700 mb-2 flex items-center justify-between min-h-6">
+                      <span>
+                        {currentLevel === 1
+                          ? ''
+                          : currentLevel === 2
+                          ? `${selectedL1?.name || '维度'}`
+                          : `${selectedL2?.name || '二级指标'}`}
+                      </span>
+                      {currentLevel === 1 && !selectedL1 ? null : (
+                        <button
+                          type="button"
+                          className="px-2.5 py-1 text-[10px] font-semibold text-[#4E73C8] bg-white rounded-full hover:bg-blue-50 transition-colors"
+                          onClick={() => {
+                            setCurrentLevel(1);
+                            setSelectedL1(null);
+                            setSelectedL2(null);
+                            setActiveTab('overview');
+                          }}
+                        >
+                          返回
+                        </button>
                       )}
                     </div>
-                  ) : (
-                  <div className="flex-1 relative min-h-[300px] flex items-start justify-center pt-0 pb-2">
-                      <>
-                        <div className="h-full w-full" ref={radarChartRef}></div>
-                        {currentLevel < 3 && radarOverlayItems.length > 0 && (
-                          <div className="absolute inset-0 z-20 pointer-events-none">
-                            {radarOverlayItems.map((overlayItem) => {
-                              const isActive =
-                                currentLevel === 1
-                                  ? selectedL1?.name === overlayItem.name
-                                  : selectedL2?.name === overlayItem.name;
-                              return (
-                                <button
-                                  key={overlayItem.id}
-                                  type="button"
-                                  className={`absolute -translate-x-1/2 -translate-y-1/2 pointer-events-auto px-0.5 py-0 whitespace-nowrap border-none bg-transparent shadow-none transition-all ${
-                                    isActive
-                                      ? 'text-[#4E73C8] font-bold'
-                                      : 'text-slate-700 hover:text-[#4E73C8]'
-                                  }`}
-                                  style={{ left: overlayItem.left, top: overlayItem.top }}
-                                  onClick={() => {
-                                    if (currentLevel === 1) {
-                                      const dim = currentAnalysisData.find(item => item.name === overlayItem.name);
-                                      if (dim) {
-                                        setSelectedL1(dim);
-                                        setSelectedL2(null);
-                                        setCurrentLevel(2);
-                                        setActiveTab('overview');
+                    {currentLevel === 3 && selectedL2 ? (
+                      <div className="pt-1 space-y-3">
+                        <div className="bg-white rounded-xl px-5 py-4 shadow-sm">
+                          <div className="flex items-start justify-between gap-4">
+                            <div>
+                              <div className="text-[11px] text-slate-400 mb-1">指标概览</div>
+                              <div className="text-[22px] font-bold text-slate-800 leading-tight">{selectedL2.name}</div>
+                            </div>
+                            <span
+                              className={`inline-flex px-2 py-1 rounded-full text-[11px] font-semibold whitespace-nowrap ${
+                                selectedL2.result === '良好'
+                                  ? 'bg-green-50 text-green-600'
+                                  : selectedL2.result === '一般'
+                                  ? 'bg-amber-50 text-amber-600'
+                                  : 'bg-red-50 text-red-600'
+                              }`}
+                            >
+                              {selectedL2.result}
+                            </span>
+                          </div>
+                          <div className="grid grid-cols-2 gap-3 mt-4">
+                            <div className="rounded-lg bg-[#F7F9FC] px-4 py-3 shadow-sm">
+                              <div className="text-[10px] text-slate-400 mb-1">当前得分</div>
+                              <div className="text-[30px] leading-none font-bold tracking-tight text-[#4E73C8]">{selectedL2.score}分</div>
+                            </div>
+                            <div className="rounded-lg bg-[#F7F9FC] px-4 py-3 shadow-sm">
+                              <div className="text-[10px] text-slate-400 mb-1">本期值</div>
+                              <div className="text-base font-semibold text-slate-800 break-words">{selectedL2.detail.currentValue || '待补充'}</div>
+                            </div>
+                            <div className="rounded-lg bg-[#F7F9FC] px-4 py-3 shadow-sm">
+                              <div className="text-[10px] text-slate-400 mb-1">标准值</div>
+                              <div className="text-sm font-semibold text-slate-800 break-words">{selectedL2.detail.standardValue || '待补充'}</div>
+                            </div>
+                            <div className="rounded-lg bg-[#F7F9FC] px-4 py-3 shadow-sm">
+                              <div className="text-[10px] text-slate-400 mb-1">趋势状态</div>
+                              <div className="text-sm font-semibold text-slate-800">{calcIndicatorDelta(selectedL2) >= 0 ? '上升' : '下降'}</div>
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+                    ) : (
+                      <div className="flex-1 relative min-h-[300px] flex items-start justify-center pt-0 pb-2">
+                        <>
+                          <div className="h-full w-full" ref={radarChartRef}></div>
+                          {currentLevel < 3 && radarOverlayItems.length > 0 && (
+                            <div className="absolute inset-0 z-20 pointer-events-none">
+                              {radarOverlayItems.map((overlayItem) => {
+                                const isActive =
+                                  currentLevel === 1
+                                    ? selectedL1?.name === overlayItem.name
+                                    : selectedL2?.name === overlayItem.name;
+                                return (
+                                  <button
+                                    key={overlayItem.id}
+                                    type="button"
+                                    className={`absolute -translate-x-1/2 -translate-y-1/2 pointer-events-auto px-0.5 py-0 whitespace-nowrap border-none bg-transparent shadow-none transition-all ${
+                                      isActive
+                                        ? 'text-[#4E73C8] font-bold'
+                                        : 'text-slate-700 hover:text-[#4E73C8]'
+                                    }`}
+                                    style={{ left: overlayItem.left, top: overlayItem.top }}
+                                    onClick={() => {
+                                      if (currentLevel === 1) {
+                                        const dim = currentAnalysisData.find(item => item.name === overlayItem.name);
+                                        if (dim) {
+                                          setSelectedL1(dim);
+                                          setSelectedL2(null);
+                                          setCurrentLevel(2);
+                                          setActiveTab('overview');
+                                        }
+                                      } else if (currentLevel === 2 && selectedL1) {
+                                        const ind = selectedL1.indicators.find(item => item.name === overlayItem.name);
+                                        if (ind) {
+                                          setSelectedL2(ind);
+                                          setCurrentLevel(3);
+                                          setActiveTab('overview');
+                                        }
                                       }
-                                    } else if (currentLevel === 2 && selectedL1) {
-                                      const ind = selectedL1.indicators.find(item => item.name === overlayItem.name);
-                                      if (ind) {
-                                        setSelectedL2(ind);
-                                        setCurrentLevel(3);
-                                        setActiveTab('overview');
-                                      }
-                                    }
-                                  }}
-                                >
-                                  <span className="text-[11px] leading-none">{overlayItem.name}</span>
-                                </button>
-                              );
-                            })}
+                                    }}
+                                  >
+                                    <span className="text-[11px] leading-none">{overlayItem.name}</span>
+                                  </button>
+                                );
+                              })}
+                            </div>
+                          )}
+                        </>
+                      </div>
+                    )}
+                    {!(currentLevel === 3 && selectedL2) && (
+                      <div className="mt-3 pt-3 border-t border-slate-100 space-y-2.5">
+                        <div className="flex items-end justify-between gap-3">
+                          <div className="text-sm font-semibold text-slate-700">
+                            {currentLevel === 1
+                              ? '综合得分'
+                              : currentLevel === 2
+                              ? (isLocalDebt ? '指标得分' : '维度平均分')
+                              : (isLocalDebt ? '指标得分' : '当前指标得分')}
+                          </div>
+                          <div className="text-2xl font-bold text-[#4E73C8]">
+                            {currentLevel === 1 ? (
+                              <span title={scoreTitle.overallFormula}>{overallScore}分</span>
+                            ) : currentLevel === 2 ? (
+                              <span title={selectedL1 ? scoreTitle.dimensionTitle(selectedL1) : ''}>{selectedL1?.score || 0}分</span>
+                            ) : (
+                              <span title={selectedL2 ? scoreTitle.indicatorTitle(selectedL2) : ''}>{selectedL2?.score ?? 0}分</span>
+                            )}
+                          </div>
+                        </div>
+                        {currentLevel === 1 && (
+                          <div className="space-y-2.5">
+                            <div className="flex items-center gap-2 text-xs text-slate-600">
+                              <span className="w-1.5 h-1.5 rounded-full bg-amber-500"></span>
+                              {isLocalDebt ? '需关注指标' : '当前重点关注'}：{isLocalDebt ? focusDimensions : topicProfile.focusIndicator}
+                            </div>
+                            <div className="flex items-center gap-2 text-xs text-slate-600">
+                              <span className="w-1.5 h-1.5 rounded-full bg-red-500"></span>
+                              {isLocalDebt ? '低分指标' : '当前最低维度'}：{isLocalDebt ? `${lowestDimension?.name || topicProfile.weakestDimension}${lowestDimension ? `（${lowestDimension.score}分）` : ''}` : `${topicProfile.weakestDimension}（${currentAnalysisData[3]?.score ?? 0}分）`}
+                            </div>
+                            {isLocalDebt && highestDimension && (
+                              <div className="flex items-center gap-2 text-xs text-slate-600">
+                                <span className="w-1.5 h-1.5 rounded-full bg-green-500"></span>
+                                高分指标：{highestDimension.name}（{highestDimension.score}分）
+                              </div>
+                            )}
                           </div>
                         )}
-                      </>
-                  </div>
-                  )}
-                  
-                  {!(currentLevel === 3 && selectedL2) && (
-                  <div className="mt-3 pt-3 border-t border-slate-100 space-y-2.5">
-                    <div className="flex items-end justify-between gap-3">
-                      <div className="text-sm font-semibold text-slate-700">
-                        {currentLevel === 1
-                          ? '综合得分'
-                          : currentLevel === 2
-                          ? (isLocalDebt ? '指标得分' : '维度平均分')
-                          : (isLocalDebt ? '指标得分' : '当前指标得分')}
-                      </div>
-                      <div className="text-2xl font-bold text-[#4E73C8]">
-                        {currentLevel === 1 ? (
-                          <span title={scoreTitle.overallFormula}>{overallScore}分</span>
-                        ) : currentLevel === 2 ? (
-                          <span title={selectedL1 ? scoreTitle.dimensionTitle(selectedL1) : ''}>{selectedL1?.score || 0}分</span>
-                        ) : (
-                          <span title={selectedL2 ? scoreTitle.indicatorTitle(selectedL2) : ''}>{selectedL2?.score ?? 0}分</span>
-                        )}
-                      </div>
-                    </div>
-                    
-                    {currentLevel === 1 && (
-                      <div className="space-y-2.5">
-                        <div className="flex items-center gap-2 text-xs text-slate-600">
-                          <span className="w-1.5 h-1.5 rounded-full bg-amber-500"></span>
-                          {isLocalDebt ? '需关注指标' : '当前重点关注'}：{isLocalDebt ? focusDimensions : topicProfile.focusIndicator}
-                        </div>
-                        <div className="flex items-center gap-2 text-xs text-slate-600">
-                          <span className="w-1.5 h-1.5 rounded-full bg-red-500"></span>
-                          {isLocalDebt ? '低分指标' : '当前最低维度'}：{isLocalDebt ? `${lowestDimension?.name || topicProfile.weakestDimension}${lowestDimension ? `（${lowestDimension.score}分）` : ''}` : `${topicProfile.weakestDimension}（${currentAnalysisData[3]?.score ?? 0}分）`}
-                        </div>
-                        {isLocalDebt && highestDimension && (
-                          <div className="flex items-center gap-2 text-xs text-slate-600">
-                            <span className="w-1.5 h-1.5 rounded-full bg-green-500"></span>
-                            高分指标：{highestDimension.name}（{highestDimension.score}分）
+                        {currentLevel === 2 && (
+                          <div className="space-y-2.5">
+                            {isLocalDebt && selectedL1?.weightValue && (
+                              <div className="flex items-center gap-2 text-xs text-slate-600">
+                                <span className="w-1.5 h-1.5 rounded-full bg-blue-500"></span>
+                                指标权重：{selectedL1.weightValue}
+                              </div>
+                            )}
+                            <div className="flex items-center gap-2 text-xs text-slate-600">
+                              <span className="w-1.5 h-1.5 rounded-full bg-amber-500"></span>
+                              需关注指标：{focusL2Indicators || '待识别'}
+                            </div>
+                            <div className="flex items-center gap-2 text-xs text-slate-600">
+                              <span className="w-1.5 h-1.5 rounded-full bg-red-500"></span>
+                              低分指标：{weakestL2Indicator ? `${weakestL2Indicator.name}（${weakestL2Indicator.score}分）` : '待识别'}
+                            </div>
+                            <div className="flex items-center gap-2 text-xs text-slate-600">
+                              <span className="w-1.5 h-1.5 rounded-full bg-green-500"></span>
+                              高分指标：{strongestL2Indicator ? `${strongestL2Indicator.name}（${strongestL2Indicator.score}分）` : '待识别'}
+                            </div>
                           </div>
                         )}
                       </div>
                     )}
-                    
-                    {currentLevel === 2 && (
-                      <div className="space-y-2.5">
-                        {isLocalDebt && selectedL1?.weightValue && (
-                          <div className="flex items-center gap-2 text-xs text-slate-600">
-                            <span className="w-1.5 h-1.5 rounded-full bg-blue-500"></span>
-                            指标权重：{selectedL1.weightValue}
-                          </div>
-                        )}
-                        <div className="flex items-center gap-2 text-xs text-slate-600">
-                          <span className="w-1.5 h-1.5 rounded-full bg-amber-500"></span>
-                          需关注指标：{focusL2Indicators || '待识别'}
-                        </div>
-                        <div className="flex items-center gap-2 text-xs text-slate-600">
-                          <span className="w-1.5 h-1.5 rounded-full bg-red-500"></span>
-                          低分指标：{weakestL2Indicator ? `${weakestL2Indicator.name}（${weakestL2Indicator.score}分）` : '待识别'}
-                        </div>
-                        <div className="flex items-center gap-2 text-xs text-slate-600">
-                          <span className="w-1.5 h-1.5 rounded-full bg-green-500"></span>
-                          高分指标：{strongestL2Indicator ? `${strongestL2Indicator.name}（${strongestL2Indicator.score}分）` : '待识别'}
-                        </div>
-                      </div>
-                    )}
-
                   </div>
-                  )}
-                </div>
+                )}
 
                 {/* 右侧详情分析区 */}
-                <div className="col-span-7 bg-[#F9FBFF] rounded-xl px-4 pt-3 pb-4 shadow-sm flex flex-col min-h-0">
+                {isLocalDebt && evaluationView === 'trend' && renderLocalDebtTrendDetail()}
+                <div className={`${isLocalDebt && evaluationView === 'trend' ? 'hidden' : 'col-span-7'} bg-[#F9FBFF] rounded-xl px-4 pt-3 pb-4 shadow-sm flex flex-col min-h-0`}>
                   {currentLevel !== 2 && !(currentLevel === 3 && isLocalDebt) && (
                     <div className="pb-2">
                       <div className="flex items-center justify-between gap-3">
@@ -1952,61 +2282,79 @@ const Component = forwardRef<AxureHandle, AxureProps>(function Component(innerPr
                       <div className="space-y-4">
                         {isLocalDebt ? (
                           <div className="space-y-4">
-                            <div className="space-y-2">
-                              <div className="flex items-center gap-2">
-                                <div className="w-[3px] h-[14px] bg-[#4E73C8] rounded-full"></div>
-                                <div className="text-[15px] font-bold text-slate-700">指标说明</div>
-                              </div>
-                              <div className="bg-white px-4 py-3.5 rounded-lg shadow-sm">
-                                <div className="text-xs text-slate-600 leading-relaxed">
-                                  {selectedL2.detail.definition}
-                                </div>
-                              </div>
-                            </div>
-                            <div className="space-y-2">
-                              <div className="flex items-center gap-2">
-                                <div className="w-[3px] h-[14px] bg-[#4E73C8] rounded-full"></div>
-                                <div className="text-[15px] font-bold text-slate-700">分析结论</div>
-                              </div>
-                              <div className="bg-white px-4 py-3 rounded-lg shadow-sm">
-                                <div className="inline-flex items-center gap-1.5 self-start px-2 py-1 rounded-md bg-slate-50 text-[11px] text-slate-500 border border-dashed border-slate-200">
-                                  <span className="w-1.5 h-1.5 rounded-full bg-slate-300"></span>
-                                  待接入AI分析
-                                </div>
-                              </div>
-                            </div>
-                            <div className="space-y-2">
-                              <div className="flex items-center gap-2">
-                                <div className="w-[3px] h-[14px] bg-[#4E73C8] rounded-full"></div>
-                                <div className="text-[15px] font-bold text-slate-700">政策依据</div>
-                              </div>
-                              <div className="bg-white rounded-lg shadow-sm px-3 py-3 space-y-3">
-                                <div className="grid grid-cols-3 gap-3">
-                                  {selectedL2PolicyItems
-                                    .filter((item) => ['发文层级', '政策名称', '政策文号'].includes(item.label))
-                                    .map((item) => (
-                                      <div key={item.label} className="min-w-0">
-                                        <div className="text-[10px] text-slate-400 mb-1">{item.label}</div>
-                                        <div className="text-xs text-slate-700 leading-relaxed break-words">{item.value}</div>
-                                      </div>
-                                    ))}
-                                </div>
-                                <div className="pt-3 border-t border-slate-100">
-                                  <div className="text-[10px] text-slate-400 mb-1">政策链接</div>
-                                  <div className="text-xs text-slate-700 leading-relaxed break-all">
-                                    {selectedL2PolicyItems.find((item) => item.label === '政策链接')?.value || '待补充'}
+                            <div className="rounded-[22px] bg-[linear-gradient(180deg,#FFFFFF_0%,#F6F9FF_100%)] px-4 py-4 shadow-sm space-y-4">
+                              <div className="flex items-start justify-between gap-4">
+                                <div>
+                                  <div className="text-[11px] uppercase tracking-[0.18em] text-slate-400">分析结论</div>
+                                  <div className="mt-1 text-[18px] font-bold text-slate-800">
+                                    {selectedL2.result === '良好' ? '当前指标已处于规则良好区间' : selectedL2.result === '一般' ? '当前指标接近阈值，需持续关注波动' : '当前指标未达规则要求，需优先处置'}
                                   </div>
                                 </div>
-                                <div className="pt-3 border-t border-slate-100">
-                                  <div className="text-[10px] text-slate-400 mb-1">政策条例</div>
-                                  <div className="max-h-[96px] overflow-y-auto pr-1 text-xs text-slate-700 leading-relaxed break-words">
-                                    {selectedL2PolicyItems.find((item) => item.label === '政策条例')?.value || '待补充'}
+                              </div>
+                              <div className="space-y-2">
+                                {selectedL2RuleConclusion.map((item) => (
+                                  <div key={item} className="text-xs text-slate-600 leading-relaxed flex items-start gap-2">
+                                    <span className="w-1.5 h-1.5 rounded-full bg-[#4E73C8] mt-1.5 flex-shrink-0"></span>
+                                    <span>{item}</span>
+                                  </div>
+                                ))}
+                              </div>
+                            </div>
+
+                            <div className="grid grid-cols-2 gap-4 h-[306px] mb-4">
+                              <div className="rounded-[24px] bg-white px-5 py-5 shadow-sm flex flex-col h-full min-h-0 overflow-hidden">
+                                <div className="flex items-center gap-2 shrink-0">
+                                  <div className="w-[3px] h-[14px] bg-[#4E73C8] rounded-full"></div>
+                                  <div className="text-[15px] font-bold text-slate-700">规则定义</div>
+                                </div>
+                                <div className="mt-4 flex-1 min-h-0 space-y-3 overflow-y-auto pr-2 pb-8 scrollbar-thin">
+                                  <div className="rounded-[18px] bg-slate-50 px-4 py-3">
+                                    <div className="text-[10px] text-slate-400 mb-1">指标定义</div>
+                                    <div className="text-xs text-slate-600 leading-relaxed">{selectedL2.detail.definition}</div>
+                                  </div>
+                                  <div className="rounded-[18px] bg-slate-50 px-4 py-3">
+                                    <div className="text-[10px] text-slate-400 mb-1">评分标准</div>
+                                    <div className="text-xs text-slate-600 leading-relaxed">{selectedL2.detail.scoreFormula || '待补充评分标准'}</div>
+                                  </div>
+                                  <div className="rounded-[18px] bg-slate-50 px-4 py-3">
+                                    <div className="text-[10px] text-slate-400 mb-1">计算逻辑</div>
+                                    <div className="text-xs text-slate-600 leading-relaxed">
+                                      依据规则定义中的评分区间映射成规则得分；该得分直接影响上级指标评价，但不等同于综合总分。
+                                    </div>
                                   </div>
                                 </div>
-                                <div className="pt-3 border-t border-slate-100">
-                                  <div className="text-[10px] text-slate-400 mb-1">选取原因</div>
-                                  <div className="max-h-[96px] overflow-y-auto pr-1 text-xs text-slate-700 leading-relaxed break-words">
-                                    {selectedL2PolicyItems.find((item) => item.label === '选取原因')?.value || '待补充'}
+                              </div>
+
+                              <div className="rounded-[24px] bg-white px-5 py-5 shadow-sm flex flex-col h-full min-h-0 overflow-hidden">
+                                <div className="flex items-center gap-2 shrink-0">
+                                  <div className="w-[3px] h-[14px] bg-[#4E73C8] rounded-full"></div>
+                                  <div className="text-[15px] font-bold text-slate-700">政策依据</div>
+                                </div>
+                                <div className="mt-4 flex-1 min-h-0 space-y-3 overflow-y-auto pr-2 pb-8 scrollbar-thin">
+                                  <div className="grid grid-cols-2 gap-3">
+                                    {selectedL2PolicyItems
+                                      .filter((item) => ['政策名称', '政策文号'].includes(item.label))
+                                      .map((item) => (
+                                        <div key={item.label} className="rounded-[18px] bg-slate-50 px-4 py-3 min-w-0">
+                                          <div className="text-[10px] text-slate-400 mb-1">{item.label}</div>
+                                          <div className="text-xs text-slate-700 leading-relaxed break-words">{item.value}</div>
+                                        </div>
+                                      ))}
+                                  </div>
+                                  <div className="rounded-[18px] bg-slate-50 px-4 py-3">
+                                    <div className="text-[10px] text-slate-400 mb-1">核心条款</div>
+                                    <div className="text-xs text-slate-700 leading-relaxed break-words">
+                                      {selectedL2PolicyItems.find((item) => item.label === '政策条例')?.value || '待补充'}
+                                    </div>
+                                  </div>
+                                  <div className="rounded-[18px] bg-[#FFF9EC] px-4 py-3">
+                                    <div className="text-[10px] text-amber-500 mb-1">选取原因</div>
+                                    <div className="text-xs text-slate-700 leading-relaxed break-words">
+                                      {selectedL2PolicyItems.find((item) => item.label === '选取原因')?.value || '待补充'}
+                                    </div>
+                                  </div>
+                                  <div className="rounded-[18px] bg-slate-50 px-4 py-3 text-[11px] text-slate-400 break-all">
+                                    政策链接：{selectedL2PolicyItems.find((item) => item.label === '政策链接')?.value || '待补充'}
                                   </div>
                                 </div>
                               </div>
