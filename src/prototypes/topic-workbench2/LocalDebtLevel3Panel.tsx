@@ -29,7 +29,7 @@ export default function LocalDebtLevel3Panel({ indicator, siblings, onSelectIndi
                   type="button"
                   onClick={() => onSelectIndicator(item)}
                   className={`w-full rounded-lg px-3 py-2.5 text-left transition-all ${
-                    active ? 'bg-blue-50/50' : 'hover:bg-blue-50/30'
+                    active ? 'bg-blue-50/50' : 'bg-[#FAFBFC] hover:bg-blue-50/30'
                   }`}
                 >
                   <div className="flex items-center justify-between gap-3">
