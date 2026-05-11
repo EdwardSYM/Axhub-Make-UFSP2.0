@@ -2,7 +2,7 @@
  * @name 首页
  *
  * 参考资料：
- * - /src/pages/fiscal-supervision-home2/spec.md
+ * - /src/prototypes/fiscal-supervision-home2/spec.md
  * - /src/themes/ufsp-sky/designToken.json
  * - /assets/libraries/tailwind-css
  * - /rules/development-standards.md
@@ -71,38 +71,38 @@ const SPECIAL_SUPERVISION: FirstLevelModule = {
       id: 'key_area_rectify',
       name: '重点领域整改',
       items: [
-        { id: 'key_1', name: '地方政府债务', brief: '地方政府债务管理与风险防控', link: '/pages/topic-workbench2?topic=yearly/local-debt&category=special', tag: '债' },
-        { id: 'key_2', name: '高标准农田建设资金使用管理', brief: '高标准农田建设资金使用管理', link: '/pages/topic-workbench2?topic=yearly/farmland-fund&category=special', tag: '农' },
-        { id: 'key_3', name: '行政事业单位国有资产处置管理', brief: '行政事业单位国有资产处置管理', link: '/pages/topic-workbench2?topic=yearly/state-assets&category=special', tag: '资' },
-        { id: 'key_4', name: '减税降费政策落实', brief: '减税降费政策落实情况监督', link: '/pages/topic-workbench2?topic=yearly/tax-reduction&category=special', tag: '税' },
-        { id: 'key_5', name: '违规返还财政收入', brief: '违规返还财政收入问题整改', link: '/pages/topic-workbench2?topic=yearly/refund-revenue&category=special', tag: '返' },
-        { id: 'key_6', name: '基层“三保”', brief: '基层三保资金保障与使用监督', link: '/pages/topic-workbench2?topic=yearly/sanbao-basic&category=special', tag: '保' },
-        { id: 'key_7', name: '财政暂付款管理', brief: '财政暂付款清理与管理监督', link: '/pages/topic-workbench2?topic=yearly/temporary-payment&category=special', tag: '暂' },
-        { id: 'key_8', name: '财政收入虚收空转', brief: '财政收入虚收空转问题整改', link: '/pages/topic-workbench2?topic=yearly/false-revenue&category=special', tag: '虚' },
+        { id: 'key_1', name: '地方政府债务', brief: '地方政府债务管理与风险防控', link: '/prototypes/topic-workbench2?topic=yearly/local-debt&category=special', tag: '债' },
+        { id: 'key_2', name: '高标准农田建设资金使用管理', brief: '高标准农田建设资金使用管理', link: '/prototypes/topic-workbench2?topic=yearly/farmland-fund&category=special', tag: '农' },
+        { id: 'key_3', name: '行政事业单位国有资产处置管理', brief: '行政事业单位国有资产处置管理', link: '/prototypes/topic-workbench2?topic=yearly/state-assets&category=special', tag: '资' },
+        { id: 'key_4', name: '减税降费政策落实', brief: '减税降费政策落实情况监督', link: '/prototypes/topic-workbench2?topic=yearly/tax-reduction&category=special', tag: '税' },
+        { id: 'key_5', name: '违规返还财政收入', brief: '违规返还财政收入问题整改', link: '/prototypes/topic-workbench2?topic=yearly/refund-revenue&category=special', tag: '返' },
+        { id: 'key_6', name: '基层“三保”', brief: '基层三保资金保障与使用监督', link: '/prototypes/topic-workbench2?topic=yearly/sanbao-basic&category=special', tag: '保' },
+        { id: 'key_7', name: '财政暂付款管理', brief: '财政暂付款清理与管理监督', link: '/prototypes/topic-workbench2?topic=yearly/temporary-payment&category=special', tag: '暂' },
+        { id: 'key_8', name: '财政收入虚收空转', brief: '财政收入虚收空转问题整改', link: '/prototypes/topic-workbench2?topic=yearly/false-revenue&category=special', tag: '虚' },
       ]
     },
     {
       id: 'special_check',
       name: '专项检查',
       items: [
-        { id: 'check_1', name: '会计信息质量检查', brief: '企业会计信息质量监督检查', link: '/pages/topic-workbench2?topic=yearly/state-assets&category=special', tag: '会' },
-        { id: 'check_2', name: '执业质量检查', brief: '会计师事务所执业质量检查', link: '/pages/topic-workbench2?topic=yearly/tax-reduction&category=special', tag: '执' },
+        { id: 'check_1', name: '会计信息质量检查', brief: '企业会计信息质量监督检查', link: '/prototypes/topic-workbench2?topic=yearly/state-assets&category=special', tag: '会' },
+        { id: 'check_2', name: '执业质量检查', brief: '会计师事务所执业质量检查', link: '/prototypes/topic-workbench2?topic=yearly/tax-reduction&category=special', tag: '执' },
       ]
     },
     {
       id: 'audit_rectify',
       name: '审计问题整改',
       items: [
-        { id: 'audit_2', name: '专项资金审计', brief: '审计发现问题整改事项2', link: '/pages/topic-workbench2?topic=audit&category=special', tag: '资' },
+        { id: 'audit_2', name: '专项资金审计', brief: '审计发现问题整改事项2', link: '/prototypes/topic-workbench2?topic=audit&category=special', tag: '资' },
       ]
     },
     {
       id: 'inspection_rectify',
       name: '巡视问题整改',
       items: [
-        { id: 'inspect_1', name: '省委巡视整改项', brief: '巡视发现问题整改事项1', link: '/pages/topic-workbench2?topic=inspect&category=special', tag: '巡' },
-        { id: 'inspect_2', name: '市级巡察反馈项', brief: '巡视发现问题整改事项2', link: '/pages/topic-workbench2?topic=inspect&category=special', tag: '察' },
-        { id: 'inspect_3', name: '其他巡视整改项', brief: '其他巡视发现问题整改', link: '/pages/topic-workbench2?topic=inspect&category=special', tag: '其' },
+        { id: 'inspect_1', name: '省委巡视整改项', brief: '巡视发现问题整改事项1', link: '/prototypes/topic-workbench2?topic=inspect&category=special', tag: '巡' },
+        { id: 'inspect_2', name: '市级巡察反馈项', brief: '巡视发现问题整改事项2', link: '/prototypes/topic-workbench2?topic=inspect&category=special', tag: '察' },
+        { id: 'inspect_3', name: '其他巡视整改项', brief: '其他巡视发现问题整改', link: '/prototypes/topic-workbench2?topic=inspect&category=special', tag: '其' },
       ]
     },
   ]
@@ -119,21 +119,21 @@ const DAILY_SUPERVISION: FirstLevelModule = {
       id: 'business_monitor',
       name: '业务监控',
       items: [
-        { id: 'b_1', name: '预算执行监控', brief: '预算执行与偏差监控', link: '/pages/topic-workbench2?topic=execution&category=daily', tag: '执' },
-        { id: 'b_2', name: '预算编制监控', brief: '预算编制合规性监控', link: '/pages/topic-workbench2?topic=unitfund&category=daily', tag: '编' },
-        { id: 'b_3', name: '指标管理监控', brief: '预算指标分配与下达监控', link: '/pages/topic-workbench2?topic=treasury&category=daily', tag: '指' },
-        { id: 'b_4', name: '资产管理监控', brief: '资产配置与处置合规监控', link: '/pages/topic-workbench2?topic=assets&category=daily', tag: '资' },
-        { id: 'b_5', name: '会计核算监控', brief: '会计核算规范与差错监控', link: '/pages/topic-workbench2?topic=accounting&category=daily', tag: '会' },
+        { id: 'b_1', name: '预算执行监控', brief: '预算执行与偏差监控', link: '/prototypes/richang-yewu-workbench?topic=execution&category=daily', tag: '执' },
+        { id: 'b_2', name: '预算编制监控', brief: '预算编制合规性监控', link: '/prototypes/richang-yewu-workbench?topic=unitfund&category=daily', tag: '编' },
+        { id: 'b_3', name: '指标管理监控', brief: '预算指标分配与下达监控', link: '/prototypes/richang-yewu-workbench?topic=treasury&category=daily', tag: '指' },
+        { id: 'b_4', name: '资产管理监控', brief: '资产配置与处置合规监控', link: '/prototypes/richang-yewu-workbench?topic=assets&category=daily', tag: '资' },
+        { id: 'b_5', name: '会计核算监控', brief: '会计核算规范与差错监控', link: '/prototypes/richang-yewu-workbench?topic=accounting&category=daily', tag: '会' },
       ]
     },
     {
       id: 'special_monitor',
       name: '专题监控',
       items: [
-        { id: 'm_1', name: '工资监控', brief: '薪酬发放合规监督', link: '/prototypes/topic-workbench2?topic=salary&category=daily', tag: '薪' },
-        { id: 'm_2', name: '三保监控', brief: '兜底资金合规与执行', link: '/prototypes/topic-workbench2?topic=sanbao&category=daily', tag: '保' },
-        { id: 'm_3', name: '三公监控', brief: '三公经费合规监督', link: '/prototypes/topic-workbench2?topic=sangong&category=daily', tag: '公' },
-        { id: 'm_4', name: '一卡通监控', brief: '资金发放与到账核验', link: '/prototypes/topic-workbench2?topic=yikatong&category=daily', tag: '卡' },
+        { id: 'm_1', name: '工资监控', brief: '薪酬发放合规监督', link: '/prototypes/richang-zhuanti-workbench?topic=salary&category=daily', tag: '薪' },
+        { id: 'm_2', name: '三保监控', brief: '兜底资金合规与执行', link: '/prototypes/richang-zhuanti-workbench?topic=sanbao&category=daily', tag: '保' },
+        { id: 'm_3', name: '三公监控', brief: '三公经费合规监督', link: '/prototypes/richang-zhuanti-workbench?topic=sangong&category=daily', tag: '公' },
+        { id: 'm_4', name: '一卡通监控', brief: '资金发放与到账核验', link: '/prototypes/richang-zhuanti-workbench?topic=yikatong&category=daily', tag: '卡' },
       ]
     }
   ]
@@ -150,8 +150,8 @@ const EVALUATION_MODULE: FirstLevelModule = {
       id: 'eval_main',
       name: '核心入口',
       items: [
-        { id: 'e_1', name: '财会监督考评', brief: '财会监督工作成效评价', link: '/pages/topic-workbench2?topic=eval-finance&category=evaluation', tag: '评' },
-        { id: 'e_2', name: '财政内控考评', brief: '财政内控体系运行考评', link: '/pages/topic-workbench2?topic=eval-internal&category=evaluation', tag: '控' },
+        { id: 'e_1', name: '财会监督考评', brief: '财会监督工作成效评价', link: '/prototypes/topic-workbench2?topic=eval-finance&category=evaluation', tag: '评' },
+        { id: 'e_2', name: '财政内控考评', brief: '财政内控体系运行考评', link: '/prototypes/topic-workbench2?topic=eval-internal&category=evaluation', tag: '控' },
       ]
     }
   ]
@@ -294,8 +294,8 @@ const Component = forwardRef<AxureHandle, AxureProps>(function Component(innerPr
 
   const indicatorPages = useMemo(() => {
     const pages: Array<typeof indicators> = [];
-    for (let i = 0; i < indicators.length; i += 8) {
-      pages.push(indicators.slice(i, i + 8));
+    for (let i = 0; i < indicators.length; i += 12) {
+      pages.push(indicators.slice(i, i + 12));
     }
     return pages;
   }, [indicators]);
@@ -413,7 +413,7 @@ const Component = forwardRef<AxureHandle, AxureProps>(function Component(innerPr
 
         <div className={`${contentHeight} overflow-y-auto custom-scrollbar`}>
           {isTree ? (
-            <div className="grid grid-cols-3 gap-x-4 gap-y-8 p-1.5">
+            <div className="grid grid-cols-3 gap-4 p-1.5">
               {module.categories.map(category => {
                 const sortedItems = [...category.items].sort(
                   (a, b) => (favorites[b.id] ? 1 : 0) - (favorites[a.id] ? 1 : 0),
@@ -421,18 +421,19 @@ const Component = forwardRef<AxureHandle, AxureProps>(function Component(innerPr
                 const span = getBlockSpan(sortedItems.length);
 
                 return (
-                  <div key={category.id} className={`${getColSpanClass(span)} space-y-3`}>
+                  <div key={category.id} className={`${getColSpanClass(span)} space-y-4`}>
                     <button
                       type="button"
                       onClick={() => {
-                        // 为二级标题创建对应的工作台链接
                         let workbenchLink = '';
-                        if (module.id === 'special' && category.id === 'key_area_rectify') {
-                          // 重点领域整改跳转到专门的工作台
-                          workbenchLink = `/prototypes/topic-workbench2-copy2?topic=${category.id}&category=special`;
+                        if (module.id === 'special') {
+                          workbenchLink = `/prototypes/topic-workbench2?topic=${category.id}&category=special`;
+                        } else if (module.id === 'daily' && category.id === 'special_monitor') {
+                          workbenchLink = `/prototypes/richang-zhuanti-workbench?topic=${category.id}&category=daily`;
+                        } else if (module.id === 'daily') {
+                          workbenchLink = `/prototypes/richang-yewu-workbench?topic=${category.id}&category=daily`;
                         } else {
-                          const categoryParam = module.id === 'special' ? 'special' : module.id === 'daily' ? 'daily' : 'evaluation';
-                          workbenchLink = `/prototypes/topic-workbench2?topic=${category.id}&category=${categoryParam}`;
+                          workbenchLink = `/prototypes/topic-workbench2?topic=${category.id}&category=evaluation`;
                         }
                         handleNavigate(workbenchLink);
                       }}
@@ -447,19 +448,13 @@ const Component = forwardRef<AxureHandle, AxureProps>(function Component(innerPr
                         ›
                       </span>
                     </button>
-                    <div className={`grid ${getInnerColsClass(span)} gap-2.5`}>
+                    <div className={`grid ${getInnerColsClass(span)} gap-4`}>
                       {sortedItems.map(item => (
                         <button
                           key={item.id}
                           type="button"
                           onClick={() => {
-                            let targetLink = item.link;
-                            // 检查是否是重点领域整改下的业务主题
-                            if (module.id === 'special' && category.id === 'key_area_rectify') {
-                              // 替换链接为新的重点领域整改工作台
-                              targetLink = targetLink.replace('/pages/topic-workbench2', '/prototypes/topic-workbench2-copy2');
-                            }
-                            handleNavigate(targetLink);
+                            handleNavigate(item.link);
                           }}
                           className="group text-left p-4 rounded-xl bg-[#F9FBFF] hover:bg-[#F0F5FF] transition-all relative shadow-sm hover:shadow-md hover:-translate-y-0.5"
                         >
@@ -498,7 +493,7 @@ const Component = forwardRef<AxureHandle, AxureProps>(function Component(innerPr
             </div>
           ) : (
             /* Lightweight Template - Main Entry Cards */
-            <div className="grid grid-cols-2 gap-2 py-2 p-1.5">
+            <div className="grid grid-cols-2 gap-4 p-1.5">
               {module.categories.flatMap(c => c.items).map(item => (
                 <button
                   key={item.id}
@@ -548,50 +543,46 @@ const Component = forwardRef<AxureHandle, AxureProps>(function Component(innerPr
       <TopBar title={title} onNavigate={handleNavigate} />
 
       <main className="flex-1 max-w-[1920px] w-full mx-auto px-4 py-4">
-        <div className="space-y-5">
+        <div className="space-y-4">
           {/* 顶部左右并排：左全局概览 / 右公共协同 */}
-          <div className="grid grid-cols-12 gap-3">
+          <div className="grid grid-cols-12 gap-4">
             {/* 全局监督概览（左） */}
-            <section className="col-span-12 xl:col-span-4 bg-white rounded-2xl shadow-sm p-4" style={{ height: '245px' }}>
+            <section className="col-span-12 xl:col-span-6 bg-white rounded-2xl shadow-sm p-4" style={{ height: '260px' }}>
               <div className="flex items-center justify-between mb-2">
                 <div className="relative group flex items-center gap-2">
                   <h2 className="text-lg font-bold text-[#0F3D8A] flex items-center gap-2">
                     <span className="w-1 h-5 bg-[#0F3D8A] rounded-full" />
                     全局概览
                   </h2>
-                  <div className="absolute left-0 top-full mt-1 hidden group-hover:block bg-white border border-slate-200 shadow rounded-md px-3 py-2 text-xs text-slate-600 whitespace-nowrap z-10">
+                  <div className="absolute left-0 top-full mt-1 hidden group-hover:block bg-white shadow rounded-md px-3 py-2 text-xs text-slate-600 whitespace-nowrap z-10">
                     展示全局监督关键指标；支持横向滑动查看更多指标
                   </div>
                 </div>
 
               </div>
-              <div className="flex overflow-x-auto gap-4 snap-x pr-1 custom-scrollbar mt-3" style={{ height: '176.25px' }}>
-                {indicatorPages.map((page, idx) => (
-                  <div key={`kpi-page-${idx}`} className="shrink-0 w-full grid grid-cols-4 grid-rows-2 gap-x-2.5 gap-y-3.5 snap-start p-1.5">
-                    {page.map((item) => (
-                      <div
-                        key={`${item.k}-${item.sub}`}
-                        className="h-20 rounded-xl bg-[#F9FBFF] shadow-sm p-2.5 flex flex-col justify-between hover:shadow-md hover:-translate-y-0.5 transition-all"
-                      >
-                        <div className="text-[11px] text-slate-500 leading-4">{item.k}</div>
-                        <div className={`text-lg font-extrabold leading-5 ${item.color}`}>{item.v}</div>
-                        <div className="text-[10px] text-slate-400 leading-4">{item.sub}</div>
-                      </div>
-                    ))}
+              <div className="grid grid-cols-6 grid-rows-2 gap-3 p-1.5 mt-4">
+                {indicators.map((item) => (
+                  <div
+                    key={`${item.k}-${item.sub}`}
+                    className="h-20 rounded-xl bg-[#F9FBFF] shadow-sm p-2.5 flex flex-col justify-between hover:shadow-md hover:-translate-y-0.5 transition-all"
+                  >
+                    <div className="text-[11px] text-slate-500 leading-4">{item.k}</div>
+                    <div className={`text-lg font-extrabold leading-5 ${item.color}`}>{item.v}</div>
+                    <div className="text-[10px] text-slate-400 leading-4">{item.sub}</div>
                   </div>
                 ))}
               </div>
             </section>
 
             {/* 公共协同（右） */}
-            <section className="col-span-12 xl:col-span-8 bg-white rounded-2xl shadow-sm p-4 pb-2">
+            <section className="col-span-12 xl:col-span-6 bg-white rounded-2xl shadow-sm p-4 pb-2">
               <div className="relative flex items-center mb-3">
                 <div className="relative group flex items-center gap-2">
                   <h2 className="text-lg font-bold text-[#0F3D8A] flex items-center gap-2">
                     <span className="w-1 h-5 bg-[#0F3D8A] rounded-full" />
                     公共协同
                   </h2>
-                  <div className="absolute left-0 top-full mt-1 hidden group-hover:block bg-white border border-slate-200 shadow rounded-md px-3 py-2 text-xs text-slate-600 whitespace-nowrap z-10">
+                  <div className="absolute left-0 top-full mt-1 hidden group-hover:block bg-white shadow rounded-md px-3 py-2 text-xs text-slate-600 whitespace-nowrap z-10">
                     跨部门信息协同：监督动态、政策发布、公告、资料与案例
                   </div>
                 </div>
@@ -635,7 +626,7 @@ const Component = forwardRef<AxureHandle, AxureProps>(function Component(innerPr
                   </button>
                 </div>
               </div>
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-x-6 overflow-y-auto custom-scrollbar p-1.5" style={{ height: '180px' }}>
+              <div className="grid grid-cols-2 gap-x-6 overflow-y-auto custom-scrollbar p-1.5" style={{ height: '195px' }}>
                 <div className="divide-y divide-slate-100">
                   {currentInfoList.map(i => (
                     <button
@@ -683,7 +674,7 @@ const Component = forwardRef<AxureHandle, AxureProps>(function Component(innerPr
                     </button>
                   ))}
                 </div>
-                <div className="divide-y divide-slate-100 hidden md:block">
+                <div className="divide-y divide-slate-100">
                   {currentInfoList.map(i => (
                     <button
                       key={`${i.id}-col2`}
@@ -735,7 +726,7 @@ const Component = forwardRef<AxureHandle, AxureProps>(function Component(innerPr
           </div>
 
           {/* C. 主题导航区 - 2+1 布局 */}
-          <div className="grid grid-cols-12 gap-4 mb-6">
+          <div className="grid grid-cols-12 gap-4">
             {/* 第一行：专项监督 + 日常监督 */}
             <div className="col-span-12 lg:col-span-6">
               {renderModule(SPECIAL_SUPERVISION)}
@@ -761,9 +752,9 @@ const Component = forwardRef<AxureHandle, AxureProps>(function Component(innerPr
               </div>
 
             </div>
-            <div className="grid grid-cols-12 gap-2">
+            <div className="grid grid-cols-12 gap-4">
               <div className="col-span-12">
-                <div className="grid grid-cols-6 gap-2">
+                <div className="grid grid-cols-6 gap-4">
                   {RESOURCES.map(r => (
                     <button
                       key={r.key}
@@ -792,7 +783,7 @@ const Component = forwardRef<AxureHandle, AxureProps>(function Component(innerPr
         </div>
       </main>
 
-      <footer className="bg-white border-t border-gray-200 py-4 mt-auto">
+      <footer className="bg-white py-4 mt-auto">
         <div className="max-w-[1920px] mx-auto px-4 flex flex-col md:flex-row justify-between items-center text-xs text-gray-500">
           <p>© 2026 财会监督管理中心</p>
           <div className="flex items-center gap-4 mt-2 md:mt-0">

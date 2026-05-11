@@ -154,8 +154,8 @@ const Component = forwardRef<AxureHandle, AxureProps>(function Component(innerPr
   const title = getConfigValue<string>(configSource, 'title', '财会监督系统');
   const topicNameFromConfig = getConfigValue<string>(configSource, 'topic_name', '主题工作台');
   const topicKey = String(query.topic || '').toLowerCase();
-  const categoryFromQuery = String(query.category || '').toLowerCase();
-  const featureKey = String(query.feature || 'warn_issue');
+  const categoryFromQuery = String(query.category || 'special').toLowerCase();
+  const featureKey = String(query.feature || 'work台账管理');
 
   const activeCategory: NavActive =
     categoryFromQuery === 'daily'
@@ -168,7 +168,7 @@ const Component = forwardRef<AxureHandle, AxureProps>(function Component(innerPr
       ? 'policy'
       : categoryFromQuery === 'support'
       ? 'support'
-      : 'daily';
+      : 'special';
 
   const topicName = '重点领域整改';
   useImperativeHandle(
@@ -204,9 +204,18 @@ const Component = forwardRef<AxureHandle, AxureProps>(function Component(innerPr
     }
   };
 
-  const topicParam = encodeURIComponent(String(query.topic || ''));
-  const categoryParam = encodeURIComponent(String(query.category || ''));
-  const workbenchHref = `/prototypes/topic-workbench2-copy2?topic=${topicParam}&category=${categoryParam}`;
+  const rawTopic = String(query.topic || 'key_area_rectify');
+  const rawCategory = String(query.category || 'special').toLowerCase();
+  const topicParam = encodeURIComponent(rawTopic);
+  const categoryParam = encodeURIComponent(rawCategory);
+  const dailyTopicWorkbench = new Set(['salary', 'sanbao', 'sangong', 'yikatong', 'zhengcai', 'special_monitor']);
+  const workbenchBase =
+    rawCategory === 'daily'
+      ? dailyTopicWorkbench.has(rawTopic.toLowerCase())
+        ? '/prototypes/richang-zhuanti-workbench'
+        : '/prototypes/richang-yewu-workbench'
+      : '/prototypes/topic-workbench2';
+  const workbenchHref = `${workbenchBase}?topic=${topicParam}&category=${categoryParam}`;
   const featureHref = (nextFeatureKey: string) =>
     `/prototypes/topic-function-list-copy?topic=${topicParam}&category=${categoryParam}&feature=${encodeURIComponent(nextFeatureKey)}`;
 

@@ -1,0 +1,31 @@
+# 日常监督专题监控工作台 - 规格文档
+
+## 1. 页面定位
+
+`/prototypes/richang-zhuanti-workbench` 是“日常监督 / 专题监控”的通用工作台入口。
+
+无查询参数直接访问时，默认按 `category=daily&topic=special_monitor` 展示专题监控通用工作台；首页和顶部导航中的工资监控、三保监控、三公监控、一卡通监控、政采监控等专题监控主题统一进入本页面。
+
+## 2. 复制来源与维护边界
+
+- 本页面从当前最新 `topic-workbench2` 完整物理复制而来，保留同一套基础布局、卡片圆角、滚动条显隐、评分/趋势切换和三级面板能力。
+- 本页面后续用于日常专题监控个性化调整，不从 `topic-workbench2` 或业务监控工作台 import/re-export。
+- 当前阶段只完成入口拆分和独立化，专题监控专属评价规则、指标和功能流后续单独调整。
+
+## 3. 页面结构
+
+- 顶部：全局导航、主题工作台标题、统计口径和设置入口。
+- 主体：保留工作台总览、任务流程、待办事项、资源入口、评价分析、趋势查看和三级指标分析能力。
+- 功能列表入口：进入 `/prototypes/topic-function-list`，返回时根据 `category=daily` 和 `topic` 回到本工作台。
+
+## 4. 数据与交互
+
+- 默认主题为 `special_monitor`。
+- `salary`、`sanbao`、`sangong`、`yikatong`、`zhengcai` 等专题监控主题使用本工作台。
+- 业务监控主题跳转到 `/prototypes/richang-yewu-workbench`。
+- 专项监督主题跳转到 `/prototypes/topic-workbench2`。
+
+## 5. 独立维护约束
+
+- 本目录只引用本目录内的 `./data`、`./style.css`、`./LocalDebtLevel3Panel`，以及公共组件和主题。
+- 与专项领域工作台、日常业务监控工作台三套页面彼此不互相引用。

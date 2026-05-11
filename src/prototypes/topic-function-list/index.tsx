@@ -175,9 +175,18 @@ const Component = forwardRef<AxureHandle, AxureProps>(function Component(innerPr
     }
   };
 
-  const topicParam = encodeURIComponent(String(query.topic || ''));
-  const categoryParam = encodeURIComponent(String(query.category || ''));
-  const workbenchHref = `/prototypes/topic-workbench2?topic=${topicParam}&category=${categoryParam}`;
+  const rawTopic = String(query.topic || 'business_monitor');
+  const rawCategory = String(query.category || 'daily').toLowerCase();
+  const topicParam = encodeURIComponent(rawTopic);
+  const categoryParam = encodeURIComponent(rawCategory);
+  const dailyTopicWorkbench = new Set(['salary', 'sanbao', 'sangong', 'yikatong', 'zhengcai', 'special_monitor']);
+  const workbenchBase =
+    rawCategory === 'daily'
+      ? dailyTopicWorkbench.has(rawTopic.toLowerCase())
+        ? '/prototypes/richang-zhuanti-workbench'
+        : '/prototypes/richang-yewu-workbench'
+      : '/prototypes/topic-workbench2';
+  const workbenchHref = `${workbenchBase}?topic=${topicParam}&category=${categoryParam}`;
   const featureHref = (nextFeatureKey: string) =>
     `/prototypes/topic-function-list?topic=${topicParam}&category=${categoryParam}&feature=${encodeURIComponent(nextFeatureKey)}`;
 

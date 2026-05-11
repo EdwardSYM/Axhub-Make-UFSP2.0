@@ -1,6 +1,6 @@
 {
   "version": 1,
-  "updatedAt": "2026-04-29T08:38:56.761Z",
+  "updatedAt": "2026-05-09T08:52:07.798Z",
   "prototypes": [
     {
       "id": "item-prototypes-fiscal-supervision-home2",
@@ -16,20 +16,20 @@
         {
           "id": "item-prototypes-topic-workbench2",
           "kind": "item",
-          "title": "日常监督工作台",
+          "title": "重点领域整改工作台",
           "itemKey": "prototypes/topic-workbench2"
         },
         {
-          "id": "item-prototypes-topic-workbench2-copy2",
+          "id": "item-prototypes-richang-yewu-workbench",
           "kind": "item",
-          "title": "重点领域整改工作台",
-          "itemKey": "prototypes/topic-workbench2-copy2"
+          "title": "日常监督业务监控工作台",
+          "itemKey": "prototypes/richang-yewu-workbench"
         },
         {
-          "id": "item-prototypes-topic-workbench2-copy2-copy",
+          "id": "item-prototypes-richang-zhuanti-workbench",
           "kind": "item",
-          "title": "内控考评工作台",
-          "itemKey": "prototypes/topic-workbench2-copy2-copy"
+          "title": "日常监督专题监控工作台",
+          "itemKey": "prototypes/richang-zhuanti-workbench"
         }
       ]
     },
@@ -80,6 +80,12 @@
     }
   ],
   "docs": [
+    {
+      "id": "item-docs-problem-library-analysis-md",
+      "kind": "item",
+      "title": "problem library analysis.md",
+      "itemKey": "docs/problem-library-analysis.md"
+    },
     {
       "id": "item-docs-----------md",
       "kind": "item",

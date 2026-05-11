@@ -1083,66 +1083,12 @@ const KEY_AREA_TOPIC_PROFILES: Record<string, KeyAreaTopicProfile> = {
       ['监督问题整改完成率', '整改逾期率', '责任追究落实率'],
     ],
   },
-  'audit': {
-    title: '审计问题整改',
-    shortName: '审计整改',
-    policyName: '《审计发现问题整改闭环监督指引》',
-    policyCode: '财监审〔2025〕2号',
-    policyClause: '对审计发现问题的任务纳管、整改推进、复核销号、责任追究和长效治理开展评价。',
-    scoreShift: -7,
-    dimensions: ['审计问题识别与纳管', '整改责任与计划管理', '整改进度与销号复核', '资金风险与追缴处置', '治理改进与制度完善', '监督整改与责任闭环'],
-    basis: ['审计问题全量纳管', '整改计划责任明确', '销号复核形成闭环'],
-    indicatorSeeds: [
-      ['审计问题纳管完整率', '整改责任明确率', '问题分级分类准确率'],
-      ['整改计划按期制定率', '责任单位反馈及时率', '整改措施匹配率'],
-      ['审计整改完成率', '销号复核通过率', '超期整改占比'],
-      ['问题资金追缴到位率', '违规资金处置合规率', '高风险事项压降率'],
-      ['制度修订完成率', '重复问题下降率', '治理成果转化率'],
-      ['监督问题整改完成率', '整改逾期率', '责任追究落实率'],
-    ],
-  },
-  'inspect': {
-    title: '巡视问题整改',
-    shortName: '巡视整改',
-    policyName: '《巡视巡察反馈问题整改监督指引》',
-    policyCode: '财监巡〔2025〕3号',
-    policyClause: '对巡视巡察反馈问题的任务分解、整改推进、复核销号和责任闭环开展评价。',
-    scoreShift: -9,
-    dimensions: ['反馈问题识别与任务分解', '整改责任与时限管理', '整改进度与质量复核', '重点风险与线索处置', '制度治理与成果转化', '监督整改与责任闭环'],
-    basis: ['反馈问题分解到位', '整改责任压实', '复核销号有依据'],
-    indicatorSeeds: [
-      ['反馈问题纳管完整率', '整改任务分解准确率', '重点问题标识率'],
-      ['责任单位明确率', '整改时限设置合规率', '整改方案审核通过率'],
-      ['巡视整改完成率', '复核销号通过率', '超期整改占比'],
-      ['重点线索处置率', '问题资金整改到位率', '风险事项压降率'],
-      ['制度完善率', '问题复发控制率', '治理成果转化率'],
-      ['监督问题整改完成率', '整改逾期率', '责任追究落实率'],
-    ],
-  },
-  'supervision': {
-    title: '监管局问题整改',
-    shortName: '监管整改',
-    policyName: '《监管局发现问题整改监督指引》',
-    policyCode: '财监监〔2025〕4号',
-    policyClause: '对监管局发现问题的线索核验、整改督办、复核销号和责任闭环开展评价。',
-    scoreShift: -8,
-    dimensions: ['监管线索识别与核验', '整改任务与责任落实', '整改进度与督办处置', '资金合规与风险控制', '制度完善与结果运用', '监督整改与责任闭环'],
-    basis: ['监管线索核验及时', '整改督办持续推进', '责任闭环清晰'],
-    indicatorSeeds: [
-      ['监管线索识别覆盖率', '疑点核验及时率', '问题入库准确率'],
-      ['整改任务纳管完整率', '责任单位明确率', '整改措施匹配率'],
-      ['整改进度达标率', '督办事项办结率', '超期整改占比'],
-      ['问题资金整改到位率', '资金使用合规率', '高风险事项压降率'],
-      ['制度修订完成率', '结果运用转化率', '问题复发控制率'],
-      ['监督问题整改完成率', '整改逾期率', '责任追究落实率'],
-    ],
-  },
 };
 
 const clampScore = (score: number) => Math.max(0, Math.min(100, Math.round(score)));
 
 export const getKeyAreaTopicProfile = (topicKey: string): KeyAreaTopicProfile => {
-  return KEY_AREA_TOPIC_PROFILES[topicKey] || KEY_AREA_TOPIC_PROFILES['key_area_rectify'];
+  return KEY_AREA_TOPIC_PROFILES[topicKey] || KEY_AREA_TOPIC_PROFILES['yearly/local-debt'];
 };
 
 export const getKeyAreaAnalysisData = (topicKey: string): Level1_Dimension[] => {
