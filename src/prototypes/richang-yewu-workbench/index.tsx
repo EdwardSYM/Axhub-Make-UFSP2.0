@@ -46,28 +46,28 @@ function useQuery() {
         setQ({});
       }
     };
-    
+
     // 初始执行
     updateQuery();
-    
+
     // 监听 URL 变化
     window.addEventListener('popstate', updateQuery);
     window.addEventListener('hashchange', updateQuery);
-    
+
     // 监听 pushState 和 replaceState 事件
     const originalPushState = window.history.pushState;
     const originalReplaceState = window.history.replaceState;
-    
+
     window.history.pushState = function(...args) {
       originalPushState.apply(this, args);
       updateQuery();
     };
-    
+
     window.history.replaceState = function(...args) {
       originalReplaceState.apply(this, args);
       updateQuery();
     };
-    
+
     return () => {
       window.removeEventListener('popstate', updateQuery);
       window.removeEventListener('hashchange', updateQuery);
@@ -221,9 +221,9 @@ const Component = forwardRef<AxureHandle, AxureProps>(function Component(innerPr
   };
 
   const topicKey = String(query.topic || 'business_monitor').toLowerCase();
-  const isKeyAreaEvaluationTopic = activeCategory === 'special' && (topicKey === 'key_area_rectify' || topicKey.startsWith('yearly/'));
-  // 保留变量名以复用已打磨完成的地方政府债务评级体系视图；语义上表示“重点领域整改统一评级模板”。
-  const isLocalDebt = isKeyAreaEvaluationTopic;
+  const useKeyAreaData = activeCategory === 'special';
+  // 保留变量名以复用已打磨完成的重点领域整改评级体系视图；日常监督只复用交互与视觉，不切换到专项数据。
+  const isLocalDebt = true;
   const keyAreaTopicProfile = useMemo(() => getKeyAreaTopicProfile(topicKey), [topicKey]);
   const localDebtFlowSteps: FlowStepItem[] = [
     { key: 'debt-ledger-manage', name: '债务台账管理', mainCount: 11, status: [{ label: '临期', value: 2 }, { label: '超期', value: 1 }, { label: '被退回', value: 0 }] },
@@ -262,33 +262,33 @@ const Component = forwardRef<AxureHandle, AxureProps>(function Component(innerPr
     { t: '汇总工作台账数据并生成报表', d: '03-06', level: '中', flowNode: '台账分发录入', module: '工作台账管理', status: '待处理', actions: ['处理'] },
     { t: '上报工作台账至上级部门', d: '03-04', level: '中', flowNode: '台账分发录入', module: '工作台账上报', status: '待上报', actions: ['处理'] },
     { t: '更新工作台账系统数据', d: '03-03', level: '中', flowNode: '台账分发录入', module: '工作台账管理', status: '待处理', actions: ['处理'] },
-    
+
     // 第二组：问题整改更新
-    { t: '督办重点领域整改任务', d: '03-12', level: '高', flowNode: '问题整改更新', module: '整改督办管理', status: '待处理', actions: ['处理'] },
+    { t: '督办预算执行异常整改任务', d: '03-12', level: '高', flowNode: '问题整改更新', module: '整改督办管理', status: '待处理', actions: ['处理'] },
     { t: '下发整改任务至相关单位', d: '03-10', level: '高', flowNode: '问题整改更新', module: '整改下发管理', status: '待下发', actions: ['处理'] },
     { t: '审核整改情况报告', d: '03-08', level: '中', flowNode: '问题整改更新', module: '整改情况审核', status: '待审核', actions: ['处理'] },
     { t: '跟踪整改进展并更新状态', d: '03-06', level: '中', flowNode: '问题整改更新', module: '整改督办管理', status: '处理中', actions: ['处理'] },
     { t: '汇总整改结果并形成报告', d: '03-04', level: '中', flowNode: '问题整改更新', module: '整改情况审核', status: '待处理', actions: ['处理'] },
-    
+
     // 独立：整改明细查询
     { t: '查询整改明细数据', d: '03-15', level: '低', flowNode: '整改明细查询', module: '独立入口', status: '待处理', actions: ['处理'] },
     { t: '导出整改明细报表', d: '03-13', level: '低', flowNode: '整改明细查询', module: '独立入口', status: '待处理', actions: ['处理'] },
     { t: '分析整改明细数据', d: '03-11', level: '低', flowNode: '整改明细查询', module: '独立入口', status: '待处理', actions: ['处理'] },
-    
+
     // 新增：临期待办事项（今天是03-26，临期为03-26到03-28）
     { t: '准备季度工作总结报告', d: '03-27', level: '中', flowNode: '台账分发录入', module: '工作台账管理', status: '待处理', actions: ['处理'] },
     { t: '审核部门预算调整申请', d: '03-28', level: '高', flowNode: '问题整改更新', module: '整改情况审核', status: '待审核', actions: ['处理'] },
-    
+
     // 新增：正常待办事项（既不是超期也不是临期）
     { t: '制定下季度工作计划', d: '04-01', level: '中', flowNode: '台账分发录入', module: '工作台账管理', status: '待处理', actions: ['处理'] },
     { t: '组织部门业务培训', d: '04-05', level: '低', flowNode: '问题整改更新', module: '整改督办管理', status: '待安排', actions: ['处理'] }
   ];
   const currentAnalysisData = useMemo(
-    () => (isLocalDebt ? getKeyAreaAnalysisData(topicKey) : analysisData),
-    [isLocalDebt, topicKey],
+    () => (useKeyAreaData ? getKeyAreaAnalysisData(topicKey) : analysisData),
+    [useKeyAreaData, topicKey],
   );
   const topicProfile = useMemo(() => {
-    if (isLocalDebt) {
+    if (useKeyAreaData) {
       const topicTitle = keyAreaTopicProfile.title;
       const topicShortName = keyAreaTopicProfile.shortName;
       const adaptName = (name: string) => (
@@ -329,8 +329,8 @@ const Component = forwardRef<AxureHandle, AxureProps>(function Component(innerPr
       };
     }
     return {
-      displayName: '专项领域整改工作台',
-      descText: '用于汇聚重点领域整改相关任务，支撑台账分发录入、问题整改更新及整改进展跟踪。',
+      displayName: '日常监督业务监控工作台',
+      descText: '用于汇聚预算执行、预算编制、指标管理、资产管理、会计核算等业务监控任务，复用重点领域整改工作台的评价分析与趋势研判体验。',
       stageData: [
         { name: '受理', count: 9, rate: 0.6 },
         { name: '研判', count: 6, rate: 0.5 },
@@ -347,14 +347,14 @@ const Component = forwardRef<AxureHandle, AxureProps>(function Component(innerPr
         { key: 'archive', icon: '🗂️', title: '档案/数据', count: 342, path: '/resources?tab=archive' },
       ] as ResourceItem[],
       flowSteps: defaultFlowSteps,
-      evaluationIntro: '当前评价体系围绕重点领域整改工作构建，从整改进度、整改时效、责任落实、资金安全、治理成效、数据质量六个一级维度，对整改任务推进情况、问题闭环水平、资金规范性及治理改进成效进行综合分析与预警。',
+      evaluationIntro: '当前评价体系围绕日常监督业务监控构建，从整改进度、整改时效、责任落实、资金安全、治理成效、数据质量六个一级维度，对业务监督任务推进情况、问题闭环水平、资金规范性及治理改进成效进行综合分析与预警。',
       weakestDimension: '资金整改与风险控制',
       focusIndicator: '问题金额整改到位率',
-      smartSummary: '本季度执行与支付保障风险有所上升，重点问题集中在工资发放延迟、资金沉淀率偏高和台账更新不及时。建议优先排查支付链路和库款管理情况。',
+      smartSummary: '本季度预算执行与资金运行风险有所上升，重点问题集中在执行进度滞后、资金沉淀率偏高和台账更新不及时。建议优先排查预算执行、库款保障和单位资金链路。',
       ruleHitTitle: '触发规则：问题整改率低于阈值',
-      ruleHitPolicy: '关联制度：三保资金监督整改办法',
+      ruleHitPolicy: '关联制度：预算执行日常监督规则',
     };
-  }, [isLocalDebt, keyAreaTopicProfile, topicKey]);
+  }, [useKeyAreaData, keyAreaTopicProfile, topicKey]);
   const { displayName, descText, stageData, todos, resources } = topicProfile;
   const [todoTab, setTodoTab] = useState<'pending' | 'overdue' | 'due' | 'returned'>('pending');
   const displayTodos = useMemo(() => {
@@ -389,7 +389,7 @@ const Component = forwardRef<AxureHandle, AxureProps>(function Component(innerPr
       path: featureHref(step.key),
     }));
   }, [categoryParam, topicParam, topicProfile]);
-  
+
   const [selectedFlowStep, setSelectedFlowStep] = useState<string | null>(null);
   const [showFullProcess, setShowFullProcess] = useState<boolean>(false);
   const [showLeftArrow, setShowLeftArrow] = useState<boolean>(false);
@@ -414,7 +414,7 @@ const Component = forwardRef<AxureHandle, AxureProps>(function Component(innerPr
   const [showAllConclusions, setShowAllConclusions] = useState<boolean>(false);
 
   const smartAnalysisData = useMemo(() => {
-    if (isLocalDebt) {
+    if (useKeyAreaData) {
       const createConclusions = (timeLabel: string) => ([
         {
           id: 'c-1',
@@ -535,25 +535,25 @@ const Component = forwardRef<AxureHandle, AxureProps>(function Component(innerPr
     const createConclusions = (timeLabel: string) => ([
       {
         id: 'c-1',
-        title: '工资发放延迟集中在3个县区',
-        summary: `说明执行与支付保障偏弱，建议优先核查支付链路与退回原因（${timeLabel}）。`,
-        dimension: '执行与支付保障',
+        title: '预算执行进度滞后集中在3个县区',
+        summary: `说明预算执行与支付保障偏弱，建议优先核查执行进度、支付退回和指标下达链路（${timeLabel}）。`,
+        dimension: '预算执行与支付保障',
         regions: ['A县', 'B县', 'C县'],
         risk: '高风险',
         ruleIds: ['r-1'],
         report: {
           id: 'report-1',
-          name: '执行与支付保障监测分析报告',
+          name: '预算执行与支付保障监测分析报告',
           generatedAt: '2025-02-18 10:32',
-          dimension: '执行与支付保障',
-          indicators: ['工资发放及时率', '支付退回率', '支付链路异常率'],
+          dimension: '预算执行与支付保障',
+          indicators: ['预算执行进度达标率', '支付退回率', '支付链路异常率'],
           scope: 'A县、B县、C县',
-          overview: '本期分析发现工资发放延迟集中在三个县区，延迟事项与支付退回环节相关度较高。',
-          impact: '影响约 1.2 万名财政供养人员工资发放时效，并导致民生资金拨付联动延后。',
+          overview: '本期分析发现预算执行进度滞后集中在三个县区，异常事项与支付退回环节相关度较高。',
+          impact: '影响重点支出拨付时效，并导致部分民生资金支付联动延后。',
           trend: ['2024Q1 86', '2024Q2 87', '2024Q3 88', '2024Q4 89', '2025Q1 90', '2025Q2 89'],
-          triggeredRules: ['工资发放及时率异常', '支付退回率超阈值'],
-          basis: ['《工资保障日常监测要求》', '《财政支付链路运行监测办法》'],
-          suggestions: '优先核查支付链路退回原因，按县区建立工资发放异常处置台账并按周闭环。'
+          triggeredRules: ['预算执行进度达标率异常', '支付退回率超阈值'],
+          basis: ['《预算执行日常监测要求》', '《财政支付链路运行监测办法》'],
+          suggestions: '优先核查预算执行和支付链路退回原因，按县区建立执行异常处置台账并按周闭环。'
         }
       },
       {
@@ -598,7 +598,7 @@ const Component = forwardRef<AxureHandle, AxureProps>(function Component(innerPr
           impact: '整改事项在系统内状态滞后，导致督办优先级排序偏差。',
           trend: ['2024Q1 81', '2024Q2 82', '2024Q3 83', '2024Q4 83', '2025Q1 84', '2025Q2 84'],
           triggeredRules: ['台账更新不及时', '整改复核超时'],
-          basis: ['《三保资金台账管理办法》', '《监督整改闭环管理细则》'],
+          basis: ['《预算执行台账管理办法》', '《监督整改闭环管理细则》'],
           suggestions: '统一台账更新时限要求，增加复核环节的自动提醒与超时升级策略。'
         }
       }
@@ -607,13 +607,13 @@ const Component = forwardRef<AxureHandle, AxureProps>(function Component(innerPr
     const ruleItems = [
       {
         id: 'r-1',
-        name: '工资发放及时率异常',
-        basis: '触发《工资保障日常监测要求》',
+        name: '预算执行进度达标率异常',
+        basis: '触发《预算执行日常监测要求》',
         status: '本期触发',
-        definition: '当工资发放及时率低于90%或连续2期下降时触发。',
+        definition: '当预算执行进度达标率低于90%或连续2期下降时触发。',
         threshold: '及时率 < 90%',
-        source: '工资发放台账、支付清算流水',
-        logic: '按县区聚合工资发放节点，比较计划发放日与实际到账日差值。',
+        source: '预算执行台账、支付清算流水',
+        logic: '按县区聚合预算执行节点，比较计划完成进度与实际执行进度差值。',
         recent: '最近30天触发 3 次，较上期增加 1 次。'
       },
       {
@@ -630,7 +630,7 @@ const Component = forwardRef<AxureHandle, AxureProps>(function Component(innerPr
       {
         id: 'r-3',
         name: '台账更新不及时',
-        basis: '触发《三保资金台账管理办法》',
+        basis: '触发《预算执行台账管理办法》',
         status: '新增触发',
         definition: '台账更新超过3个工作日未完成时触发。',
         threshold: '更新时长 > 3 个工作日',
@@ -647,7 +647,7 @@ const Component = forwardRef<AxureHandle, AxureProps>(function Component(innerPr
       '本季度': { generatedAt: '2025-02-18 10:32', conclusions: createConclusions('本季度'), rules: ruleItems },
       '自定义': { generatedAt: '2025-02-18 10:32', conclusions: createConclusions(`${analysisCustomRange.start}~${analysisCustomRange.end}`), rules: ruleItems }
     };
-  }, [analysisCustomRange, isLocalDebt]);
+  }, [analysisCustomRange, useKeyAreaData]);
 
   const currentSmartAnalysis = smartAnalysisData[analysisTimeRange];
   const linkedRuleIds = useMemo(() => {
@@ -670,7 +670,7 @@ const Component = forwardRef<AxureHandle, AxureProps>(function Component(innerPr
   const BreadcrumbNav = () => (
     <div className="flex items-center gap-2.5 text-xs mb-2">
       <div className="w-[4px] h-[18px] bg-[#4E73C8] rounded-full"></div>
-      <span 
+      <span
         className={`cursor-pointer hover:text-[#4E73C8] transition-colors text-[17px] font-bold ${currentLevel === 1 ? 'text-[#0F3D8A]' : 'text-slate-500'}`}
         onClick={() => {
           setCurrentLevel(1);
@@ -684,7 +684,7 @@ const Component = forwardRef<AxureHandle, AxureProps>(function Component(innerPr
       {currentLevel >= 2 && selectedL1 && (
         <>
           <span className="text-slate-300">/</span>
-          <span 
+          <span
             className={`cursor-pointer hover:text-[#4E73C8] transition-colors text-[17px] font-bold ${currentLevel === 2 ? 'text-[#0F3D8A]' : 'text-slate-500'}`}
             onClick={() => {
               setCurrentLevel(2);
@@ -704,7 +704,7 @@ const Component = forwardRef<AxureHandle, AxureProps>(function Component(innerPr
       )}
       <div className="ml-auto flex items-center gap-3">
         {isLocalDebt && (
-          <div className="flex items-center gap-2 px-3 py-1.5 bg-white rounded-lg shadow-sm text-[11px]">
+          <div className="flex items-center gap-2 px-3 py-1.5 bg-blue-50/40 rounded-lg text-[11px]">
             <span className="text-slate-400">统计口径：</span>
             <span className="font-semibold text-slate-700">{evaluationView === 'trend' ? `${evaluationGranularity}范围` : evaluationGranularity}</span>
             <div className="w-px h-4 bg-slate-200"></div>
@@ -746,10 +746,10 @@ const Component = forwardRef<AxureHandle, AxureProps>(function Component(innerPr
         {isLocalDebt && (
           <button
             type="button"
-            className={`h-8 px-3 rounded-lg text-[11px] font-semibold shadow-sm transition-colors ${
+            className={`h-8 px-3 rounded-lg text-[11px] font-semibold transition-colors ${
               evaluationView === 'trend'
                 ? 'bg-[#4E73C8] text-white'
-                : 'bg-white text-[#4E73C8] hover:bg-blue-50'
+                : 'bg-blue-50/40 text-[#4E73C8] hover:bg-blue-100/70'
             }`}
             onClick={() => setEvaluationView((view) => (view === 'trend' ? 'score' : 'trend'))}
           >
@@ -767,7 +767,7 @@ const Component = forwardRef<AxureHandle, AxureProps>(function Component(innerPr
           </button>
         )}
         {currentLevel > 2 && !isLocalDebt && (
-          <button 
+          <button
             type="button"
             onClick={() => {
               if (currentLevel === 3) {
@@ -794,13 +794,13 @@ const Component = forwardRef<AxureHandle, AxureProps>(function Component(innerPr
   useEffect(() => {
     const container = document.getElementById('flow-scroll-container');
     if (!container) return;
-    
+
     const handleScroll = () => {
       const { scrollLeft, scrollWidth, clientWidth } = container;
       setShowLeftArrow(scrollLeft > 0);
       setShowRightArrow(scrollLeft + clientWidth < scrollWidth - 10);
     };
-    
+
     container.addEventListener('scroll', handleScroll);
     handleScroll(); // 初始化
     return () => container.removeEventListener('scroll', handleScroll);
@@ -928,7 +928,7 @@ const Component = forwardRef<AxureHandle, AxureProps>(function Component(innerPr
               ])
             },
             lineStyle: { color: '#4E73C8', width: 2 },
-            itemStyle: { 
+            itemStyle: {
               color: '#4E73C8',
               borderColor: '#fff',
               borderWidth: 2
@@ -1112,22 +1112,30 @@ const Component = forwardRef<AxureHandle, AxureProps>(function Component(innerPr
 
   const selectedL2PolicyItems = useMemo(() => {
     if (!selectedL2) return [];
-    const fallbackPolicyName = selectedL2.name.includes('专项债')
-      ? '《地方政府专项债券项目资金管理与使用监督指引（试行）》'
-      : '《地方政府债务风险监测与整改工作指引（试行）》';
-    const fallbackPolicyCode = selectedL2.name.includes('专项债') ? '财监债〔2025〕12号' : '财监债〔2025〕7号';
-    const fallbackPolicyLink = selectedL2.name.includes('专项债')
-      ? 'https://example.gov.cn/policy/special-bond-supervision-2025'
-      : 'https://example.gov.cn/policy/local-debt-risk-guideline-2025';
+    const fallbackPolicyName = useKeyAreaData
+      ? selectedL2.name.includes('专项债')
+        ? '《地方政府专项债券项目资金管理与使用监督指引（试行）》'
+        : '《地方政府债务风险监测与整改工作指引（试行）》'
+      : '《日常监督业务监控评价指标管理办法》';
+    const fallbackPolicyCode = useKeyAreaData
+      ? selectedL2.name.includes('专项债')
+        ? '财监债〔2025〕12号'
+        : '财监债〔2025〕7号'
+      : '财监日常〔2025〕3号';
+    const fallbackPolicyLink = useKeyAreaData
+      ? selectedL2.name.includes('专项债')
+        ? 'https://example.gov.cn/policy/special-bond-supervision-2025'
+        : 'https://example.gov.cn/policy/local-debt-risk-guideline-2025'
+      : 'https://example.gov.cn/policy/daily-business-monitor-2025';
     return [
       { label: '发文层级', value: selectedL2.detail.policyLevel || '待补充' },
       { label: '政策名称', value: selectedL2.detail.policyName || fallbackPolicyName },
       { label: '政策文号', value: selectedL2.detail.policyCode || fallbackPolicyCode },
       { label: '政策链接', value: selectedL2.detail.policyLink || fallbackPolicyLink },
-      { label: '政策条例', value: selectedL2.detail.policyClause || '第十二条：建立专项债项目资金全流程监测及偏差整改机制。' },
+      { label: '政策条例', value: selectedL2.detail.policyClause || (useKeyAreaData ? '第十二条：建立专项债项目资金全流程监测及偏差整改机制。' : '第八条：建立日常监督业务指标监测、异常核验和闭环处置机制。') },
       { label: '选取原因', value: selectedL2.detail.pickReason || `该指标直接对应${selectedL2.name}的过程约束和结果校验口径，适合作为三级分析依据。` },
     ];
-  }, [selectedL2]);
+  }, [selectedL2, useKeyAreaData]);
 
   const selectedL2RuleConclusion = useMemo(() => {
     if (!selectedL2) return [];
@@ -1412,7 +1420,7 @@ const Component = forwardRef<AxureHandle, AxureProps>(function Component(innerPr
       <div className="relative w-full max-w-md h-full bg-white shadow-xl overflow-y-auto custom-scrollbar">
         <div className="p-4 border-b flex items-center justify-between">
           <div className="text-lg font-semibold text-slate-800">指标详情</div>
-          <button 
+          <button
             type="button"
             className="text-slate-500 hover:text-slate-700"
             onClick={() => setShowIndicatorDetail(false)}
@@ -1512,12 +1520,12 @@ const Component = forwardRef<AxureHandle, AxureProps>(function Component(innerPr
               </div>
             </div>
           </section>
-          
+
           {/* 监督流程 */}
-          <div className="mb-4">
+          <div className="mb-4 bg-white rounded-2xl shadow-sm p-4">
             <div className="relative flex items-center gap-4" id="flow-container">
               {/* 左侧滚动箭头 */}
-              <button 
+              <button
                 type="button"
                 className={`absolute left-0 top-1/2 transform -translate-y-1/2 w-8 h-8 bg-white/50 backdrop-blur-sm hover:bg-white/80 rounded-full flex items-center justify-center transition-all z-10 shadow-sm ${showLeftArrow ? 'opacity-100' : 'opacity-0 pointer-events-none'}`}
                 onClick={() => {
@@ -1531,17 +1539,17 @@ const Component = forwardRef<AxureHandle, AxureProps>(function Component(innerPr
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
                 </svg>
               </button>
-              
-              <div 
-                className="overflow-x-auto overflow-y-hidden custom-scrollbar flex-1 pt-[5px] px-[5px] pb-1"
+
+              <div
+                className="overflow-x-auto overflow-clip-margin-[12px] custom-scrollbar flex-1"
                 id="flow-scroll-container"
               >
-                <div className="flex items-center gap-4" style={{ minWidth: 'max-content' }}>
+                <div className="flex items-center gap-4 px-2" style={{ minWidth: 'max-content' }}>
                   {FLOW_STEPS.map((step) => {
                     return (
-                      <div 
+                      <div
                         key={step.key}
-                        className="group flex-shrink-0 w-[240px] h-[80px] rounded-xl p-3 bg-white transition-all cursor-pointer relative shadow-sm hover:shadow-md hover:-translate-y-1 border-0"
+                        className="group flex-shrink-0 w-[240px] h-[80px] rounded-xl p-3 bg-gradient-to-br from-white to-[#F5F7FA] transition-all cursor-pointer relative shadow-sm hover:shadow-lg hover:-translate-y-1"
                         onClick={() => onNavigate(step.path)}
                       >
                         {step.mainCount > 0 ? (
@@ -1554,7 +1562,7 @@ const Component = forwardRef<AxureHandle, AxureProps>(function Component(innerPr
                                   <div className="text-xs text-slate-500">待办</div>
                                 </div>
                               </div>
-                              
+
                               <div className="flex items-center gap-1.5 overflow-hidden whitespace-nowrap mt-auto">
                                 {step.status.filter(s => s.value > 0).map((s) => {
                                   let bgColor = 'bg-slate-50 text-slate-500';
@@ -1562,8 +1570,8 @@ const Component = forwardRef<AxureHandle, AxureProps>(function Component(innerPr
                                   if (s.label === '超期') bgColor = 'bg-orange-50 text-orange-600';
                                   if (s.label === '被退回') bgColor = 'bg-red-50 text-red-600';
                                   return (
-                                    <div 
-                                      key={s.label} 
+                                    <div
+                                      key={s.label}
                                       className={`text-xs px-2 py-0.5 rounded-full flex-shrink-0 ${bgColor}`}
                                     >
                                       {s.label} <span className="font-semibold">{s.value}</span>
@@ -1571,7 +1579,7 @@ const Component = forwardRef<AxureHandle, AxureProps>(function Component(innerPr
                                   );
                                 })}
                               </div>
-                              
+
                               {/* Hover显示的箭头 */}
                               <div className="absolute right-3 bottom-3 opacity-0 group-hover:opacity-100 transition-all transform translate-x-2 group-hover:translate-x-0">
                                 <svg className="w-4 h-4 text-[#4E73C8]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -1608,7 +1616,7 @@ const Component = forwardRef<AxureHandle, AxureProps>(function Component(innerPr
                       </div>
                     );
                   })}
-                  
+
                   {/* 全流程查看按钮 (放置在末尾) */}
                   <button
                     type="button"
@@ -1620,9 +1628,9 @@ const Component = forwardRef<AxureHandle, AxureProps>(function Component(innerPr
                   </button>
                 </div>
               </div>
-              
+
               {/* 右侧滚动箭头 */}
-              <button 
+              <button
                 type="button"
                 className={`absolute right-0 top-1/2 transform -translate-y-1/2 w-8 h-8 bg-white/50 backdrop-blur-sm hover:bg-white/80 rounded-full flex items-center justify-center transition-all z-10 shadow-sm ${showRightArrow ? 'opacity-100' : 'opacity-0 pointer-events-none'}`}
                 onClick={() => {
@@ -1637,13 +1645,13 @@ const Component = forwardRef<AxureHandle, AxureProps>(function Component(innerPr
                 </svg>
               </button>
             </div>
-            
+
             {showFullProcess && (
-              <div 
+              <div
                 className="fixed inset-0 bg-black/40 backdrop-blur-sm z-[100] flex items-center justify-center p-6"
                 onClick={() => setShowFullProcess(false)}
               >
-                <div 
+                <div
                   className="bg-white rounded-3xl shadow-2xl w-[1100px] h-[620px] overflow-hidden flex flex-col relative"
                   onClick={e => e.stopPropagation()}
                 >
@@ -1657,7 +1665,7 @@ const Component = forwardRef<AxureHandle, AxureProps>(function Component(innerPr
                         <div className="text-xs text-slate-500">查看当前专题全部功能节点及流转关系，悬停查看说明，点击进入对应功能页</div>
                       </div>
                     </div>
-                    <button 
+                    <button
                       onClick={() => setShowFullProcess(false)}
                       className="p-2 hover:bg-slate-100 rounded-full transition-colors"
                     >
@@ -1772,10 +1780,10 @@ const Component = forwardRef<AxureHandle, AxureProps>(function Component(innerPr
               </div>
             )}
           </div>
-          
+
           {/* 第二大区：综合分析（左） + 待办事项（右） */}
           <section className="grid grid-cols-3 gap-4">
-            <div className="col-span-2 bg-white rounded-2xl shadow-sm px-4 pt-3 pb-4 flex flex-col" style={{ height: '592.38px' }}>
+            <div className="col-span-2 bg-white rounded-2xl px-4 pt-4 pb-4 flex flex-col" style={{ height: '592.38px' }}>
               <BreadcrumbNav />
               <div className="grid grid-cols-12 gap-4 flex-1 min-h-0">
                 {/* 左侧图表区 */}
@@ -1798,33 +1806,10 @@ const Component = forwardRef<AxureHandle, AxureProps>(function Component(innerPr
                     }}
                   />
                 ) : (
-                  <div key="score-radar-navigator" className="col-span-5 rounded-[22px] bg-[linear-gradient(180deg,#F7FAFF_0%,#F9FBFF_100%)] px-4 pt-3 pb-4 shadow-sm relative flex flex-col min-h-0 overflow-hidden">
-                    <div className="text-sm font-semibold text-slate-700 mb-2 flex items-center justify-between min-h-6">
-                      <span>
-                        {currentLevel === 1
-                          ? ''
-                          : currentLevel === 2
-                          ? `${selectedL1?.name || '维度'}`
-                          : `${selectedL2?.name || '二级指标'}`}
-                      </span>
-                      {currentLevel === 1 && !selectedL1 ? null : (
-                        <button
-                          type="button"
-                          className="px-2.5 py-1 text-[10px] font-semibold text-[#4E73C8] bg-white rounded-full hover:bg-blue-50 transition-colors"
-                          onClick={() => {
-                            setCurrentLevel(1);
-                            setSelectedL1(null);
-                            setSelectedL2(null);
-                            setActiveTab('overview');
-                          }}
-                        >
-                          返回
-                        </button>
-                      )}
-                    </div>
+                  <div key="score-radar-navigator" className="col-span-5 px-4 pt-3 pb-4 relative flex flex-col min-h-0 overflow-hidden">
                     {currentLevel === 3 && selectedL2 ? (
                       <div className="pt-1 space-y-3">
-                        <div className="bg-white rounded-xl px-5 py-4 shadow-sm">
+                        <div className="rounded-xl bg-[#FAFBFC] px-5 py-4">
                           <div className="flex items-start justify-between gap-4">
                             <div>
                               <div className="text-[11px] text-slate-400 mb-1">指标概览</div>
@@ -1843,19 +1828,19 @@ const Component = forwardRef<AxureHandle, AxureProps>(function Component(innerPr
                             </span>
                           </div>
                           <div className="grid grid-cols-2 gap-3 mt-4">
-                            <div className="rounded-lg bg-[#F7F9FC] px-4 py-3 shadow-sm">
+                            <div className="rounded-lg bg-white px-4 py-3">
                               <div className="text-[10px] text-slate-400 mb-1">当前得分</div>
                               <div className="text-[30px] leading-none font-bold tracking-tight text-[#4E73C8]">{selectedL2.score}分</div>
                             </div>
-                            <div className="rounded-lg bg-[#F7F9FC] px-4 py-3 shadow-sm">
+                            <div className="rounded-lg bg-white px-4 py-3">
                               <div className="text-[10px] text-slate-400 mb-1">本期值</div>
                               <div className="text-base font-semibold text-slate-800 break-words">{selectedL2.detail.currentValue || '待补充'}</div>
                             </div>
-                            <div className="rounded-lg bg-[#F7F9FC] px-4 py-3 shadow-sm">
+                            <div className="rounded-lg bg-white px-4 py-3">
                               <div className="text-[10px] text-slate-400 mb-1">标准值</div>
                               <div className="text-sm font-semibold text-slate-800 break-words">{selectedL2.detail.standardValue || '待补充'}</div>
                             </div>
-                            <div className="rounded-lg bg-[#F7F9FC] px-4 py-3 shadow-sm">
+                            <div className="rounded-lg bg-white px-4 py-3">
                               <div className="text-[10px] text-slate-400 mb-1">趋势状态</div>
                               <div className="text-sm font-semibold text-slate-800">{calcIndicatorDelta(selectedL2) >= 0 ? '上升' : '下降'}</div>
                             </div>
@@ -1863,137 +1848,146 @@ const Component = forwardRef<AxureHandle, AxureProps>(function Component(innerPr
                         </div>
                       </div>
                     ) : (
-                      <div className="flex-1 relative min-h-[300px] flex items-start justify-center pt-0 pb-2">
-                        <>
-                          <div className="h-full w-full" ref={radarChartRef}></div>
-                          {currentLevel < 3 && radarOverlayItems.length > 0 && (
-                            <div className="absolute inset-0 z-20 pointer-events-none">
-                              {radarOverlayItems.map((overlayItem) => {
-                                const isActive =
-                                  currentLevel === 1
-                                    ? selectedL1?.name === overlayItem.name
-                                    : selectedL2?.name === overlayItem.name;
-                                return (
-                                  <button
-                                    key={overlayItem.id}
-                                    type="button"
-                                    className={`absolute -translate-x-1/2 -translate-y-1/2 pointer-events-auto px-0.5 py-0 whitespace-nowrap border-none bg-transparent shadow-none transition-all ${
-                                      isActive
-                                        ? 'text-[#4E73C8] font-bold'
-                                        : 'text-slate-700 hover:text-[#4E73C8]'
-                                    }`}
-                                    style={{ left: overlayItem.left, top: overlayItem.top }}
-                                    onClick={() => {
-                                      if (currentLevel === 1) {
-                                        const dim = currentAnalysisData.find(item => item.name === overlayItem.name);
-                                        if (dim) {
-                                          setSelectedL1(dim);
-                                          setSelectedL2(null);
-                                          setCurrentLevel(2);
-                                          setActiveTab('overview');
+                      <>
+                        <div className="flex-1 relative min-h-[280px] flex items-start justify-center pt-0 pb-2">
+                          <>
+                            <div className="h-full w-full" ref={radarChartRef}></div>
+                            {currentLevel < 3 && radarOverlayItems.length > 0 && (
+                              <div className="absolute inset-0 z-20 pointer-events-none">
+                                {radarOverlayItems.map((overlayItem) => {
+                                  const isActive =
+                                    currentLevel === 1
+                                      ? selectedL1?.name === overlayItem.name
+                                      : selectedL2?.name === overlayItem.name;
+                                  return (
+                                    <button
+                                      key={overlayItem.id}
+                                      type="button"
+                                      className={`absolute -translate-x-1/2 -translate-y-1/2 pointer-events-auto px-0.5 py-0 whitespace-nowrap border-none bg-transparent shadow-none transition-all ${
+                                        isActive
+                                          ? 'text-[#4E73C8] font-bold'
+                                          : 'text-slate-700 hover:text-[#4E73C8]'
+                                      }`}
+                                      style={{ left: overlayItem.left, top: overlayItem.top }}
+                                      onClick={() => {
+                                        if (currentLevel === 1) {
+                                          const dim = currentAnalysisData.find(item => item.name === overlayItem.name);
+                                          if (dim) {
+                                            setSelectedL1(dim);
+                                            setSelectedL2(null);
+                                            setCurrentLevel(2);
+                                            setActiveTab('overview');
+                                          }
+                                        } else if (currentLevel === 2 && selectedL1) {
+                                          const ind = selectedL1.indicators.find(item => item.name === overlayItem.name);
+                                          if (ind) {
+                                            setSelectedL2(ind);
+                                            setCurrentLevel(3);
+                                            setActiveTab('overview');
+                                          }
                                         }
-                                      } else if (currentLevel === 2 && selectedL1) {
-                                        const ind = selectedL1.indicators.find(item => item.name === overlayItem.name);
-                                        if (ind) {
-                                          setSelectedL2(ind);
-                                          setCurrentLevel(3);
-                                          setActiveTab('overview');
-                                        }
-                                      }
-                                    }}
-                                  >
-                                    <span className="text-[11px] leading-none">{overlayItem.name}</span>
-                                  </button>
-                                );
-                              })}
-                            </div>
-                          )}
-                        </>
-                      </div>
+                                      }}
+                                    >
+                                      <span className="text-[11px] leading-none">{overlayItem.name}</span>
+                                    </button>
+                                  );
+                                })}
+                              </div>
+                            )}
+                          </>
+                        </div>
+                      </>
                     )}
                     {!(currentLevel === 3 && selectedL2) && (
-                      <div className="mt-3 pt-3 border-t border-slate-100 space-y-2.5">
-                        <div className="flex items-end justify-between gap-3">
-                          <div className="text-sm font-semibold text-slate-700">
-                            {currentLevel === 1
-                              ? '综合得分'
-                              : currentLevel === 2
-                              ? (isLocalDebt ? '指标得分' : '维度平均分')
-                              : (isLocalDebt ? '指标得分' : '当前指标得分')}
+                      <>
+                        <div className="mt-4 rounded-xl bg-[#FAFBFC] px-4 py-3 flex items-center justify-between">
+                          <div>
+                            <div className="text-[11px] text-slate-400 mb-0.5">
+                              {currentLevel === 1 ? '综合得分' : (isLocalDebt ? '指标得分' : '维度平均分')}
+                            </div>
+                            <div className="text-sm font-semibold text-slate-700">
+                              {currentLevel === 1 ? '评价体系总览' : selectedL1?.name || '维度'}
+                            </div>
                           </div>
-                          <div className="text-2xl font-bold text-[#4E73C8]">
-                            {currentLevel === 1 ? (
-                              <span title={scoreTitle.overallFormula}>{overallScore}分</span>
-                            ) : currentLevel === 2 ? (
-                              <span title={selectedL1 ? scoreTitle.dimensionTitle(selectedL1) : ''}>{selectedL1?.score || 0}分</span>
-                            ) : (
-                              <span title={selectedL2 ? scoreTitle.indicatorTitle(selectedL2) : ''}>{selectedL2?.score ?? 0}分</span>
+                          <div className="flex items-center gap-6">
+                            <div className="text-right">
+                              <div className="text-[10px] text-slate-400 mb-0.5">
+                                {currentLevel === 1 ? '综合得分' : '指标得分'}
+                              </div>
+                              <div className="text-2xl font-bold text-[#4E73C8]">
+                                {currentLevel === 1 ? (
+                                  <span title={scoreTitle.overallFormula}>{overallScore}分</span>
+                                ) : (
+                                  <span title={selectedL1 ? scoreTitle.dimensionTitle(selectedL1) : ''}>{selectedL1?.score || 0}分</span>
+                                )}
+                              </div>
+                            </div>
+                            {currentLevel === 2 && selectedL1?.weightValue && (
+                              <div className="text-right">
+                                <div className="text-[10px] text-slate-400 mb-0.5">权重</div>
+                                <div className="text-2xl font-bold text-[#4E73C8]">{selectedL1.weightValue}</div>
+                              </div>
                             )}
                           </div>
                         </div>
-                        {currentLevel === 1 && (
-                          <div className="space-y-2.5">
-                            <div className="flex items-center gap-2 text-xs text-slate-600">
-                              <span className="w-1.5 h-1.5 rounded-full bg-amber-500"></span>
-                              {isLocalDebt ? '需关注指标' : '当前重点关注'}：{isLocalDebt ? focusDimensions : topicProfile.focusIndicator}
-                            </div>
-                            <div className="flex items-center gap-2 text-xs text-slate-600">
-                              <span className="w-1.5 h-1.5 rounded-full bg-red-500"></span>
-                              {isLocalDebt ? '低分指标' : '当前最低维度'}：{isLocalDebt ? `${lowestDimension?.name || topicProfile.weakestDimension}${lowestDimension ? `（${lowestDimension.score}分）` : ''}` : `${topicProfile.weakestDimension}（${currentAnalysisData[3]?.score ?? 0}分）`}
-                            </div>
-                            {isLocalDebt && highestDimension && (
+                        <div className="mt-3 space-y-2 pl-4">
+                          {currentLevel === 1 ? (
+                            <>
+                              <div className="flex items-center gap-2 text-xs text-slate-600">
+                                <span className="w-1.5 h-1.5 rounded-full bg-amber-500"></span>
+                                {isLocalDebt ? '需关注指标' : '当前重点关注'}：{isLocalDebt ? focusDimensions : topicProfile.focusIndicator}
+                              </div>
+                              <div className="flex items-center gap-2 text-xs text-slate-600">
+                                <span className="w-1.5 h-1.5 rounded-full bg-red-500"></span>
+                                {isLocalDebt ? '低分指标' : '当前最低维度'}：{isLocalDebt ? `${lowestDimension?.name || topicProfile.weakestDimension}${lowestDimension ? `（${lowestDimension.score}分）` : ''}` : `${topicProfile.weakestDimension}（${currentAnalysisData[3]?.score ?? 0}分）`}
+                              </div>
+                              {isLocalDebt && highestDimension && (
+                                <div className="flex items-center gap-2 text-xs text-slate-600">
+                                  <span className="w-1.5 h-1.5 rounded-full bg-green-500"></span>
+                                  高分指标：{highestDimension.name}（{highestDimension.score}分）
+                                </div>
+                              )}
+                            </>
+                          ) : (
+                            <>
+                              <div className="flex items-center gap-2 text-xs text-slate-600">
+                                <span className="w-1.5 h-1.5 rounded-full bg-amber-500"></span>
+                                需关注指标：{focusL2Indicators || '待识别'}
+                              </div>
+                              <div className="flex items-center gap-2 text-xs text-slate-600">
+                                <span className="w-1.5 h-1.5 rounded-full bg-red-500"></span>
+                                低分指标：{weakestL2Indicator ? `${weakestL2Indicator.name}（${weakestL2Indicator.score}分）` : '待识别'}
+                              </div>
                               <div className="flex items-center gap-2 text-xs text-slate-600">
                                 <span className="w-1.5 h-1.5 rounded-full bg-green-500"></span>
-                                高分指标：{highestDimension.name}（{highestDimension.score}分）
+                                高分指标：{strongestL2Indicator ? `${strongestL2Indicator.name}（${strongestL2Indicator.score}分）` : '待识别'}
                               </div>
-                            )}
-                          </div>
-                        )}
-                        {currentLevel === 2 && (
-                          <div className="space-y-2.5">
-                            {isLocalDebt && selectedL1?.weightValue && (
-                              <div className="flex items-center gap-2 text-xs text-slate-600">
-                                <span className="w-1.5 h-1.5 rounded-full bg-blue-500"></span>
-                                指标权重：{selectedL1.weightValue}
-                              </div>
-                            )}
-                            <div className="flex items-center gap-2 text-xs text-slate-600">
-                              <span className="w-1.5 h-1.5 rounded-full bg-amber-500"></span>
-                              需关注指标：{focusL2Indicators || '待识别'}
-                            </div>
-                            <div className="flex items-center gap-2 text-xs text-slate-600">
-                              <span className="w-1.5 h-1.5 rounded-full bg-red-500"></span>
-                              低分指标：{weakestL2Indicator ? `${weakestL2Indicator.name}（${weakestL2Indicator.score}分）` : '待识别'}
-                            </div>
-                            <div className="flex items-center gap-2 text-xs text-slate-600">
-                              <span className="w-1.5 h-1.5 rounded-full bg-green-500"></span>
-                              高分指标：{strongestL2Indicator ? `${strongestL2Indicator.name}（${strongestL2Indicator.score}分）` : '待识别'}
-                            </div>
-                          </div>
-                        )}
-                      </div>
+                            </>
+                          )}
+                        </div>
+                      </>
                     )}
                   </div>
                 )}
 
                 {/* 右侧详情分析区 */}
                 {isLocalDebt && evaluationView === 'trend' && renderLocalDebtTrendDetail()}
-                <div className={`${isLocalDebt && evaluationView === 'trend' ? 'hidden' : 'col-span-7'} rounded-[22px] bg-[linear-gradient(180deg,#F7FAFF_0%,#F9FBFF_100%)] px-4 pt-3 pb-4 shadow-sm flex flex-col min-h-0 overflow-hidden`}>
+                <div className={`${isLocalDebt && evaluationView === 'trend' ? 'hidden' : 'col-span-7'} px-4 pt-3 pb-4 flex flex-col min-h-0 overflow-hidden`}>
                   {currentLevel !== 2 && !(currentLevel === 3 && isLocalDebt) && (
                     <div className="pb-2">
                       <div className="flex items-center justify-between gap-3">
                         <div className="flex items-center gap-2">
-                          <div className="w-1 h-3.5 bg-[#4E73C8] rounded-full"></div>
-                          <div className="text-[15px] font-bold text-slate-700">
-                            {isLocalDebt
-                              ? currentLevel === 1
-                                ? '体系说明'
-                                : '指标说明'
-                              : currentLevel === 1
-                              ? '一级概览'
-                              : '指标说明'}
+                            <div className="w-[3px] h-[14px] bg-[#4E73C8] rounded-full"></div>
+                            <div className="text-[15px] font-bold text-slate-700">
+                              {isLocalDebt
+                                ? currentLevel === 1
+                                  ? '体系说明'
+                                  : '指标说明'
+                                : currentLevel === 1
+                                ? '一级概览'
+                                : '指标说明'}
+                            </div>
                           </div>
-                        </div>
                         {currentLevel === 3 && (
                           <div className="ml-auto flex items-center gap-2">
                             {isLocalDebt ? null : (
@@ -2016,7 +2010,7 @@ const Component = forwardRef<AxureHandle, AxureProps>(function Component(innerPr
                         {currentLevel === 3 && !isLocalDebt && (
                           <>
                             {['overview', 'analysis', 'anomaly', 'closure', 'trend'].map(t => (
-                              <button 
+                              <button
                                 key={t}
                                 className={`pb-2 text-xs whitespace-nowrap transition-all relative ${activeTab === t ? 'text-[#4E73C8] font-bold' : 'text-slate-500 hover:text-slate-700'}`}
                                 onClick={() => setActiveTab(t)}
@@ -2031,14 +2025,14 @@ const Component = forwardRef<AxureHandle, AxureProps>(function Component(innerPr
                     </div>
                   )}
 
-                  <div className="flex-1 overflow-hidden bg-[#F9FBFF] min-h-0">
+                  <div className="flex-1 overflow-hidden min-h-0">
                     {/* Level 1/2 内容 */}
                     {(currentLevel === 1 || currentLevel === 2) && (
                       <div className="h-full flex flex-col gap-4">
                         {!selectedL1 && (
                           <div className="flex flex-col gap-4 h-full">
                             <div className="space-y-2">
-                              <div className="bg-white px-4 py-3.5 rounded-lg shadow-sm">
+                              <div className="bg-[#FAFBFC] px-4 py-3.5 rounded-lg">
                                 <div className="text-xs text-slate-600 leading-relaxed">
                                   {topicProfile.evaluationIntro}
                                 </div>
@@ -2049,9 +2043,9 @@ const Component = forwardRef<AxureHandle, AxureProps>(function Component(innerPr
                                 <div className="w-[3px] h-[14px] bg-[#4E73C8] rounded-full"></div>
                                 <div className="text-[15px] font-bold text-slate-700">{isLocalDebt ? '分析结论' : '当前重点关注'}</div>
                               </div>
-                              <div className="bg-white px-4 py-3 rounded-lg shadow-sm">
+                              <div className="bg-[#FAFBFC] px-4 py-4 rounded-lg min-h-[64px] flex items-center">
                                 {isLocalDebt ? (
-                                  <div className="inline-flex items-center gap-1.5 self-start px-2 py-1 rounded-md bg-slate-50 text-[11px] text-slate-500 border border-dashed border-slate-200">
+                                  <div className="inline-flex items-center gap-1.5 self-start px-2 py-1 rounded-md bg-slate-100 text-[11px] text-slate-500">
                                     <span className="w-1.5 h-1.5 rounded-full bg-slate-300"></span>
                                     待接入AI分析
                                   </div>
@@ -2065,42 +2059,44 @@ const Component = forwardRef<AxureHandle, AxureProps>(function Component(innerPr
                                 <div className="w-[3px] h-[14px] bg-[#4E73C8] rounded-full"></div>
                                 <div className="text-[15px] font-bold text-slate-700">指标概览</div>
                               </div>
-                              <div className="grid grid-cols-2 gap-2.5 content-start">
-                                {currentAnalysisData.map((dimension) => (
-                                  <button
-                                    key={dimension.id}
-                                    type="button"
-                                    title={`${dimension.name}\n得分：${dimension.score}分\n状态：${dimension.status}\n点击后查看该一级指标下的二级指标分析。`}
-                                    className="text-left px-3 py-2.5 bg-white rounded-lg hover:bg-blue-50/30 transition-all shadow-sm min-h-[74px]"
-                                    onClick={() => {
-                                      setSelectedL1(dimension);
-                                      setSelectedL2(null);
-                                      setCurrentLevel(2);
-                                      setActiveTab('overview');
-                                    }}
-                                  >
-                                    <div className="flex items-center justify-between mb-1">
-                                      <div className="text-[11px] font-bold text-slate-800 truncate">{dimension.name}</div>
-                                      <div className="text-[10px] font-semibold text-[#4E73C8]">
-                                        <span title={scoreTitle.dimensionTitle(dimension)}>{dimension.score}分</span>
+                              <div className="flex-1 min-h-0 overflow-y-auto pr-1">
+                                <div className="grid grid-cols-2 gap-2.5 content-start">
+                                  {currentAnalysisData.map((dimension) => (
+                                    <button
+                                      key={dimension.id}
+                                      type="button"
+                                      title={`${dimension.name}\n得分：${dimension.score}分\n状态：${dimension.status}\n点击后查看该一级指标下的二级指标分析。`}
+                                      className="text-left px-3 py-2.5 bg-[#FAFBFC] rounded-lg hover:bg-blue-50/50 transition-all min-h-[74px]"
+                                      onClick={() => {
+                                        setSelectedL1(dimension);
+                                        setSelectedL2(null);
+                                        setCurrentLevel(2);
+                                        setActiveTab('overview');
+                                      }}
+                                    >
+                                      <div className="flex items-center justify-between mb-1">
+                                        <div className="text-[11px] font-bold text-slate-800 truncate">{dimension.name}</div>
+                                        <div className="text-[10px] font-semibold text-[#4E73C8]">
+                                          <span title={scoreTitle.dimensionTitle(dimension)}>{dimension.score}分</span>
+                                        </div>
                                       </div>
-                                    </div>
-                                    <div className="flex items-center justify-between gap-2 text-[10px] text-slate-500">
-                                      <span className={`inline-flex px-1.5 py-0.5 rounded-full ${
-                                        dimension.status === '良好'
-                                          ? 'bg-green-50 text-green-600'
-                                          : dimension.status === '一般'
-                                          ? 'bg-amber-50 text-amber-600'
-                                          : 'bg-red-50 text-red-600'
-                                      }`}>
-                                        {dimension.status}
-                                      </span>
-                                      {isLocalDebt && dimension.weightValue && (
-                                        <span className="text-slate-400">权重 {dimension.weightValue}</span>
-                                      )}
-                                    </div>
-                                  </button>
-                                ))}
+                                      <div className="flex items-center justify-between gap-2 text-[10px] text-slate-500">
+                                        <span className={`inline-flex px-1.5 py-0.5 rounded-full ${
+                                          dimension.status === '良好'
+                                            ? 'bg-green-50 text-green-600'
+                                            : dimension.status === '一般'
+                                            ? 'bg-amber-50 text-amber-600'
+                                            : 'bg-red-50 text-red-600'
+                                        }`}>
+                                          {dimension.status}
+                                        </span>
+                                        {isLocalDebt && dimension.weightValue && (
+                                          <span className="text-slate-400">权重 {dimension.weightValue}</span>
+                                        )}
+                                      </div>
+                                    </button>
+                                  ))}
+                                </div>
                               </div>
                             </div>
                           </div>
@@ -2114,7 +2110,7 @@ const Component = forwardRef<AxureHandle, AxureProps>(function Component(innerPr
                                   <div className="text-[15px] font-bold text-slate-700">指标说明</div>
                                 </div>
                               </div>
-                              <div className="bg-white px-4 py-3.5 rounded-lg shadow-sm">
+                              <div className="bg-[#FAFBFC] px-4 py-3.5 rounded-lg">
                                 <div className="text-xs text-slate-600 leading-relaxed">
                                   {selectedL1.description}
                                 </div>
@@ -2125,8 +2121,8 @@ const Component = forwardRef<AxureHandle, AxureProps>(function Component(innerPr
                                 <div className="w-[3px] h-[14px] bg-[#4E73C8] rounded-full"></div>
                                 <div className="text-[15px] font-bold text-slate-700">分析结论</div>
                               </div>
-                              <div className="bg-white px-4 py-3 rounded-lg shadow-sm min-h-[108px]">
-                                <div className="inline-flex items-center gap-1.5 self-start px-2 py-1 rounded-md bg-slate-50 text-[11px] text-slate-500 border border-dashed border-slate-200">
+                              <div className="bg-[#FAFBFC] px-4 py-4 rounded-lg min-h-[64px] flex items-center">
+                                <div className="inline-flex items-center gap-1.5 self-start px-2 py-1 rounded-md bg-slate-100 text-[11px] text-slate-500">
                                   <span className="w-1.5 h-1.5 rounded-full bg-slate-300"></span>
                                   待接入AI分析
                                 </div>
@@ -2137,41 +2133,43 @@ const Component = forwardRef<AxureHandle, AxureProps>(function Component(innerPr
                                 <div className="w-[3px] h-[14px] bg-[#4E73C8] rounded-full"></div>
                                 <div className="text-[15px] font-bold text-slate-700">指标概览</div>
                               </div>
-                              <div className="grid grid-cols-2 gap-2.5 content-start">
-                                {selectedL1.indicators.map((indicator) => (
-                                  <button
-                                    key={indicator.id}
-                                    type="button"
-                                    title={`${indicator.name}\n得分：${indicator.score}分\n状态：${indicator.result}\n点击后查看该二级指标详情分析。`}
-                                    className="text-left px-3 py-2.5 bg-white rounded-lg hover:bg-blue-50/30 transition-all shadow-sm min-h-[74px]"
-                                    onClick={() => {
-                                      setSelectedL2(indicator);
-                                      setCurrentLevel(3);
-                                      setActiveTab('overview');
-                                    }}
-                                  >
-                                    <div className="flex items-center justify-between mb-1">
-                                      <div className="text-[11px] font-bold text-slate-800 truncate pr-2">{indicator.name}</div>
-                                      <div className="text-[10px] font-semibold text-[#4E73C8]">
-                                        <span title={scoreTitle.indicatorTitle(indicator)}>{indicator.score}分</span>
+                              <div className="flex-1 min-h-0 overflow-y-auto pr-1">
+                                <div className="grid grid-cols-2 gap-2.5 content-start">
+                                  {selectedL1.indicators.map((indicator) => (
+                                    <button
+                                      key={indicator.id}
+                                      type="button"
+                                      title={`${indicator.name}\n得分：${indicator.score}分\n状态：${indicator.result}\n点击后查看该二级指标详情分析。`}
+                                      className="text-left px-3 py-2.5 bg-[#FAFBFC] rounded-lg hover:bg-blue-50/50 transition-all min-h-[74px]"
+                                      onClick={() => {
+                                        setSelectedL2(indicator);
+                                        setCurrentLevel(3);
+                                        setActiveTab('overview');
+                                      }}
+                                    >
+                                      <div className="flex items-center justify-between mb-1">
+                                        <div className="text-[11px] font-bold text-slate-800 truncate pr-2">{indicator.name}</div>
+                                        <div className="text-[10px] font-semibold text-[#4E73C8]">
+                                          <span title={scoreTitle.indicatorTitle(indicator)}>{indicator.score}分</span>
+                                        </div>
                                       </div>
-                                    </div>
-                                    <div className="flex items-center justify-between gap-2 text-[10px] text-slate-500">
-                                      <span className={`inline-flex px-1.5 py-0.5 rounded-full ${
-                                        indicator.result === '良好'
-                                          ? 'bg-green-50 text-green-600'
-                                          : indicator.result === '一般'
-                                          ? 'bg-amber-50 text-amber-600'
-                                          : 'bg-red-50 text-red-600'
-                                      }`}>
-                                        {indicator.result}
-                                      </span>
-                                      {isLocalDebt && indicator.weightValue && (
-                                        <span className="text-slate-400">权重 {indicator.weightValue}</span>
-                                      )}
-                                    </div>
-                                  </button>
-                                ))}
+                                      <div className="flex items-center justify-between gap-2 text-[10px] text-slate-500">
+                                        <span className={`inline-flex px-1.5 py-0.5 rounded-full ${
+                                          indicator.result === '良好'
+                                            ? 'bg-green-50 text-green-600'
+                                            : indicator.result === '一般'
+                                            ? 'bg-amber-50 text-amber-600'
+                                            : 'bg-red-50 text-red-600'
+                                        }`}>
+                                          {indicator.result}
+                                        </span>
+                                        {isLocalDebt && indicator.weightValue && (
+                                          <span className="text-slate-400">权重 {indicator.weightValue}</span>
+                                        )}
+                                      </div>
+                                    </button>
+                                  ))}
+                                </div>
                               </div>
                             </div>
                           </div>
@@ -2185,7 +2183,7 @@ const Component = forwardRef<AxureHandle, AxureProps>(function Component(innerPr
                                 <button
                                   key={ind.id}
                                   type="button"
-                                  className="w-full bg-white rounded-lg px-3 py-3 hover:bg-blue-50/20 transition-all text-left shadow-sm"
+                                  className="w-full bg-[#FAFBFC] rounded-lg px-3 py-3 hover:bg-blue-50/50 transition-all text-left"
                                   onClick={() => {
                                     setSelectedL2(ind);
                                     setCurrentLevel(3);
@@ -2225,7 +2223,7 @@ const Component = forwardRef<AxureHandle, AxureProps>(function Component(innerPr
                         )}
                         {currentLevel === 2 && selectedL1 && activeTab === 'closure' && (
                           <div className="space-y-3">
-                            <div className="p-3 rounded-lg bg-red-50/40 ">
+                            <div className="p-3 rounded-lg bg-red-50/30">
                               <div className="flex items-center gap-2 mb-2">
                                 <div className="w-[3px] h-[14px] bg-red-500 rounded-full"></div>
                                 <div className="text-[15px] font-bold text-slate-800">问题识别</div>
@@ -2234,7 +2232,7 @@ const Component = forwardRef<AxureHandle, AxureProps>(function Component(innerPr
                                 {weakestIndicator ? (isLocalDebt ? `${weakestIndicator.name} 在当前维度中权重参考为 ${weakestIndicator.score}分。` : `${weakestIndicator.name} 当前得分 ${weakestIndicator.score}分，为该维度短板指标。`) : '当前维度暂无可识别问题。'}
                               </div>
                             </div>
-                            <div className="p-3 rounded-lg bg-slate-50 ">
+                            <div className="p-3 rounded-lg bg-[#FAFBFC]">
                               <div className="flex items-center gap-2 mb-2">
                                 <div className="w-[3px] h-[14px] bg-slate-400 rounded-full"></div>
                                 <div className="text-[15px] font-bold text-slate-800">原因分析</div>
@@ -2243,7 +2241,7 @@ const Component = forwardRef<AxureHandle, AxureProps>(function Component(innerPr
                                 {weakestIndicator ? `${weakestIndicator.name} 涉及的制度衔接与过程管控仍不充分，前置规划与执行校验存在断点。` : '当前维度暂无明显原因特征。'}
                               </div>
                             </div>
-                            <div className="p-3 rounded-lg bg-amber-50/40 ">
+                            <div className="p-3 rounded-lg bg-amber-50/30">
                               <div className="flex items-center gap-2 mb-2">
                                 <div className="w-[3px] h-[14px] bg-amber-500 rounded-full"></div>
                                 <div className="text-[15px] font-bold text-slate-800">整改建议</div>
@@ -2253,11 +2251,11 @@ const Component = forwardRef<AxureHandle, AxureProps>(function Component(innerPr
                               </div>
                             </div>
                             <div className="grid grid-cols-2 gap-3">
-                              <div className="bg-white  rounded-lg p-3">
+                              <div className="bg-[#FAFBFC] rounded-lg p-3">
                                 <div className="text-[10px] text-slate-400 mb-1">建议动作</div>
                                 <div className="text-xs font-semibold text-slate-700">建立专项整改清单</div>
                               </div>
-                              <div className="bg-white  rounded-lg p-3">
+                              <div className="bg-[#FAFBFC] rounded-lg p-3">
                                 <div className="text-[10px] text-slate-400 mb-1">整改周期</div>
                                 <div className="text-xs font-semibold text-slate-700">2 周内形成阶段结果</div>
                               </div>
@@ -2270,7 +2268,7 @@ const Component = forwardRef<AxureHandle, AxureProps>(function Component(innerPr
                               <div className="w-[3px] h-[14px] bg-[#4E73C8] rounded-full"></div>
                               <div className="text-[15px] font-bold text-slate-700">维度趋势概览</div>
                             </div>
-                            <div className="bg-white rounded-lg  p-3 space-y-3">
+                            <div className="bg-[#FAFBFC] rounded-lg p-3 space-y-3">
                               <svg viewBox="0 0 360 120" className="w-full h-28">
                                 <polyline
                                   fill="none"
@@ -2305,14 +2303,13 @@ const Component = forwardRef<AxureHandle, AxureProps>(function Component(innerPr
                       <div className="space-y-4">
                         {isLocalDebt ? (
                           <div className="space-y-4">
-                            <div className="rounded-[22px] bg-[linear-gradient(180deg,#FFFFFF_0%,#F6F9FF_100%)] px-4 py-4 shadow-sm space-y-4">
-                              <div className="flex items-start justify-between gap-4">
-                                <div>
-                                  <div className="text-[11px] uppercase tracking-[0.18em] text-slate-400">分析结论</div>
-                                  <div className="mt-1 text-[18px] font-bold text-slate-800">
-                                    {selectedL2.result === '良好' ? '当前指标已处于规则良好区间' : selectedL2.result === '一般' ? '当前指标接近阈值，需持续关注波动' : '当前指标未达规则要求，需优先处置'}
-                                  </div>
-                                </div>
+                            <div className="space-y-4">
+                              <div className="flex items-center gap-2">
+                                <div className="w-[3px] h-[14px] bg-[#4E73C8] rounded-full"></div>
+                                <div className="text-[15px] font-bold text-slate-700">分析结论</div>
+                              </div>
+                              <div className="text-[18px] font-bold text-slate-800">
+                                {selectedL2.result === '良好' ? '当前指标已处于规则良好区间' : selectedL2.result === '一般' ? '当前指标接近阈值，需持续关注波动' : '当前指标未达规则要求，需优先处置'}
                               </div>
                               <div className="space-y-2">
                                 {selectedL2RuleConclusion.map((item) => (
@@ -2324,22 +2321,22 @@ const Component = forwardRef<AxureHandle, AxureProps>(function Component(innerPr
                               </div>
                             </div>
 
-                            <div className="grid grid-cols-2 gap-4 h-[306px] mb-4">
-                              <div className="rounded-[24px] bg-white px-5 py-5 shadow-sm flex flex-col h-full min-h-0 overflow-hidden">
-                                <div className="flex items-center gap-2 shrink-0">
+                            <div className="grid grid-cols-2 gap-4 mb-4">
+                              <div className="flex flex-col">
+                                <div className="flex items-center gap-2 mb-3">
                                   <div className="w-[3px] h-[14px] bg-[#4E73C8] rounded-full"></div>
                                   <div className="text-[15px] font-bold text-slate-700">规则定义</div>
                                 </div>
-                                <div className="mt-4 flex-1 min-h-0 space-y-3 overflow-y-auto pr-2 pb-2 scrollbar-thin">
-                                  <div className="rounded-[18px] bg-slate-50 px-4 py-3">
+                                <div className="space-y-3 overflow-y-auto pr-2 pb-2 scrollbar-thin" style={{height: '270px'}}>
+                                  <div className="rounded-lg bg-[#FAFBFC] px-4 py-3">
                                     <div className="text-[10px] text-slate-400 mb-1">指标定义</div>
                                     <div className="text-xs text-slate-600 leading-relaxed">{selectedL2.detail.definition}</div>
                                   </div>
-                                  <div className="rounded-[18px] bg-slate-50 px-4 py-3">
+                                  <div className="rounded-lg bg-[#FAFBFC] px-4 py-3">
                                     <div className="text-[10px] text-slate-400 mb-1">评分标准</div>
                                     <div className="text-xs text-slate-600 leading-relaxed">{selectedL2.detail.scoreFormula || '待补充评分标准'}</div>
                                   </div>
-                                  <div className="rounded-[18px] bg-slate-50 px-4 py-3">
+                                  <div className="rounded-lg bg-[#FAFBFC] px-4 py-3">
                                     <div className="text-[10px] text-slate-400 mb-1">计算逻辑</div>
                                     <div className="text-xs text-slate-600 leading-relaxed">
                                       依据规则定义中的评分区间映射成规则得分；该得分直接影响上级指标评价，但不等同于综合总分。
@@ -2348,35 +2345,35 @@ const Component = forwardRef<AxureHandle, AxureProps>(function Component(innerPr
                                 </div>
                               </div>
 
-                              <div className="rounded-[24px] bg-white px-5 py-5 shadow-sm flex flex-col h-full min-h-0 overflow-hidden">
-                                <div className="flex items-center gap-2 shrink-0">
+                              <div className="flex flex-col">
+                                <div className="flex items-center gap-2 mb-3">
                                   <div className="w-[3px] h-[14px] bg-[#4E73C8] rounded-full"></div>
                                   <div className="text-[15px] font-bold text-slate-700">政策依据</div>
                                 </div>
-                                <div className="mt-4 flex-1 min-h-0 space-y-3 overflow-y-auto pr-2 pb-2 scrollbar-thin">
+                                <div className="space-y-3 overflow-y-auto pr-2 pb-2 scrollbar-thin" style={{height: '270px'}}>
                                   <div className="grid grid-cols-2 gap-3">
                                     {selectedL2PolicyItems
                                       .filter((item) => ['政策名称', '政策文号'].includes(item.label))
                                       .map((item) => (
-                                        <div key={item.label} className="rounded-[18px] bg-slate-50 px-4 py-3 min-w-0">
+                                        <div key={item.label} className="rounded-lg bg-[#FAFBFC] px-4 py-3 min-w-0">
                                           <div className="text-[10px] text-slate-400 mb-1">{item.label}</div>
                                           <div className="text-xs text-slate-700 leading-relaxed break-words">{item.value}</div>
                                         </div>
                                       ))}
                                   </div>
-                                  <div className="rounded-[18px] bg-slate-50 px-4 py-3">
+                                  <div className="rounded-lg bg-[#FAFBFC] px-4 py-3">
                                     <div className="text-[10px] text-slate-400 mb-1">核心条款</div>
                                     <div className="text-xs text-slate-700 leading-relaxed break-words">
                                       {selectedL2PolicyItems.find((item) => item.label === '政策条例')?.value || '待补充'}
                                     </div>
                                   </div>
-                                  <div className="rounded-[18px] bg-[#FFF9EC] px-4 py-3">
+                                  <div className="rounded-lg bg-amber-50/30 px-4 py-3">
                                     <div className="text-[10px] text-amber-500 mb-1">选取原因</div>
                                     <div className="text-xs text-slate-700 leading-relaxed break-words">
                                       {selectedL2PolicyItems.find((item) => item.label === '选取原因')?.value || '待补充'}
                                     </div>
                                   </div>
-                                  <div className="rounded-[18px] bg-slate-50 px-4 py-3 text-[11px] text-slate-400 break-all">
+                                  <div className="rounded-lg bg-[#FAFBFC] px-4 py-3 text-[11px] text-slate-400 break-all">
                                     政策链接：{selectedL2PolicyItems.find((item) => item.label === '政策链接')?.value || '待补充'}
                                   </div>
                                 </div>
@@ -2386,7 +2383,7 @@ const Component = forwardRef<AxureHandle, AxureProps>(function Component(innerPr
                         ) : activeTab === 'overview' && (
                           <div className="space-y-4">
                             <div className="space-y-2">
-                              <div className="bg-white px-4 py-3.5 rounded-lg shadow-sm">
+                              <div className="bg-[#FAFBFC] px-4 py-3.5 rounded-lg">
                                 <div className="text-xs text-slate-600 leading-relaxed">
                                   {selectedL2.detail.definition}
                                 </div>
@@ -2397,8 +2394,8 @@ const Component = forwardRef<AxureHandle, AxureProps>(function Component(innerPr
                                 <div className="w-[3px] h-[14px] bg-[#4E73C8] rounded-full"></div>
                                 <div className="text-[15px] font-bold text-slate-700">分析结论</div>
                               </div>
-                              <div className="bg-white px-4 py-3 rounded-lg shadow-sm">
-                                <div className="inline-flex items-center gap-1.5 self-start px-2 py-1 rounded-md bg-slate-50 text-[11px] text-slate-500 border border-dashed border-slate-200">
+                              <div className="bg-[#FAFBFC] px-4 py-3 rounded-lg">
+                                <div className="inline-flex items-center gap-1.5 self-start px-2 py-1 rounded-md bg-slate-100 text-[11px] text-slate-500">
                                   <span className="w-1.5 h-1.5 rounded-full bg-slate-300"></span>
                                   待接入AI分析
                                 </div>
@@ -2410,13 +2407,13 @@ const Component = forwardRef<AxureHandle, AxureProps>(function Component(innerPr
                                 <div className="text-[15px] font-bold text-slate-700">指标概览</div>
                               </div>
                               <div className="grid grid-cols-2 gap-2.5">
-                                <div className="bg-white px-3 py-3 rounded-lg shadow-sm">
+                                <div className="bg-[#FAFBFC] px-3 py-3 rounded-lg">
                                   <div className="text-[10px] text-slate-400 mb-1">当前得分</div>
                                   <div className="text-lg font-bold text-[#4E73C8]">
                                     <span title={scoreTitle.indicatorTitle(selectedL2)}>{selectedL2.score}分</span>
                                   </div>
                                 </div>
-                                <div className="bg-white px-3 py-3 rounded-lg shadow-sm">
+                                <div className="bg-[#FAFBFC] px-3 py-3 rounded-lg">
                                   <div className="text-[10px] text-slate-400 mb-1">{isLocalDebt ? '业务结果' : '本期值'}</div>
                                   <div className="text-sm font-semibold text-slate-700">
                                     <span title={`本期值口径：当前周期该指标的业务原始数据。\n本期值：${selectedL2.detail.currentValue}`}>
@@ -2424,7 +2421,7 @@ const Component = forwardRef<AxureHandle, AxureProps>(function Component(innerPr
                                     </span>
                                   </div>
                                 </div>
-                                <div className="bg-white px-3 py-3 rounded-lg shadow-sm">
+                                <div className="bg-[#FAFBFC] px-3 py-3 rounded-lg">
                                   <div className="text-[10px] text-slate-400 mb-1">{isLocalDebt ? '参考阈值' : '标准值'}</div>
                                   <div className="text-sm font-semibold text-slate-700">
                                     <span title={`标准值口径：该指标设定的合规/目标阈值。\n标准值：${selectedL2.detail.standardValue}`}>
@@ -2432,7 +2429,7 @@ const Component = forwardRef<AxureHandle, AxureProps>(function Component(innerPr
                                     </span>
                                   </div>
                                 </div>
-                                <div className="bg-white px-3 py-3 rounded-lg shadow-sm">
+                                <div className="bg-[#FAFBFC] px-3 py-3 rounded-lg">
                                   <div className="text-[10px] text-slate-400 mb-1">状态</div>
                                   <div className={`text-sm font-semibold ${selectedL2.result === '良好' ? 'text-green-600' : selectedL2.result === '一般' ? 'text-amber-600' : 'text-red-600'}`}>
                                     {selectedL2.result}
@@ -2452,11 +2449,11 @@ const Component = forwardRef<AxureHandle, AxureProps>(function Component(innerPr
                             <div className="space-y-2">
                               {selectedL2.detail.regionalDistribution.length > 0 ? (
                                 selectedL2.detail.regionalDistribution.map((region) => (
-                                  <div key={region.name} className="flex items-center justify-between p-3 rounded-lg bg-white  hover:border-blue-200 transition-all">
+                                  <div key={region.name} className="flex items-center justify-between p-3 rounded-lg bg-[#FAFBFC] hover:bg-blue-50/50 transition-all">
                                     <div className="flex items-center gap-3">
                                       <div className="text-xs font-medium text-slate-700">{region.name}</div>
                                       <div className="w-32 h-1.5 bg-slate-100 rounded-full overflow-hidden">
-                                        <div 
+                                        <div
                                           className={`h-full rounded-full ${region.status === 'good' ? 'bg-green-500' : region.status === 'warning' ? 'bg-amber-500' : 'bg-red-500'}`}
                                           style={{ width: `${region.value}%` }}
                                         />
@@ -2471,12 +2468,12 @@ const Component = forwardRef<AxureHandle, AxureProps>(function Component(innerPr
                                   </div>
                                 ))
                               ) : (
-                                <div className="text-center py-8 bg-slate-50 rounded-xl  text-slate-400 text-xs">
+                                <div className="text-center py-8 bg-[#FAFBFC] rounded-xl text-slate-400 text-xs">
                                   暂无地区分布数据
                                 </div>
                               )}
                             </div>
-                            <div className="bg-blue-50/30 p-3 rounded-lg ">
+                            <div className="bg-blue-50/30 p-3 rounded-lg">
                               <div className="text-[10px] text-blue-600 font-semibold mb-1">分析结论：</div>
                               <div className="text-[10px] text-slate-600 leading-relaxed">
                                 当前指标在各地区的表现存在一定差异，{selectedL2.detail.regionalDistribution.find(r => r.status === 'bad')?.name || '部分地区'}的表现是拉低整体分值的主要因素。
@@ -2494,7 +2491,7 @@ const Component = forwardRef<AxureHandle, AxureProps>(function Component(innerPr
                             <div className="space-y-3">
                               {selectedL2.detail.rules.length > 0 ? (
                                 selectedL2.detail.rules.map((rule, idx) => (
-                                  <div key={idx} className="p-4 bg-red-50/30 rounded-xl ">
+                                  <div key={idx} className="p-4 bg-red-50/30 rounded-xl">
                                     <div className="flex items-center justify-between mb-2">
                                       <div className="text-xs font-bold text-red-800">{rule.name}</div>
                                       <div className="text-[10px] font-bold text-red-600 px-2 py-0.5 bg-red-100/50 rounded-full">异常</div>
@@ -2509,7 +2506,7 @@ const Component = forwardRef<AxureHandle, AxureProps>(function Component(innerPr
                                   </div>
                                 ))
                               ) : (
-                                <div className="text-center py-8 bg-slate-50 rounded-xl  text-slate-400 text-xs">
+                                <div className="text-center py-8 bg-[#FAFBFC] rounded-xl text-slate-400 text-xs">
                                   当前指标暂无异常记录
                                 </div>
                               )}
@@ -2519,7 +2516,7 @@ const Component = forwardRef<AxureHandle, AxureProps>(function Component(innerPr
 
                         {activeTab === 'closure' && (
                           <div className="space-y-3">
-                            <div className="p-3 rounded-lg bg-red-50/40 ">
+                            <div className="p-3 rounded-lg bg-red-50/30">
                               <div className="flex items-center gap-2 mb-2">
                                 <div className="w-[3px] h-[14px] bg-red-500 rounded-full"></div>
                                 <div className="text-[15px] font-bold text-slate-800">问题识别</div>
@@ -2528,7 +2525,7 @@ const Component = forwardRef<AxureHandle, AxureProps>(function Component(innerPr
                                 {isLocalDebt ? `${selectedL2.name} 当前展示的是定义口径：业务结果 ${selectedL2.detail.currentValue}，参考阈值 ${selectedL2.detail.standardValue}，权重参考为 ${selectedL2.score}分。` : `${selectedL2.name} 当前得分为 ${selectedL2.score}分，本期值为 ${selectedL2.detail.currentValue}，标准值为 ${selectedL2.detail.standardValue}，处于“${selectedL2.result}”状态。`}
                               </div>
                             </div>
-                            <div className="p-3 rounded-lg bg-slate-50 ">
+                            <div className="p-3 rounded-lg bg-[#FAFBFC]">
                               <div className="flex items-center gap-2 mb-2">
                                 <div className="w-[3px] h-[14px] bg-slate-400 rounded-full"></div>
                                 <div className="text-[15px] font-bold text-slate-800">原因分析</div>
@@ -2601,7 +2598,7 @@ const Component = forwardRef<AxureHandle, AxureProps>(function Component(innerPr
                 </div>
               </div>
             </div>
-            
+
             <div className="bg-white rounded-2xl shadow-sm p-4" style={{ height: '592.38px' }}>
               <div className="mb-3 flex items-center justify-between">
                 <div className="flex items-center gap-2.5">
@@ -2638,12 +2635,12 @@ const Component = forwardRef<AxureHandle, AxureProps>(function Component(innerPr
               const diff = Math.round((dueDate - todayStart) / (1000 * 60 * 60 * 24));
               const isOverdue = diff < 0;
               const isDueSoon = diff >= 0 && diff <= 2;
-              
+
               // 状态样式
               const statusCls = item.status.includes('待提交') ? 'bg-green-50 text-green-600' : item.status.includes('待审核') ? 'bg-blue-50 text-blue-600' : item.status.includes('待上报') ? 'bg-purple-50 text-purple-600' : 'bg-slate-50 text-slate-600';
-              
+
               return (
-                <div key={idx} className="bg-[#F9FBFF] rounded-lg p-3 shadow-sm">
+                <div key={idx} className="bg-[#FAFBFC] rounded-lg p-3">
                   {/* 第一行：主信息行 */}
                   <div className="flex items-center justify-between mb-2">
                     <div className="flex-1 min-w-0">
@@ -2690,11 +2687,11 @@ const Component = forwardRef<AxureHandle, AxureProps>(function Component(innerPr
           </div>
             </div>
           </section>
-          
+
           {/* 第三大区：智能分析 */}
           <section className="bg-white rounded-2xl shadow-sm p-4 mb-4">
             {/* 顶部横向摘要带 */}
-            <div className="flex items-center justify-between gap-6 mb-4 h-[72px] border-b border-slate-50 pb-4">
+            <div className="flex items-center justify-between gap-6 mb-4 h-[72px]">
               <div className="flex-1">
                 <div className="flex items-center gap-2.5 mb-1">
                   <div className="w-[4px] h-[18px] bg-[#4E73C8] rounded-full"></div>
@@ -2705,7 +2702,7 @@ const Component = forwardRef<AxureHandle, AxureProps>(function Component(innerPr
                 </div>
               </div>
               <div className="flex items-center gap-6">
-                <div className="flex items-center gap-4 pr-6 border-r border-slate-100">
+                <div className="flex items-center gap-6 pr-6">
                   <div className="text-center">
                     <div className="text-[10px] text-slate-400 mb-0.5">分析报告</div>
                     <div className="text-base font-bold text-[#4E73C8]">3<span className="text-[10px] font-normal ml-0.5">份</span></div>
@@ -2740,97 +2737,117 @@ const Component = forwardRef<AxureHandle, AxureProps>(function Component(innerPr
               </div>
             </div>
 
-            <div className="grid grid-cols-12 gap-6">
-              {/* 中部左侧：重点风险 2 列布局 */}
-              <div className="col-span-8 space-y-3">
-                <div className="flex items-center gap-2 mb-2">
-                  <div className="w-[3px] h-[14px] bg-[#4E73C8] rounded-full"></div>
-                  <div className="text-[15px] font-bold text-slate-700">重点风险（显示 3 条，共 5 条）</div>
+            <div className="grid grid-cols-12 gap-4">
+              {/* 中部左侧：重点风险 */}
+              <div className="col-span-8">
+                <div className="flex items-center justify-between mb-3">
+                  <div className="flex items-center gap-2">
+                    <div className="w-[3px] h-[14px] bg-[#4E73C8] rounded-full"></div>
+                    <div className="text-[15px] font-bold text-slate-700">重点风险</div>
+                  </div>
+                  <div className="text-[11px] text-slate-400">
+                    显示 {showAllConclusions ? currentSmartAnalysis.conclusions.length : Math.min(4, currentSmartAnalysis.conclusions.length)} 条，共 {currentSmartAnalysis.conclusions.length} 条
+                  </div>
                 </div>
-                <div className="grid grid-cols-2 gap-3">
-                  {(showAllConclusions ? currentSmartAnalysis.conclusions : currentSmartAnalysis.conclusions.slice(0, 4)).map((item) => {
-                    const triggeredRuleNames = item.ruleIds.map(rid => 
-                      currentSmartAnalysis.rules.find(r => r.id === rid)?.name || rid
-                    ).join('、');
 
-                    return (
-                      <div
-                        key={item.id}
-                        className="group relative flex flex-col justify-between p-2.5 rounded-xl bg-[#F9FBFF]  hover:bg-white hover:border-blue-200 hover:shadow-sm transition-all"
-                        onMouseEnter={() => setAnalysisHoverConclusionId(item.id)}
-                        onMouseLeave={() => setAnalysisHoverConclusionId(null)}
-                      >
-                        <div className="flex items-center justify-between mb-2">
-                          <div className="flex items-center gap-2 min-w-0">
-                            <span className={`w-1.5 h-1.5 rounded-full flex-shrink-0 ${item.risk === '高风险' ? 'bg-red-500' : 'bg-amber-500'}`}></span>
-                            <div className="text-[13px] font-semibold text-slate-800 truncate">{item.title}</div>
-                          </div>
-                          <span className={`px-1.5 py-0.5 rounded text-[10px] flex-shrink-0 ${item.risk === '高风险' ? 'text-red-600 bg-red-50' : 'text-amber-600 bg-amber-50'}`}>
-                            {item.risk}
-                          </span>
-                        </div>
-                        
-                        <div className="flex items-center justify-between mt-auto">
-                          <div className="text-[10px] text-slate-500 truncate mr-2">
-                            {triggeredRuleNames} ｜ {item.regions.join('/')}
-                          </div>
-                          <button
-                            type="button"
-                            className="text-[10px] text-[#4E73C8] hover:text-[#3D5FA8] font-medium whitespace-nowrap"
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              setAnalysisSelectedConclusionId(item.id);
-                              setAnalysisActiveReportId(item.report.id);
-                            }}
+                {currentSmartAnalysis.conclusions.length === 0 ? (
+                  <div className="bg-[#FAFBFC] rounded-xl p-8 text-center">
+                    <div className="text-[11px] text-slate-400">暂无风险分析数据</div>
+                  </div>
+                ) : (
+                  <>
+                    <div className="grid grid-cols-2 gap-3">
+                      {(showAllConclusions ? currentSmartAnalysis.conclusions : currentSmartAnalysis.conclusions.slice(0, 4)).map((item) => {
+                        const triggeredRuleNames = item.ruleIds.map(rid =>
+                          currentSmartAnalysis.rules.find(r => r.id === rid)?.name || rid
+                        ).join('、');
+
+                        return (
+                          <div
+                            key={item.id}
+                            className="group relative flex flex-col justify-between p-3 rounded-xl bg-[#FAFBFC] hover:bg-blue-50/50 transition-all"
+                            onMouseEnter={() => setAnalysisHoverConclusionId(item.id)}
+                            onMouseLeave={() => setAnalysisHoverConclusionId(null)}
                           >
-                            查看报告 →
-                          </button>
-                        </div>
+                            <div className="flex items-center justify-between mb-2">
+                              <div className="flex items-center gap-2 min-w-0">
+                                <span className={`w-1.5 h-1.5 rounded-full flex-shrink-0 ${item.risk === '高风险' ? 'bg-red-500' : 'bg-amber-500'}`}></span>
+                                <div className="text-[13px] font-semibold text-slate-800 truncate">{item.title}</div>
+                              </div>
+                              <span className={`px-1.5 py-0.5 rounded text-[10px] flex-shrink-0 ${item.risk === '高风险' ? 'text-red-600 bg-red-50' : 'text-amber-600 bg-amber-50'}`}>
+                                {item.risk}
+                              </span>
+                            </div>
 
-                        {/* Hover 浮层 */}
-                        <div className="invisible group-hover:visible absolute left-1/2 -translate-x-1/2 bottom-full mb-2 w-[300px] bg-white rounded-xl shadow-2xl  p-3 z-50 transition-all">
-                          <div className="text-[11px] text-slate-600 leading-relaxed mb-2">
-                            {item.summary}
-                          </div>
-                          <div className="space-y-1 pt-2 border-t border-slate-100">
-                            <div className="text-[10px] text-slate-500 flex items-center gap-2">
-                              涉及地区：<span className="text-slate-700">{item.regions.join(' / ')}</span>
+                            <div className="flex items-center justify-between mt-auto">
+                              <div className="text-[10px] text-slate-500 truncate mr-2">
+                                {triggeredRuleNames} ｜ {item.regions.join('/')}
+                              </div>
+                              <button
+                                type="button"
+                                className="text-[10px] text-[#4E73C8] hover:text-[#3D5FA8] font-medium whitespace-nowrap"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  setAnalysisSelectedConclusionId(item.id);
+                                  setAnalysisActiveReportId(item.report.id);
+                                }}
+                              >
+                                查看报告 →
+                              </button>
                             </div>
-                            <div className="text-[10px] text-slate-500 flex items-center gap-2">
-                              触发规则：<span className="text-slate-700">{triggeredRuleNames}</span>
+
+                            <div className="invisible group-hover:visible absolute left-1/2 -translate-x-1/2 bottom-full mb-2 w-[300px] bg-white rounded-xl shadow-xl p-3 z-50 transition-all">
+                              <div className="text-[11px] text-slate-600 leading-relaxed mb-2">
+                                {item.summary}
+                              </div>
+                              <div className="space-y-1 pt-2 border-t border-slate-100">
+                                <div className="text-[10px] text-slate-500 flex items-center gap-2">
+                                  涉及地区：<span className="text-slate-700">{item.regions.join(' / ')}</span>
+                                </div>
+                                <div className="text-[10px] text-slate-500 flex items-center gap-2">
+                                  触发规则：<span className="text-slate-700">{triggeredRuleNames}</span>
+                                </div>
+                              </div>
+                              <div className="absolute -bottom-1 left-1/2 -translate-x-1/2 w-2 h-2 bg-white border-r border-b border-slate-200 rotate-45"></div>
                             </div>
                           </div>
-                          <div className="absolute -bottom-1 left-1/2 -translate-x-1/2 w-2 h-2 bg-white border-r border-b border-slate-200 rotate-45"></div>
-                        </div>
-                      </div>
-                    );
-                  })}
-                </div>
-                
-                {currentSmartAnalysis.conclusions.length > 4 && (
-                  <button
-                    type="button"
-                    className="w-full py-1.5 text-[10px] text-slate-400 hover:text-[#4E73C8] flex items-center justify-center gap-1 transition-colors"
-                    onClick={() => setShowAllConclusions(!showAllConclusions)}
-                  >
-                    {showAllConclusions ? '收起分析结论 ↑' : '查看更多分析 ↓'}
-                  </button>
+                        );
+                      })}
+                    </div>
+
+                    {currentSmartAnalysis.conclusions.length > 4 && (
+                      <button
+                        type="button"
+                        className="w-full mt-3 py-2 text-[10px] text-slate-400 hover:text-[#4E73C8] flex items-center justify-center gap-1 transition-colors"
+                        onClick={() => setShowAllConclusions(!showAllConclusions)}
+                      >
+                        {showAllConclusions ? '收起分析结论 ↑' : '查看更多分析 ↓'}
+                      </button>
+                    )}
+                  </>
                 )}
               </div>
 
               {/* 中部右侧：规则触发情况 */}
-              <div className="col-span-4 space-y-3">
-                <div className="flex items-center gap-2 mb-2">
-                  <div className="w-[3px] h-[14px] bg-[#4E73C8] rounded-full"></div>
-                  <div className="text-[15px] font-bold text-slate-700">规则触发情况</div>
+              <div className="col-span-4">
+                <div className="flex items-center justify-between mb-3">
+                  <div className="flex items-center gap-2">
+                    <div className="w-[3px] h-[14px] bg-[#4E73C8] rounded-full"></div>
+                    <div className="text-[15px] font-bold text-slate-700">规则触发情况</div>
+                  </div>
                 </div>
-                <div className="bg-[#F9FBFF] rounded-xl p-2 ">
-                  <div className="space-y-1">
+
+                {currentSmartAnalysis.rules.length === 0 ? (
+                  <div className="bg-[#FAFBFC] rounded-xl p-6 text-center">
+                    <div className="text-[11px] text-slate-400">暂无触发规则数据</div>
+                  </div>
+                ) : (
+                  <div className="bg-[#FAFBFC] rounded-xl p-2 space-y-1.5 max-h-[220px] overflow-y-auto pr-1">
                     {currentSmartAnalysis.rules.map((rule) => {
                       return (
                         <div
                           key={rule.id}
-                          className="flex items-center justify-between py-1.5 px-2 rounded-lg hover:bg-white transition-all group"
+                          className="flex items-center justify-between py-2 px-2 rounded-lg hover:bg-blue-50/50 transition-all group"
                         >
                           <div className="flex items-center gap-2 flex-1 min-w-0">
                             <div className="text-[12px] text-slate-700 truncate">{rule.name}</div>
@@ -2852,7 +2869,7 @@ const Component = forwardRef<AxureHandle, AxureProps>(function Component(innerPr
                       );
                     })}
                   </div>
-                </div>
+                )}
               </div>
             </div>
 
@@ -2937,7 +2954,7 @@ const Component = forwardRef<AxureHandle, AxureProps>(function Component(innerPr
               </div>
             )}
           </section>
-          
+
           {/* 底部：基础支撑 */}
           <section className="bg-white rounded-2xl shadow-sm p-4">
             <div className="flex items-center justify-between mb-2">
