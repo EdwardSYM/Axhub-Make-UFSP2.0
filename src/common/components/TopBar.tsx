@@ -148,7 +148,11 @@ const TopBar: React.FC<TopBarProps> = ({ title = '财会监督系统', onNavigat
   ];
 
   const globalAnalysisMenu = [
-    { label: '全局分析', link: '/prototypes/global-analysis' },
+    { label: '全局总览', link: '/prototypes/global-overview' },
+    { label: '主体分析', link: '/prototypes/entity-analysis' },
+    { label: '主题分析', link: '/prototypes/theme-analysis' },
+    { label: '监控整改分析', link: '/prototypes/supervision-analysis' },
+    { label: '智能报告（二期预留）', link: '/prototypes/intelligent-report' },
   ];
 
   const extensionMenu = [
@@ -248,8 +252,12 @@ const TopBar: React.FC<TopBarProps> = ({ title = '财会监督系统', onNavigat
       return;
     }
     
-    // 检查是否是全局分析
-    if (currentUrl.includes('/global-analysis')) {
+    // 检查是否是全局分析相关页面
+    if (currentUrl.includes('/global-overview') || 
+        currentUrl.includes('/entity-analysis') || 
+        currentUrl.includes('/theme-analysis') || 
+        currentUrl.includes('/supervision-analysis') || 
+        currentUrl.includes('/intelligent-report')) {
       setActiveMenu('global');
       setActiveSubMenu(null);
       return;

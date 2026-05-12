@@ -1,12 +1,12 @@
 /**
- * @name 全局分析
+ * @name 智能报告（二期预留）
  */
 import './style.css';
 import '../../themes/ufsp-sky/globals.css';
 import React, { useState } from 'react';
 import TopBar from '../../common/components/TopBar';
 
-const GlobalAnalysis: React.FC = () => {
+const IntelligentReport: React.FC = () => {
   const [activeCategory, setActiveCategory] = useState('global');
 
   const handleNavigate = (href: string) => {
@@ -25,7 +25,7 @@ const GlobalAnalysis: React.FC = () => {
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-3">
                 <div className="w-[3px] h-[18px] bg-[#4E73C8] rounded-full"></div>
-                <h1 className="text-xl font-bold text-foreground">全局分析</h1>
+                <h1 className="text-xl font-bold text-foreground">智能报告（二期预留）</h1>
               </div>
               <div className="flex items-center gap-2">
                 <span className="text-sm text-muted-foreground">统计口径：</span>
@@ -54,4 +54,4 @@ const GlobalAnalysis: React.FC = () => {
   );
 };
 
-export default GlobalAnalysis;
+export default IntelligentReport;
