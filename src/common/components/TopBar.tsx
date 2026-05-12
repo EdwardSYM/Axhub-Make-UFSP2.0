@@ -147,6 +147,10 @@ const TopBar: React.FC<TopBarProps> = ({ title = '财会监督系统', onNavigat
     { label: '档案 / 数据', link: '/resources/archive' },
   ];
 
+  const globalAnalysisMenu = [
+    { label: '全局分析', link: '/prototypes/global-analysis' },
+  ];
+
   const extensionMenu = [
     { label: '全省信息共享', link: '/prototypes/extension/share' },
     { label: '即席分析', link: '/prototypes/extension/analysis' },
@@ -240,6 +244,13 @@ const TopBar: React.FC<TopBarProps> = ({ title = '财会监督系统', onNavigat
     // 检查是否是基础支撑
     if (currentUrl.includes('/resources/')) {
       setActiveMenu('support');
+      setActiveSubMenu(null);
+      return;
+    }
+    
+    // 检查是否是全局分析
+    if (currentUrl.includes('/global-analysis')) {
+      setActiveMenu('global');
       setActiveSubMenu(null);
       return;
     }
@@ -493,6 +504,35 @@ const TopBar: React.FC<TopBarProps> = ({ title = '财会监督系统', onNavigat
                   onMouseLeave={() => setOpenMenu(null)}
                 >
                   {supportMenu.map(i => (
+                    <button
+                      key={i.link}
+                      type="button"
+                      onClick={() => handleNavigate(i.link)}
+                      className="w-full text-left px-4 py-2.5 hover:bg-slate-50 rounded-lg transition-colors group"
+                    >
+                      <span className="text-sm group-hover:text-[#1456B8] group-hover:ml-1 transition-all">{i.label}</span>
+                    </button>
+                  ))}
+                </div>
+              ) : null}
+            </div>
+            <div
+              className="relative group"
+            >
+              <button
+                type="button"
+                className={`px-4 py-2 rounded-full text-sm font-medium transition-all duration-300 ${activeMenu === 'global' || openMenu === 'global' ? 'bg-white/25 shadow-md' : 'hover:bg-white/15 hover:shadow-sm'}`}
+                onMouseEnter={() => setOpenMenu('global')}
+              >
+                全局分析
+              </button>
+              {openMenu === 'global' ? (
+                <div 
+                  className="absolute left-0 top-full mt-2 bg-white/98 backdrop-blur-md text-slate-800 rounded-xl shadow-xl z-50 min-w-[240px] py-3 transition-all duration-300 transform origin-top-right scale-95 opacity-0 animate-fade-in"
+                  onMouseEnter={() => setOpenMenu('global')}
+                  onMouseLeave={() => setOpenMenu(null)}
+                >
+                  {globalAnalysisMenu.map(i => (
                     <button
                       key={i.link}
                       type="button"

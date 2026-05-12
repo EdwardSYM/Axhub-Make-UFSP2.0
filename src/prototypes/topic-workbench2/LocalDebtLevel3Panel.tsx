@@ -12,7 +12,7 @@ export default function LocalDebtLevel3Panel({ indicator, siblings, onSelectIndi
   return (
     <div className="col-span-5 bg-white rounded-2xl px-4 pt-3 pb-4 flex flex-col min-h-0">
       <div className="flex-1 min-h-0 flex flex-col gap-3">
-        <div className="bg-[#FAFBFC] rounded-xl px-4 py-3 flex items-center justify-between">
+        <div className="px-4 py-3 flex items-center justify-between">
           <div>
             <div className="flex items-center gap-2 mb-1">
               <span className="text-[10px] text-slate-400">指标名称</span>

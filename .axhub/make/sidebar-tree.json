@@ -1,12 +1,25 @@
 {
   "version": 1,
-  "updatedAt": "2026-05-09T08:52:07.798Z",
+  "updatedAt": "2026-05-12T02:41:50.547Z",
   "prototypes": [
     {
       "id": "item-prototypes-fiscal-supervision-home2",
       "kind": "item",
       "title": "首页",
       "itemKey": "prototypes/fiscal-supervision-home2"
+    },
+    {
+      "id": "folder-1778553700459-y1vwky",
+      "kind": "folder",
+      "title": "全局分析",
+      "children": [
+        {
+          "id": "item-prototypes-global-analysis",
+          "kind": "item",
+          "title": "global-analysis",
+          "itemKey": "prototypes/global-analysis"
+        }
+      ]
     },
     {
       "id": "folder-1774333293038-umpbs3",

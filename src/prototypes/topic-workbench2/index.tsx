@@ -668,7 +668,7 @@ const Component = forwardRef<AxureHandle, AxureProps>(function Component(innerPr
 
   // 面包屑导航组件
   const BreadcrumbNav = () => (
-    <div className="flex items-center gap-2.5 text-xs mb-2">
+    <div className="flex items-center gap-2.5 text-xs mt-3 mb-1">
       <div className="w-[4px] h-[18px] bg-[#4E73C8] rounded-full"></div>
       <span 
         className={`cursor-pointer hover:text-[#4E73C8] transition-colors text-[17px] font-bold ${currentLevel === 1 ? 'text-[#0F3D8A]' : 'text-slate-500'}`}
@@ -713,7 +713,15 @@ const Component = forwardRef<AxureHandle, AxureProps>(function Component(innerPr
                 <select
                   className="h-6 min-w-[92px] bg-transparent text-[11px] font-medium text-slate-600 outline-none"
                   value={selectedTrendStart}
-                  onChange={(event) => setSelectedTrendStart(event.target.value)}
+                  onChange={(event) => {
+                    const newStart = event.target.value;
+                    setSelectedTrendStart(newStart);
+                    const startIdx = trendBoundaryOptions.indexOf(newStart);
+                    const endIdx = trendBoundaryOptions.indexOf(selectedTrendEnd);
+                    if (startIdx > endIdx) {
+                      setSelectedTrendEnd(newStart);
+                    }
+                  }}
                 >
                   {trendBoundaryOptions.map((item) => (
                     <option key={item} value={item}>{item}</option>
@@ -723,7 +731,14 @@ const Component = forwardRef<AxureHandle, AxureProps>(function Component(innerPr
                 <select
                   className="h-6 min-w-[92px] bg-transparent text-[11px] font-medium text-slate-600 outline-none"
                   value={selectedTrendEnd}
-                  onChange={(event) => setSelectedTrendEnd(event.target.value)}
+                  onChange={(event) => {
+                    const newEnd = event.target.value;
+                    const startIdx = trendBoundaryOptions.indexOf(selectedTrendStart);
+                    const endIdx = trendBoundaryOptions.indexOf(newEnd);
+                    if (endIdx >= startIdx) {
+                      setSelectedTrendEnd(newEnd);
+                    }
+                  }}
                 >
                   {trendBoundaryOptions.map((item) => (
                     <option key={item} value={item}>{item}</option>
@@ -1058,14 +1073,17 @@ const Component = forwardRef<AxureHandle, AxureProps>(function Component(innerPr
   const trendPeriodLabels = useMemo(() => {
     if (evaluationGranularity === '季度') return ['2024Q1', '2024Q2', '2024Q3', '2024Q4', '2025Q1', '2025Q2'];
     if (evaluationGranularity === '年度') return ['2020', '2021', '2022', '2023', '2024', '2025'];
-    const endMatch = selectedTrendEnd.match(/(\d{4})年(\d{1,2})月/);
-    const endYear = endMatch ? Number(endMatch[1]) : 2026;
-    const endMonth = endMatch ? Number(endMatch[2]) : 4;
-    return Array.from({ length: 6 }, (_, index) => {
-      const date = new Date(endYear, endMonth - 1 - (5 - index), 1);
+    const startMatch = selectedTrendStart.match(/(\d{4})年(\d{1,2})月/);
+    const startYear = startMatch ? Number(startMatch[1]) : 2025;
+    const startMonth = startMatch ? Number(startMatch[2]) : 11;
+    const startIdx = trendBoundaryOptions.indexOf(selectedTrendStart);
+    const endIdx = trendBoundaryOptions.indexOf(selectedTrendEnd);
+    const count = endIdx - startIdx + 1;
+    return Array.from({ length: count }, (_, index) => {
+      const date = new Date(startYear, startMonth - 1 + index, 1);
       return `${date.getFullYear()}年${date.getMonth() + 1}月`;
     });
-  }, [evaluationGranularity, selectedTrendEnd]);
+  }, [evaluationGranularity, selectedTrendStart, selectedTrendEnd, trendBoundaryOptions]);
 
   const calcDimensionTrend = (dimension: Level1_Dimension) => {
     if (!dimension.indicators.length) return [dimension.score];
@@ -1188,10 +1206,11 @@ const Component = forwardRef<AxureHandle, AxureProps>(function Component(innerPr
     const min = Math.min(...values);
     const max = Math.max(...values);
     const range = Math.max(max - min, 1);
-    const width = 360;
-    const paddingX = 30;
-    const paddingTop = 14;
-    const chartBottom = height - 34;
+    const width = 700;
+    const paddingX = 50;
+    const paddingTop = 25;
+    const paddingBottom = 45;
+    const chartBottom = height - paddingBottom;
     const plotHeight = Math.max(chartBottom - paddingTop, 1);
     const step = values.length > 1 ? (width - paddingX * 2) / (values.length - 1) : 0;
     const points = values.map((value, index) => {
@@ -1209,13 +1228,13 @@ const Component = forwardRef<AxureHandle, AxureProps>(function Component(innerPr
             <stop offset="100%" stopColor="#4E73C8" stopOpacity="0.02" />
           </linearGradient>
         </defs>
-        {[0, 1, 2].map((line) => (
+        {[0, 1, 2, 3].map((line) => (
           <line
             key={line}
             x1={paddingX}
             x2={width - paddingX}
-            y1={paddingTop + line * (plotHeight / 2)}
-            y2={paddingTop + line * (plotHeight / 2)}
+            y1={paddingTop + line * (plotHeight / 3)}
+            y2={paddingTop + line * (plotHeight / 3)}
             stroke="#E8EEF8"
             strokeWidth="1"
           />
@@ -1281,41 +1300,31 @@ const Component = forwardRef<AxureHandle, AxureProps>(function Component(innerPr
     }));
 
   const renderLocalDebtTrendNavigator = () => (
-    <div key="local-debt-trend-navigator" className="col-span-5 rounded-[22px] bg-[linear-gradient(180deg,#F7FAFF_0%,#F9FBFF_100%)] px-4 pt-3 pb-4 shadow-sm flex flex-col min-h-0 overflow-hidden">
-      <div className="mb-3 flex items-start justify-between gap-3">
-        <div>
-          <div className="text-sm font-semibold text-slate-700">{trendScopeTitle}</div>
-        </div>
-        <div className="flex items-center gap-2">
-          {currentLevel > 1 && (
-            <button
-              type="button"
-              className="px-2.5 py-1 text-[10px] font-semibold text-[#4E73C8] bg-white rounded-full shadow-sm hover:bg-blue-50 transition-colors"
-              onClick={() => {
-                if (currentLevel === 3) {
-                  setCurrentLevel(2);
-                  setSelectedL2(null);
-                } else {
-                  setCurrentLevel(1);
-                  setSelectedL1(null);
-                  setSelectedL2(null);
-                }
-              }}
-            >
-              返回上级
-            </button>
-          )}
+    <div key="local-debt-trend-navigator" className="col-span-5 rounded-[22px] bg-white px-4 pt-3 pb-4 flex flex-col min-h-0 overflow-hidden">
+      <div className="mb-3">
+        <div className="flex items-center justify-between">
+          <div>
+            <div className="text-[10px] text-slate-400">{trendScopeTitle}</div>
+            <div className="text-sm font-semibold text-slate-700">本期得分</div>
+          </div>
+          <div className="flex items-center gap-6">
+            <div className="text-right">
+              <div className="text-2xl font-bold text-[#4E73C8]">{activeTrendSeries[activeTrendSeries.length - 1] || 0}分</div>
+            </div>
+            <div className={`rounded-lg px-3 py-2 text-right ${activeTrendDelta >= 0 ? 'bg-green-50 text-green-600' : 'bg-red-50 text-red-600'}`}>
+              <div className="text-[10px] opacity-80">较上期</div>
+              <div className="text-lg font-bold">{activeTrendDelta >= 0 ? '+' : ''}{activeTrendDelta}分</div>
+            </div>
+          </div>
         </div>
       </div>
 
-      <div className="bg-white rounded-[20px] px-4 py-4 shadow-sm flex-1 min-h-0 flex flex-col overflow-hidden">
-        <div className="flex items-center justify-between gap-3 mb-3">
-          <div className="flex items-center gap-2">
-            <div className="w-[3px] h-[14px] bg-[#4E73C8] rounded-full"></div>
-            <div className="text-[14px] font-bold text-slate-700">{currentLevel === 3 ? '指标切换' : '指标下钻'}</div>
-          </div>
+      <div className="flex-1 min-h-0 overflow-y-auto pr-1">
+        <div className="flex items-center gap-2 mb-3">
+          <div className="w-[3px] h-[14px] bg-[#4E73C8] rounded-full"></div>
+          <div className="text-[14px] font-bold text-slate-700">{currentLevel === 3 ? '指标切换' : '指标下钻'}</div>
         </div>
-        <div className="space-y-2 flex-1 min-h-0 overflow-y-auto pr-1 scrollbar-thin">
+        <div className="space-y-2">
           {trendNavigatorItems.map((item) => {
             const active = currentLevel >= 2 && item.id === selectedL2?.id;
             const delta = calcTrendDelta(item.trend);
@@ -1324,7 +1333,7 @@ const Component = forwardRef<AxureHandle, AxureProps>(function Component(innerPr
                 key={item.id}
                 type="button"
                 onClick={item.onClick}
-                className={`w-full rounded-2xl px-3 py-2.5 text-left transition ${active ? 'bg-[#EEF4FF] shadow-sm' : 'bg-slate-50/80 hover:bg-slate-100'}`}
+                className={`w-full rounded-lg px-3 py-2.5 text-left transition-all ${active ? 'bg-blue-50/50' : 'bg-[#FAFBFC] hover:bg-blue-50/30'}`}
               >
                 <div className="flex items-center justify-between gap-3">
                   <div className="min-w-0">
@@ -1343,41 +1352,21 @@ const Component = forwardRef<AxureHandle, AxureProps>(function Component(innerPr
           })}
         </div>
       </div>
-
-      <div className="mt-3 bg-[linear-gradient(180deg,#FFFFFF_0%,#F6F9FF_100%)] rounded-[22px] px-5 py-5 shadow-[0_14px_34px_rgba(78,115,200,0.10)] min-h-[158px]">
-        <div className="flex items-end justify-between gap-4">
-          <div>
-            <div className="text-[10px] text-slate-400">本期得分</div>
-            <div className="mt-2 text-[38px] leading-none font-bold text-[#4E73C8]">{activeTrendSeries[activeTrendSeries.length - 1] || 0}分</div>
-          </div>
-          <div className={`rounded-[18px] px-4 py-3 text-right ${activeTrendDelta >= 0 ? 'bg-green-50 text-green-600' : 'bg-red-50 text-red-600'}`}>
-            <div className="text-[10px] opacity-80">较上期</div>
-            <div className="mt-1 text-[18px] font-bold">{activeTrendDelta >= 0 ? '+' : ''}{activeTrendDelta}分</div>
-          </div>
-        </div>
-        <div className="mt-3 text-xs leading-relaxed text-slate-500">
-          左侧只用于趋势下钻与当前期得分识别，完整趋势曲线和统计判断在右侧查看。
-        </div>
-      </div>
     </div>
   );
 
   const renderLocalDebtTrendDetail = () => (
-    <div className="col-span-7 rounded-[22px] bg-[linear-gradient(180deg,#FFFFFF_0%,#F7FAFF_100%)] px-5 py-5 shadow-sm flex flex-col min-h-0">
-      <div className="flex items-start justify-between gap-4">
-        <div>
-          <div className="text-[11px] uppercase tracking-[0.18em] text-slate-400">趋势分析</div>
-          <div className="mt-2 text-xs text-slate-500">
-            展示当前顶部筛选范围内的规则得分变化。
-          </div>
-        </div>
+    <div className="col-span-7 rounded-[22px] bg-white px-5 py-4 flex flex-col min-h-0">
+      <div className="flex items-center gap-2 mb-3">
+        <div className="w-[3px] h-[14px] bg-[#4E73C8] rounded-full"></div>
+        <div className="text-[15px] font-bold text-slate-700">趋势分析</div>
       </div>
 
-      <div className="mt-5 rounded-[22px] bg-white px-4 py-4 shadow-sm">
-        {renderTrendLine(activeTrendSeries, 196, trendPeriodLabels)}
+      <div className="px-4 py-3 flex-1 min-h-[200px]">
+        {renderTrendLine(activeTrendSeries, 250, trendPeriodLabels)}
       </div>
 
-      <div className="mt-4 grid grid-cols-5 gap-3">
+      <div className="mt-3 grid grid-cols-5 gap-3">
         {[
           { label: '均值', value: `${activeTrendStats.avg}分`, cls: 'text-slate-800' },
           { label: '最高', value: `${activeTrendStats.max}分`, cls: 'text-slate-800' },
@@ -1385,19 +1374,19 @@ const Component = forwardRef<AxureHandle, AxureProps>(function Component(innerPr
           { label: '中位数', value: `${activeTrendStats.median}分`, cls: 'text-slate-800' },
           { label: '波动判断', value: activeTrendStats.volatility, cls: activeTrendStats.volatility === '稳定' ? 'text-green-600' : activeTrendStats.volatility === '改善' ? 'text-[#4E73C8]' : 'text-red-600' },
         ].map((item) => (
-          <div key={item.label} className="rounded-[18px] bg-white px-4 py-3 shadow-sm">
+          <div key={item.label} className="rounded-lg px-4 py-3 bg-[#FAFBFC]">
             <div className="text-[10px] text-slate-400">{item.label}</div>
             <div className={`mt-1 text-lg font-bold ${item.cls}`}>{item.value}</div>
           </div>
         ))}
       </div>
 
-      <div className="mt-4 rounded-[20px] bg-white px-4 py-4 shadow-sm flex-1 min-h-0 overflow-y-auto pr-2 scrollbar-thin">
-        <div className="flex items-center gap-2 mb-3">
+      <div className="mt-3">
+        <div className="flex items-center gap-2 mb-2">
           <div className="w-[3px] h-[14px] bg-[#4E73C8] rounded-full"></div>
           <div className="text-[15px] font-bold text-slate-700">智能分析</div>
         </div>
-        <div className="space-y-2 text-xs leading-relaxed text-slate-600">
+        <div className="max-h-[100px] overflow-y-auto pr-2 space-y-2 text-xs leading-relaxed text-slate-600">
           <div>当前{evaluationGranularity}范围“{selectedTrendRangeLabel}”内，{trendScopeTitle}均值为 {activeTrendStats.avg} 分，波动判断为“{activeTrendStats.volatility}”。</div>
           <div>{activeTrendDelta >= 0 ? `较上期提升 ${activeTrendDelta} 分，优先关注能否持续稳定。` : `较上期下降 ${Math.abs(activeTrendDelta)} 分，建议核查规则命中和指标执行过程。`}</div>
         </div>
@@ -1775,7 +1764,7 @@ const Component = forwardRef<AxureHandle, AxureProps>(function Component(innerPr
           
           {/* 第二大区：综合分析（左） + 待办事项（右） */}
           <section className="grid grid-cols-3 gap-4">
-            <div className="col-span-2 bg-white rounded-2xl px-4 pt-4 pb-4 flex flex-col" style={{ height: '592.38px' }}>
+            <div className="col-span-2 bg-white rounded-2xl px-4 pt-2 pb-4 flex flex-col" style={{ height: '592.38px' }}>
               <BreadcrumbNav />
               <div className="grid grid-cols-12 gap-4 flex-1 min-h-0">
                 {/* 左侧图表区 */}
@@ -1892,7 +1881,7 @@ const Component = forwardRef<AxureHandle, AxureProps>(function Component(innerPr
                     )}
                     {!(currentLevel === 3 && selectedL2) && (
                       <>
-                        <div className="mt-4 rounded-xl bg-[#FAFBFC] px-4 py-3 flex items-center justify-between">
+                        <div className="mt-4 px-4 py-3 flex items-center justify-between">
                           <div>
                             <div className="text-[11px] text-slate-400 mb-0.5">
                               {currentLevel === 1 ? '综合得分' : (isLocalDebt ? '指标得分' : '维度平均分')}
