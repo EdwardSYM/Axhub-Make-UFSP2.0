@@ -1,13 +1,15 @@
 import './globals.css';
-import React, { useState } from 'react';
-import { ThemeShell, NavGroup, NavItem } from '../../common/ThemeShell';
+import React, { useEffect, useState } from 'react';
+import { ThemeShell, NavGroup, NavItem, MarkdownViewer } from '../../common/ThemeShell';
 
 const groups: NavGroup[] = [
-  { id: 'foundation', title: '基础', order: 1 },
-  { id: 'components', title: '组件', order: 2 },
+  { id: 'docs', title: '说明', order: 1 },
+  { id: 'foundation', title: '基础', order: 2 },
+  { id: 'components', title: '组件', order: 3 },
 ];
 
 const items: NavItem[] = [
+  { id: 'design-spec', label: '设计规范 Design Spec', groupId: 'docs' },
   { id: 'colors', label: '色彩系统', groupId: 'foundation' },
   { id: 'typography', label: '字体系统', groupId: 'foundation' },
   { id: 'spacing', label: '间距', groupId: 'foundation' },
@@ -276,7 +278,16 @@ function renderContent(activeId: string) {
 }
 
 function Component() {
-  const [activeId, setActiveId] = useState('colors');
+  const [activeId, setActiveId] = useState('design-spec');
+  const [designSpec, setDesignSpec] = useState('');
+
+  useEffect(() => {
+    fetch(new URL('./DESIGN-SPEC.md', import.meta.url).href)
+      .then(res => res.text())
+      .then(text => setDesignSpec(text))
+      .catch(err => console.error('Failed to load UFSP Sky Design Spec:', err));
+  }, []);
+
   return (
     <ThemeShell
       brand={{
@@ -315,10 +326,15 @@ function Component() {
         fontFamily: 'var(--font-sans)',
       }}
     >
-      {renderContent(activeId)}
+      {activeId === 'design-spec' ? (
+        designSpec ? <MarkdownViewer content={designSpec} /> : (
+          <div style={{ textAlign: 'center', padding: '48px 0', color: 'var(--muted-foreground)' }}>加载设计规范中...</div>
+        )
+      ) : (
+        renderContent(activeId)
+      )}
     </ThemeShell>
   );
 }
 
 export default Component;
-

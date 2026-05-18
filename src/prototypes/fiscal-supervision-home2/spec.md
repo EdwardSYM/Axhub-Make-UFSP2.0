@@ -90,7 +90,7 @@
 ### 4.2 自定义设计要点（配色与层次）
 - 主色阶：
   - Primary：`#0F3D8A`（主）、Secondary：`#1456B8`、Subtle：`#EEF5FF`
-  - 背景：`#F5F8FF`（页面底色，减少灰感）
+  - 背景：继承 `ufsp-sky` 全局渐变变量 `--ufsp-global-page-background`，以全局总览同款浅蓝径向+纵向渐变替代原纯色 `#F5F8FF`
 - 中性色：`#0F172A / #334155 / #64748B / #E2E8F0 / #FFFFFF`
 - 功能色：红 `#DC2626`、黄 `#F59E0B`、蓝 `#2563EB`
 - 边框体系：主容器 `#D9E6FF`，模块边框 `#E6EFFF`

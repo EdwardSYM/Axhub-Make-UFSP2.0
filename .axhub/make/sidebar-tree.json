@@ -1,6 +1,6 @@
 {
   "version": 1,
-  "updatedAt": "2026-05-12T06:29:33.341Z",
+  "updatedAt": "2026-05-15T10:47:13.545Z",
   "prototypes": [
     {
       "id": "item-prototypes-fiscal-supervision-home2",
@@ -20,28 +20,10 @@
           "itemKey": "prototypes/global-overview"
         },
         {
-          "id": "item-prototypes-entity-analysis",
-          "kind": "item",
-          "title": "主体分析",
-          "itemKey": "prototypes/entity-analysis"
-        },
-        {
           "id": "item-prototypes-theme-analysis",
           "kind": "item",
           "title": "主题分析",
           "itemKey": "prototypes/theme-analysis"
-        },
-        {
-          "id": "item-prototypes-supervision-analysis",
-          "kind": "item",
-          "title": "监控整改分析",
-          "itemKey": "prototypes/supervision-analysis"
-        },
-        {
-          "id": "item-prototypes-intelligent-report",
-          "kind": "item",
-          "title": "智能报告（二期预留）",
-          "itemKey": "prototypes/intelligent-report"
         }
       ]
     },
@@ -92,6 +74,19 @@
           "kind": "item",
           "title": "评价图谱",
           "itemKey": "prototypes/evaluation-graph"
+        }
+      ]
+    },
+    {
+      "id": "folder-1778808518604-a1pvri",
+      "kind": "folder",
+      "title": "备份",
+      "children": [
+        {
+          "id": "item-prototypes-global-overview-2",
+          "kind": "item",
+          "title": "全局总览2",
+          "itemKey": "prototypes/global-overview-2"
         }
       ]
     }
@@ -254,6 +249,7 @@
     "firecrawl"
   ],
   "data": [
+    "hunan-province",
     "orders"
   ],
   "templates": [
