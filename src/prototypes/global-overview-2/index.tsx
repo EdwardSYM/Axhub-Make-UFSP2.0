@@ -2,7 +2,6 @@
  * @name 全局总览2
  */
 import './style.css';
-import '../../themes/ufsp-sky/globals.css';
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import {
   Activity,

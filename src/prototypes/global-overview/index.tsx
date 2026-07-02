@@ -2,7 +2,6 @@
  * @name 全辖日常监督分析
  */
 import './style.css';
-import '../../themes/ufsp-sky/globals.css';
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import * as echarts from 'echarts';

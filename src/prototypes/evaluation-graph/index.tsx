@@ -3,13 +3,12 @@
  *
  * 参考资料：
  * - /src/prototypes/evaluation-graph/spec.md
- * - /src/themes/ufsp-sky/globals.css
+ * - /src/prototypes/evaluation-graph/style.css
  * - /rules/design-guide.md
  * - /rules/development-guide.md
  */
 
 import './style.css';
-import '../../themes/ufsp-sky/globals.css';
 import React, { forwardRef, useEffect, useImperativeHandle, useMemo, useState } from 'react';
 import {
   ApartmentOutlined,

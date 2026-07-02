@@ -3,13 +3,12 @@
  *
  * 参考资料：
  * - /src/prototypes/fiscal-supervision-home2/spec.md
- * - /src/themes/ufsp-sky/designToken.json
+ * - /src/prototypes/fiscal-supervision-home2/style.css
  * - /assets/libraries/tailwind-css
  * - /rules/development-standards.md
  */
 
 import './style.css';
-import '../../themes/ufsp-sky/globals.css';
 import React, { forwardRef, useEffect, useImperativeHandle, useMemo, useState } from 'react';
 import { SearchOutlined, BellOutlined, BankOutlined } from '@ant-design/icons';
 import type { Action, AxureHandle, AxureProps, ConfigItem, DataDesc, EventItem, KeyDesc } from '../../common/axure-types';

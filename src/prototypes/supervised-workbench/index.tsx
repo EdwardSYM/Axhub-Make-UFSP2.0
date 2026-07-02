@@ -1,5 +1,11 @@
 /**
- * @name 重点领域整改工作台
+ * @name 被监督者工作台
+ *
+ * 参考资料：
+ * - /src/prototypes/supervised-workbench/spec.md
+ * - /src/prototypes/supervised-workbench/style.css
+ * - /assets/libraries/tailwind-css
+ * - /rules/development-standards.md
  */
 import './style.css';
 import React, { forwardRef, useEffect, useImperativeHandle, useMemo, useRef, useState } from 'react';
@@ -24,12 +30,15 @@ import { createEventEmitter, getConfigValue } from '../../common/axure-types';
 
 type NavActive = 'home' | 'daily' | 'special' | 'policy' | 'evaluation' | 'support';
 
+const WORKBENCH_PAGE_NAME = '被监督者工作台';
+const WORKBENCH_PAGE_DESC = '当前页面基于重点领域整改工作台复制，后续用于承载被监督者角色的待办处理、整改反馈和材料报送等工作。';
+
 const EVENT_LIST: EventItem[] = [{ name: 'onNavigate', desc: '页面内导航', payload: 'string' }];
 const ACTION_LIST: Array<{ name: string; desc: string; params?: string }> = [];
 const VAR_LIST: KeyDesc[] = [{ name: 'active_category', desc: '当前激活的顶栏分类' }, { name: 'topic_key', desc: '当前主题 key' }];
 const CONFIG_LIST: ConfigItem[] = [
   { type: 'input', attributeId: 'title', displayName: '系统标题', initialValue: '财会监督系统' },
-  { type: 'input', attributeId: 'topic_name', displayName: '主题名称', initialValue: '主题工作台' }
+  { type: 'input', attributeId: 'topic_name', displayName: '主题名称', initialValue: WORKBENCH_PAGE_NAME }
 ];
 
 function useQuery() {
@@ -112,9 +121,166 @@ function FlowNode(props: FlowNodeProps) {
   );
 }
 
-type TodoItem = { t: string; d: string; level: string; flowNode: string; module: string; status: string; actions: string[] };
+type TodoItem = {
+  t: string;
+  d: string;
+  level: string;
+  flowNode: string;
+  module: string;
+  status: string;
+  actions: string[];
+  category?: string;
+  returnCount?: number;
+  returnDate?: string;
+  submittedDate?: string;
+  feedbackDate?: string;
+};
+type TodoTiming = 'overdue' | 'due' | 'normal';
+type TodoStatusGroup = '待处理' | '审核中' | '被退回' | '已完成' | '已销号/已完结';
+type TodoDisposalPool = 'action' | 'returned' | 'tracking' | 'history';
+type TodoFlowStage = '待我处理' | '退回待补正' | '已提交待审核' | '审核/复核中' | '待销号' | '已完成/已销号';
+type TodoOverviewItem = TodoItem & {
+  timing: TodoTiming;
+  dueDays: number;
+  statusGroup: TodoStatusGroup;
+  disposalPool: TodoDisposalPool;
+  flowStage: TodoFlowStage;
+  category: string;
+  responseAction: string;
+};
+type TodoOverviewFilter = { kind: 'response' | 'tracking' | 'deadline' | 'category' | 'blockage' | 'risk' | 'progress'; value: string; label: string };
 type FlowStepItem = { key: string; name: string; mainCount: number; status: Array<{ label: string; value: number }> };
 type ResourceItem = { key: string; icon: string; title: string; count: number; path: string };
+type AssistDrawerType = 'priority' | 'responseList' | 'basis' | 'return' | 'material' | 'selfCheck' | 'history' | 'progress' | 'flow';
+
+const TODO_REFERENCE_DATE = new Date(2026, 2, 26).getTime();
+const TODO_TRACKING_STAGES: TodoFlowStage[] = ['已提交待审核', '审核/复核中', '待销号'];
+const TODO_RESPONSE_ACTIONS = ['退回待补正', '待处理', '待补充说明/材料', '待更新整改进度', '待提交/重新提交'];
+
+const getTodoDateTime = (md: string) => {
+  const [month, day] = (md || '01-01').split('-').map((item) => parseInt(item, 10));
+  return new Date(2026, (month || 1) - 1, day || 1).getTime();
+};
+
+const getTodoTiming = (md: string): TodoTiming => {
+  const diff = getTodoDueDays(md);
+  if (diff < 0) return 'overdue';
+  if (diff <= 3) return 'due';
+  return 'normal';
+};
+
+const getTodoDueDays = (md: string) => Math.round((getTodoDateTime(md) - TODO_REFERENCE_DATE) / (1000 * 60 * 60 * 24));
+
+const getTodoStatusGroup = (status: string): TodoStatusGroup => {
+  if (status.includes('被退回') || status.includes('退回')) return '被退回';
+  if (status.includes('已销号') || status.includes('已完结')) return '已销号/已完结';
+  if (status.includes('已完成') || status.includes('待确认') || status.includes('待销号') || status.includes('待完结')) return '已完成';
+  if (status.includes('审核中') || status.includes('待审核')) return '审核中';
+  return '待处理';
+};
+
+const getTodoDisposalPool = (status: string): TodoDisposalPool => {
+  if (status.includes('被退回') || status.includes('退回')) return 'returned';
+  if (status.includes('已销号') || status.includes('已完结') || status.includes('已归档')) return 'history';
+  if (status.includes('已提交') || status.includes('待审核') || status.includes('审核中') || status.includes('复核') || status.includes('待确认') || status.includes('待销号')) return 'tracking';
+  return 'action';
+};
+
+const getTodoFlowStage = (status: string): TodoFlowStage => {
+  if (status.includes('被退回') || status.includes('退回')) return '退回待补正';
+  if (status.includes('已销号') || status.includes('已完结') || status.includes('已归档')) return '已完成/已销号';
+  if (status.includes('待销号')) return '待销号';
+  if (status.includes('已提交') || status.includes('待审核')) return '已提交待审核';
+  if (status.includes('审核中') || status.includes('复核') || status.includes('待确认')) return '审核/复核中';
+  return '待我处理';
+};
+
+const getTodoStatusPillClass = (status: string) => {
+  if (status.includes('退回')) return 'bg-red-50 text-red-600';
+  if (status.includes('审核')) return 'bg-blue-50 text-blue-600';
+  if (status.includes('报送') || status.includes('上报')) return 'bg-purple-50 text-purple-600';
+  if (status.includes('确认') || status.includes('销号') || status.includes('完结') || status.includes('已完成')) return 'bg-green-50 text-green-600';
+  if (status.includes('处理中')) return 'bg-amber-50 text-amber-600';
+  return 'bg-slate-50 text-slate-600';
+};
+
+const getTodoCategory = (item: TodoItem, categoryTypes: string[]) => {
+  if (item.category) return item.category;
+  const text = `${item.t}${item.flowNode}${item.module}${item.status}`;
+  const findType = (keys: string[], fallbackIndex: number) => (
+    categoryTypes.find((type) => keys.some((key) => type.includes(key))) || categoryTypes[fallbackIndex] || categoryTypes[0] || '其他事项'
+  );
+
+  if (/报告|周报|报送|上报|导出/.test(text)) return findType(['报告', '报送'], 3);
+  if (/化债|资金|专项债|追缴|拨付|支付/.test(text)) return findType(['资金', '复核'], 1);
+  if (/进展|进度|压降|督办|销号|闭环|确认/.test(text)) return findType(['进度', '闭环'], 2);
+  if (/退回|补录|补正|附件|材料/.test(text)) return findType(['材料', '补正', '台账'], 3);
+  if (/线索|核验|核对|台账|抽查|审核/.test(text)) return findType(['线索', '核验', '事项'], 0);
+  return categoryTypes[0] || '其他事项';
+};
+
+const getTodoResponseAction = (item: TodoItem) => {
+  const text = `${item.t}${item.flowNode}${item.module}${item.status}${item.category || ''}`;
+  if (/被退回|退回|补正/.test(item.status)) return '退回待补正';
+  if (/报告|周报|报送|上报|导出/.test(text)) return '待提交/重新提交';
+  if (/补录|附件|材料|补充|佐证/.test(text)) return '待补充说明/材料';
+  if (/进展|进度|压降|督办|下发|整改/.test(text)) return '待更新整改进度';
+  return '待处理';
+};
+
+const getTodoTrackingWaitDays = (item: TodoItem) => {
+  if (!item.submittedDate) return 0;
+  return Math.max(0, Math.round((TODO_REFERENCE_DATE - getTodoDateTime(item.submittedDate)) / (1000 * 60 * 60 * 24)));
+};
+
+const isTodoUploadedNotSubmitted = (item: TodoOverviewItem) => (
+  item.responseAction === '待提交/重新提交' &&
+  /报告|周报|报送|材料|附件|佐证/.test(`${item.t}${item.module}${item.status}${item.category}`) &&
+  item.dueDays <= 1
+);
+
+const matchesTodoOverviewFilter = (item: TodoOverviewItem, filter: TodoOverviewFilter | null) => {
+  if (!filter) return true;
+  if (filter.kind === 'category') return item.category === filter.value && (item.disposalPool === 'action' || item.disposalPool === 'returned');
+  if (filter.kind === 'blockage') {
+    const text = `${item.t}${item.flowNode}${item.module}${item.status}${item.category}`;
+    if (filter.value === 'materialIncomplete') return item.disposalPool !== 'history' && /材料|附件|补录|佐证|凭证|补充/.test(text);
+    if (filter.value === 'stale') return item.disposalPool === 'action' && item.responseAction === '待更新整改进度';
+    if (filter.value === 'multiReturned') return (item.returnCount || 0) > 1;
+  }
+  if (filter.kind === 'risk') {
+    const text = `${item.t}${item.flowNode}${item.module}${item.status}${item.category}`;
+    if (filter.value === '高') return item.level === '高' && item.disposalPool !== 'history';
+    if (filter.value === 'amount') return item.disposalPool !== 'history' && /资金|债务|专项债|化债|金额|拨付|支付/.test(text);
+    if (filter.value === 'repeat') return item.disposalPool !== 'history' && ((item.returnCount || 0) > 0 || /重复|抽查|核验|台账/.test(text));
+    if (filter.value === 'doubt') return item.disposalPool !== 'history' && /线索|核验|抽查|疑点/.test(text);
+    return item.level === filter.value && item.disposalPool !== 'history';
+  }
+  if (filter.kind === 'progress') {
+    if (filter.value === 'all' || filter.value === 'followed') return item.disposalPool === 'tracking';
+    return item.disposalPool === 'tracking';
+  }
+  if (filter.kind === 'tracking') {
+    if (filter.value === 'all') return item.disposalPool === 'tracking';
+    return item.disposalPool === 'tracking' && item.flowStage === filter.value;
+  }
+  if (filter.kind === 'deadline') {
+    if (filter.value === 'overdue') return item.disposalPool !== 'history' && item.dueDays < 0;
+    if (filter.value === 'today') return item.disposalPool !== 'history' && item.dueDays === 0;
+    if (filter.value === 'within3') return item.disposalPool !== 'history' && item.dueDays >= 1 && item.dueDays <= 3;
+    if (filter.value === 'within3to5') return item.disposalPool !== 'history' && item.dueDays >= 3 && item.dueDays <= 5;
+    if (filter.value === 'within7') return item.disposalPool !== 'history' && item.dueDays >= 4 && item.dueDays <= 7;
+  }
+  if (filter.kind === 'response') {
+    const isResponse = item.disposalPool === 'action' || item.disposalPool === 'returned';
+    if (filter.value === 'all') return isResponse;
+    const isUploadedNotSubmitted = isTodoUploadedNotSubmitted(item);
+    if (filter.value === '已上传未提交') return isResponse && isUploadedNotSubmitted;
+    if (filter.value === '待提交/重新提交') return isResponse && item.responseAction === filter.value && !isUploadedNotSubmitted;
+    return isResponse && item.responseAction === filter.value;
+  }
+  return true;
+};
 
 const Component = forwardRef<AxureHandle, AxureProps>(function Component(innerProps, ref) {
   const configSource = innerProps && typeof innerProps.config === 'object' && innerProps.config ? innerProps.config : {};
@@ -123,7 +289,7 @@ const Component = forwardRef<AxureHandle, AxureProps>(function Component(innerPr
   const query = useQuery();
 
   const title = getConfigValue<string>(configSource, 'title', '财会监督系统');
-  const topicName = getConfigValue<string>(configSource, 'topic_name', String(query.topic || '专项领域通用工作台'));
+  const topicName = getConfigValue<string>(configSource, 'topic_name', String(query.topic || WORKBENCH_PAGE_NAME));
   const categoryFromQuery = String(query.category || 'special').toLowerCase();
 
   const activeCategory: NavActive =
@@ -244,15 +410,19 @@ const Component = forwardRef<AxureHandle, AxureProps>(function Component(innerPr
     { key: 'rectify明细查询', name: '整改明细查询', mainCount: 0, status: [] },
   ];
   const localDebtTodos: TodoItem[] = [
-    { t: '核验平台公司隐性债务线索台账', d: '03-28', level: '高', flowNode: '债务台账管理', module: '债务台账管理', status: '待处理', actions: ['处理'] },
-    { t: '复核地方政府专项债项目资金闭环材料', d: '03-30', level: '高', flowNode: '化债资金复核', module: '化债资金复核', status: '待审核', actions: ['处理'] },
-    { t: '下发地方政府债务风险整改清单', d: '03-26', level: '高', flowNode: '整改任务下发', module: '整改任务下发', status: '待下发', actions: ['处理'] },
-    { t: '跟踪高风险地区债务压降进展', d: '03-25', level: '高', flowNode: '整改进度跟踪', module: '整改进度跟踪', status: '处理中', actions: ['处理'] },
-    { t: '核对债务化解方案与实际执行偏差', d: '03-24', level: '中', flowNode: '债务风险核验', module: '债务风险核验', status: '待核验', actions: ['处理'] },
-    { t: '汇总地方政府债务整改周报', d: '03-27', level: '中', flowNode: '报告报送', module: '报告报送', status: '待报送', actions: ['处理'] },
-    { t: '抽查融资平台新增债务材料', d: '03-29', level: '中', flowNode: '债务风险核验', module: '债务风险核验', status: '待处理', actions: ['处理'] },
-    { t: '补录债务台账附件缺失项', d: '03-22', level: '低', flowNode: '债务台账管理', module: '债务台账管理', status: '待补录', actions: ['处理'] },
-    { t: '导出债务整改明细报表', d: '04-02', level: '低', flowNode: '债务明细查询', module: '债务明细查询', status: '待处理', actions: ['处理'] },
+    { t: '核验平台公司隐性债务线索台账', d: '03-28', level: '高', flowNode: '债务台账管理', module: '债务台账管理', status: '待处理', actions: ['处理'], category: '线索核验类' },
+    { t: '复核地方政府专项债项目资金闭环材料', d: '03-30', level: '高', flowNode: '化债资金复核', module: '化债资金复核', status: '已提交待审核', actions: ['跟踪'], category: '资金复核类', submittedDate: '03-22' },
+    { t: '下发地方政府债务风险整改清单', d: '03-26', level: '高', flowNode: '整改任务下发', module: '整改任务下发', status: '待下发', actions: ['处理'], category: '整改进度类' },
+    { t: '跟踪高风险地区债务压降进展', d: '03-25', level: '高', flowNode: '整改进度跟踪', module: '整改进度跟踪', status: '处理中', actions: ['处理'], category: '整改进度类' },
+    { t: '核对债务化解方案与实际执行偏差', d: '03-24', level: '中', flowNode: '债务风险核验', module: '债务风险核验', status: '待核验', actions: ['处理'], category: '线索核验类' },
+    { t: '汇总地方政府债务整改周报', d: '03-27', level: '中', flowNode: '报告报送', module: '报告报送', status: '待报送', actions: ['处理'], category: '报告报送类' },
+    { t: '抽查融资平台新增债务材料', d: '03-29', level: '中', flowNode: '债务风险核验', module: '债务风险核验', status: '待处理', actions: ['处理'], category: '线索核验类' },
+    { t: '补录债务台账附件缺失项', d: '03-22', level: '低', flowNode: '债务台账管理', module: '债务台账管理', status: '待补录', actions: ['处理'], category: '材料补正类' },
+    { t: '导出债务整改明细报表', d: '04-02', level: '低', flowNode: '债务明细查询', module: '债务明细查询', status: '待处理', actions: ['处理'], category: '报告报送类' },
+    { t: '补正隐性债务线索核验退回说明', d: '03-27', level: '中', flowNode: '债务风险核验', module: '债务风险核验', status: '被退回', actions: ['补正'], category: '材料补正类', returnCount: 1, returnDate: '03-25' },
+    { t: '确认化债资金闭环复核结果', d: '03-31', level: '中', flowNode: '化债资金复核', module: '化债资金复核', status: '审核/复核中', actions: ['跟踪'], category: '资金复核类', submittedDate: '03-24', feedbackDate: '03-25' },
+    { t: '办理违规举债整改事项销号', d: '04-03', level: '低', flowNode: '整改进度跟踪', module: '整改进度跟踪', status: '待销号', actions: ['跟踪'], category: '整改进度类', submittedDate: '03-23', feedbackDate: '03-25' },
+    { t: '归档已完结债务整改事项', d: '04-06', level: '低', flowNode: '债务明细查询', module: '债务明细查询', status: '已销号/已完结', actions: ['查看'], category: '报告报送类' },
   ];
   const defaultTodos: TodoItem[] = [
     // 第一组：台账分发录入
@@ -274,13 +444,17 @@ const Component = forwardRef<AxureHandle, AxureProps>(function Component(innerPr
     { t: '导出整改明细报表', d: '03-13', level: '低', flowNode: '整改明细查询', module: '独立入口', status: '待处理', actions: ['处理'] },
     { t: '分析整改明细数据', d: '03-11', level: '低', flowNode: '整改明细查询', module: '独立入口', status: '待处理', actions: ['处理'] },
     
-    // 新增：临期待办事项（今天是03-26，临期为03-26到03-28）
+    // 新增：临期待办事项（原型基准日为03-26，用于展示临期与3-5天临期筛选）
     { t: '准备季度工作总结报告', d: '03-27', level: '中', flowNode: '台账分发录入', module: '工作台账管理', status: '待处理', actions: ['处理'] },
     { t: '审核部门预算调整申请', d: '03-28', level: '高', flowNode: '问题整改更新', module: '整改情况审核', status: '待审核', actions: ['处理'] },
     
     // 新增：正常待办事项（既不是超期也不是临期）
     { t: '制定下季度工作计划', d: '04-01', level: '中', flowNode: '台账分发录入', module: '工作台账管理', status: '待处理', actions: ['处理'] },
-    { t: '组织部门业务培训', d: '04-05', level: '低', flowNode: '问题整改更新', module: '整改督办管理', status: '待安排', actions: ['处理'] }
+    { t: '组织部门业务培训', d: '04-05', level: '低', flowNode: '问题整改更新', module: '整改督办管理', status: '待安排', actions: ['处理'] },
+    { t: '补正县区整改材料退回说明', d: '03-27', level: '中', flowNode: '问题整改更新', module: '整改情况审核', status: '被退回', actions: ['补正'] },
+    { t: '确认整改完成事项闭环结果', d: '03-31', level: '中', flowNode: '问题整改更新', module: '整改情况审核', status: '待确认', actions: ['确认'] },
+    { t: '办理问题整改事项销号', d: '04-03', level: '低', flowNode: '问题整改更新', module: '整改督办管理', status: '待销号', actions: ['办理'] },
+    { t: '查看已完结台账归档记录', d: '04-06', level: '低', flowNode: '整改明细查询', module: '独立入口', status: '已销号/已完结', actions: ['查看'] }
   ];
   const currentAnalysisData = useMemo(
     () => (isLocalDebt ? getKeyAreaAnalysisData(topicKey) : analysisData),
@@ -296,8 +470,8 @@ const Component = forwardRef<AxureHandle, AxureProps>(function Component(innerPr
           : name.replace(/地方政府债务|债务|化债/g, topicShortName)
       );
       return {
-        displayName: `${topicTitle}专项工作台`,
-        descText: `用于汇聚${topicTitle}的规则评价、整改督办、政策依据和趋势研判等重点任务。`,
+        displayName: WORKBENCH_PAGE_NAME,
+        descText: WORKBENCH_PAGE_DESC,
         stageData: [
           { name: '识别', count: 17, rate: 0.88 },
           { name: '核验', count: 12, rate: 0.72 },
@@ -328,8 +502,8 @@ const Component = forwardRef<AxureHandle, AxureProps>(function Component(innerPr
       };
     }
     return {
-      displayName: '专项领域整改工作台',
-      descText: '用于汇聚重点领域整改相关任务，支撑台账分发录入、问题整改更新及整改进展跟踪。',
+      displayName: WORKBENCH_PAGE_NAME,
+      descText: WORKBENCH_PAGE_DESC,
       stageData: [
         { name: '受理', count: 9, rate: 0.6 },
         { name: '研判', count: 6, rate: 0.5 },
@@ -355,28 +529,126 @@ const Component = forwardRef<AxureHandle, AxureProps>(function Component(innerPr
     };
   }, [isLocalDebt, keyAreaTopicProfile, topicKey]);
   const { displayName, descText, stageData, todos, resources } = topicProfile;
-  const [todoTab, setTodoTab] = useState<'pending' | 'overdue' | 'due' | 'returned'>('pending');
+  const [overviewFilter, setOverviewFilter] = useState<TodoOverviewFilter | null>(null);
+  const [trackingDrawerFilter, setTrackingDrawerFilter] = useState<TodoOverviewFilter | null>(null);
+  const topicOverviewCategoryTypes = useMemo(() => (
+    ['线索核验类', '资金复核类', '整改进度类', '材料补正类', '报告报送类']
+  ), []);
+  const todoFacts = useMemo<TodoOverviewItem[]>(() => (
+    todos.map((item) => ({
+      ...item,
+      timing: getTodoTiming(item.d),
+      dueDays: getTodoDueDays(item.d),
+      statusGroup: getTodoStatusGroup(item.status),
+      disposalPool: getTodoDisposalPool(item.status),
+      flowStage: getTodoFlowStage(item.status),
+      category: getTodoCategory(item, topicOverviewCategoryTypes),
+      responseAction: getTodoResponseAction(item),
+    }))
+  ), [todos, topicOverviewCategoryTypes]);
   const displayTodos = useMemo(() => {
-    const today = new Date();
-    const todayStart = new Date(today.getFullYear(), today.getMonth(), today.getDate()).getTime();
-    const isDue = (md: string) => {
-      const [m, d] = (md || '01-01').split('-').map(s => parseInt(s, 10));
-      const t = new Date(today.getFullYear(), (m || 1) - 1, d || 1).getTime();
-      const diff = Math.round((t - todayStart) / (1000 * 60 * 60 * 24));
-      return diff >= 0 && diff <= 2;
-    };
-    const isOverdue = (md: string) => {
-      const [m, d] = (md || '01-01').split('-').map(s => parseInt(s, 10));
-      const t = new Date(today.getFullYear(), (m || 1) - 1, d || 1).getTime();
-      const diff = Math.round((t - todayStart) / (1000 * 60 * 60 * 24));
-      return diff < 0;
-    };
-    if (todoTab === 'pending') return todos; // 全部待办事项
-    if (todoTab === 'overdue') return todos.filter(i => isOverdue(i.d));
-    if (todoTab === 'due') return todos.filter(i => isDue(i.d) && !isOverdue(i.d));
-    if (todoTab === 'returned') return todos.filter(i => i.status.includes('被退回'));
-    return todos;
-  }, [todos, todoTab]);
+    if (overviewFilter) return todoFacts.filter((item) => matchesTodoOverviewFilter(item, overviewFilter));
+    return todoFacts.filter((item) => item.disposalPool !== 'history');
+  }, [todoFacts, overviewFilter]);
+  const responseTodos = useMemo(() => (
+    todoFacts.filter((item) => item.disposalPool === 'action' || item.disposalPool === 'returned')
+  ), [todoFacts]);
+  const trackingTodos = useMemo(() => (
+    todoFacts.filter((item) => item.disposalPool === 'tracking')
+  ), [todoFacts]);
+  const returnedResponseTodos = useMemo(() => (
+    responseTodos.filter((item) => item.disposalPool === 'returned')
+  ), [responseTodos]);
+  const uploadedNotSubmittedTodos = useMemo(() => (
+    responseTodos.filter((item) => isTodoUploadedNotSubmitted(item))
+  ), [responseTodos]);
+  const handledProgressTodos = useMemo(() => {
+    return trackingTodos;
+  }, [trackingTodos]);
+  const followedProgressCount = useMemo(() => (
+    Math.min(2, handledProgressTodos.length)
+  ), [handledProgressTodos]);
+  const activeTodoPool = useMemo(() => (
+    todoFacts.filter((item) => item.disposalPool !== 'history')
+  ), [todoFacts]);
+  const overdueTodos = useMemo(() => (
+    activeTodoPool.filter((item) => item.dueDays < 0)
+  ), [activeTodoPool]);
+  const todayDueTodos = useMemo(() => (
+    activeTodoPool.filter((item) => item.dueDays === 0)
+  ), [activeTodoPool]);
+  const within3Todos = useMemo(() => (
+    activeTodoPool.filter((item) => item.dueDays >= 1 && item.dueDays <= 3)
+  ), [activeTodoPool]);
+  const within7Todos = useMemo(() => (
+    activeTodoPool.filter((item) => item.dueDays >= 4 && item.dueDays <= 7)
+  ), [activeTodoPool]);
+  const within3To5Todos = useMemo(() => (
+    activeTodoPool.filter((item) => item.dueDays >= 3 && item.dueDays <= 5)
+  ), [activeTodoPool]);
+  const earliestWithin3Due = useMemo(() => {
+    if (within3Todos.length === 0) return '暂无';
+    return [...within3Todos].sort((a, b) => getTodoDateTime(a.d) - getTodoDateTime(b.d))[0].d;
+  }, [within3Todos]);
+  const longestOverdueDays = useMemo(() => {
+    if (overdueTodos.length === 0) return 0;
+    return Math.max(...overdueTodos.map((item) => Math.abs(item.dueDays)));
+  }, [overdueTodos]);
+  const responseActionItems = useMemo(() => (
+    TODO_RESPONSE_ACTIONS
+      .map((action) => {
+        const items = responseTodos.filter((item) => item.responseAction === action);
+        return {
+          action,
+          count: items.length,
+          returned: items.filter((item) => item.disposalPool === 'returned').length,
+        };
+      })
+  ), [responseTodos]);
+  const trackingStageItems = useMemo(() => (
+    TODO_TRACKING_STAGES.map((stage) => ({
+      stage,
+      label: stage === '已提交待审核' ? '待审核' : stage === '待销号' ? '待最终确认' : stage,
+      count: trackingTodos.filter((item) => item.flowStage === stage).length,
+    }))
+  ), [trackingTodos]);
+  const longestTrackingWaitDays = useMemo(() => {
+    if (trackingTodos.length === 0) return 0;
+    return Math.max(...trackingTodos.map(getTodoTrackingWaitDays));
+  }, [trackingTodos]);
+  const trackingDelayedCount = useMemo(() => (
+    trackingTodos.filter((item) => getTodoTrackingWaitDays(item) >= 7).length
+  ), [trackingTodos]);
+  const latestTrackingFeedback = useMemo(() => {
+    const feedbackDates = trackingTodos
+      .map((item) => item.feedbackDate)
+      .filter((item): item is string => Boolean(item));
+    if (feedbackDates.length === 0) return '暂无';
+    return feedbackDates.sort((a, b) => getTodoDateTime(b) - getTodoDateTime(a))[0];
+  }, [trackingTodos]);
+  const progressDrawerTodos = useMemo(() => {
+    if (!trackingDrawerFilter) {
+      return handledProgressTodos;
+    }
+    if (trackingDrawerFilter.kind === 'progress' && trackingDrawerFilter.value === 'followed') {
+      return handledProgressTodos.slice(0, followedProgressCount);
+    }
+    if (trackingDrawerFilter.kind === 'progress' && trackingDrawerFilter.value === 'stalled') {
+      return handledProgressTodos.filter((item) => getTodoTrackingWaitDays(item) >= 7);
+    }
+    if (trackingDrawerFilter.kind === 'progress' && trackingDrawerFilter.value === 'longest') {
+      if (handledProgressTodos.length === 0) return [];
+      const longest = Math.max(...handledProgressTodos.map(getTodoTrackingWaitDays));
+      return handledProgressTodos.filter((item) => getTodoTrackingWaitDays(item) === longest);
+    }
+    return handledProgressTodos.filter((item) => matchesTodoOverviewFilter(item, trackingDrawerFilter));
+  }, [handledProgressTodos, followedProgressCount, trackingDrawerFilter]);
+  const applyOverviewFilter = (filter: TodoOverviewFilter) => {
+    setOverviewFilter(filter);
+  };
+  const isOverviewFilterActive = (kind: TodoOverviewFilter['kind'], value: string) => (
+    overviewFilter?.kind === kind && overviewFilter.value === value
+  );
   const topicParam = encodeURIComponent(topicKey);
   const categoryParam = encodeURIComponent(activeCategory);
   const featureHref = (featureKey: string) =>
@@ -410,7 +682,12 @@ const Component = forwardRef<AxureHandle, AxureProps>(function Component(innerPr
   const [analysisSelectedConclusionId, setAnalysisSelectedConclusionId] = useState<string | null>(null);
   const [analysisActiveReportId, setAnalysisActiveReportId] = useState<string | null>(null);
   const [analysisActiveRuleId, setAnalysisActiveRuleId] = useState<string | null>(null);
+  const [assistDrawer, setAssistDrawer] = useState<AssistDrawerType | null>(null);
   const [showAllConclusions, setShowAllConclusions] = useState<boolean>(false);
+  const openTrackingDrawer = (filter: TodoOverviewFilter) => {
+    setTrackingDrawerFilter(filter);
+    setAssistDrawer('progress');
+  };
 
   const smartAnalysisData = useMemo(() => {
     if (isLocalDebt) {
@@ -649,6 +926,278 @@ const Component = forwardRef<AxureHandle, AxureProps>(function Component(innerPr
   }, [analysisCustomRange, isLocalDebt]);
 
   const currentSmartAnalysis = smartAnalysisData[analysisTimeRange];
+
+  const assistContext = useMemo(() => {
+    const returnedItems = returnedResponseTodos;
+    const uploadedNotSubmittedItems = uploadedNotSubmittedTodos;
+    const staleItems = responseTodos.filter((item) => item.responseAction === '待更新整改进度');
+    const submitReadyItems = responseTodos.filter((item) => item.responseAction === '待提交/重新提交');
+    const highRiskItems = activeTodoPool.filter((item) => item.level === '高');
+
+    if (!overviewFilter) {
+      return {
+        label: '全部待办',
+        description: '办理概览未选择特定筛选，展示当前全局处理建议与支撑能力。',
+        leftItems: [
+          {
+            key: 'returned',
+            title: '被退回事项',
+            count: returnedItems.length,
+            detail: '查看退回意见，补齐材料后重新提交。',
+            actionBtn: { label: '去补正', type: 'action', drawer: 'return' as AssistDrawerType, filter: { kind: 'response', value: '退回待补正', label: '被退回' } as TodoOverviewFilter },
+            viewBtn: { label: '查看退回原因', type: 'view', drawer: 'return' as AssistDrawerType },
+            tone: 'rose',
+          },
+          {
+            key: 'uploaded',
+            title: '已上传未提交事项',
+            count: uploadedNotSubmittedItems.length + submitReadyItems.length,
+            detail: '材料已上传但流程未进入审核，需提交前自查。',
+            actionBtn: { label: '去提交', type: 'action', drawer: 'selfCheck' as AssistDrawerType, filter: { kind: 'response', value: '已上传未提交', label: '已上传未提交' } as TodoOverviewFilter },
+            viewBtn: { label: '开始自查', type: 'view', drawer: 'selfCheck' as AssistDrawerType },
+            tone: 'amber',
+          },
+          {
+            key: 'stale',
+            title: '7天未更新事项',
+            count: staleItems.length,
+            detail: '补充最新整改进展，避免后续退回或督办。',
+            actionBtn: { label: '去更新', type: 'action', drawer: 'flow' as AssistDrawerType, filter: { kind: 'blockage', value: 'stale', label: '7天未更新' } as TodoOverviewFilter },
+            viewBtn: { label: '查看更新要求', type: 'view', drawer: 'flow' as AssistDrawerType },
+            tone: 'blue',
+          },
+          {
+            key: 'highRisk',
+            title: '高风险事项',
+            count: highRiskItems.length,
+            detail: '来自风险等级字段，建议优先核实处理。',
+            actionBtn: { label: '去处理', type: 'action', drawer: 'priority' as AssistDrawerType, filter: { kind: 'risk', value: '高', label: '高风险事项' } as TodoOverviewFilter },
+            viewBtn: { label: '查看风险依据', type: 'view', drawer: 'priority' as AssistDrawerType },
+            tone: 'slate',
+          },
+        ],
+        rightCapabilities: [
+          { key: 'return', title: '退回原因与补正建议', desc: '查看退回意见、补正要求和材料清单。' },
+          { key: 'selfCheck', title: '提交前自查', desc: '材料完整性、附件对应关系等检查项。' },
+          { key: 'history', title: '历史同类整改参考', desc: '同主题、同问题类型的已通过案例参考。' },
+          { key: 'progress', title: '流程与反馈跟踪', desc: '已办事项的当前流转节点和反馈情况。' },
+        ],
+      };
+    }
+
+    const filterLabel = overviewFilter.label;
+    const isReturned = overviewFilter.value === '退回待补正' || overviewFilter.value === '被退回';
+    const isUploaded = overviewFilter.value === '已上传未提交' || overviewFilter.value === '待提交/重新提交';
+    const isStale = overviewFilter.value === '7天未更新' || overviewFilter.value === 'stale';
+    const isHighRisk = overviewFilter.value === '高风险事项' || overviewFilter.value === '高';
+    const isTracking = overviewFilter.kind === 'tracking' || overviewFilter.kind === 'progress';
+    const isMaterialIssue = overviewFilter.value === '材料不完整' || overviewFilter.value === '待补充说明/材料';
+
+    if (isReturned) {
+      return {
+        label: filterLabel,
+        description: '当前聚焦被退回事项，查看退回原因并根据建议完成补正后重新提交。',
+        leftItems: [
+          { key: 'step1', title: '先查看退回意见', count: 0, detail: '确认退回原因和审核意见，明确需要补正的内容。', actionBtn: null, viewBtn: { label: '查看退回原因', type: 'view' as const, drawer: 'return' as AssistDrawerType }, tone: 'rose' as const },
+          { key: 'step2', title: '补齐缺失佐证材料', count: 0, detail: '根据退回要求补充资金凭证、核验材料或整改说明。', actionBtn: null, viewBtn: { label: '查看材料清单', type: 'view' as const, drawer: 'material' as AssistDrawerType }, tone: 'rose' as const },
+          { key: 'step3', title: '核对整改说明与附件是否一致', count: 0, detail: '检查附件名称、金额、时间与整改说明是否对应。', actionBtn: null, viewBtn: null, tone: 'amber' as const },
+          { key: 'step4', title: '补正后重新提交', count: 0, detail: '确认材料齐全后重新进入审核流程。', actionBtn: { label: '去补正', type: 'action' as const, drawer: 'return' as AssistDrawerType, filter: overviewFilter }, viewBtn: null, tone: 'amber' as const },
+        ],
+        rightDetail: {
+          type: 'return',
+          returnReasons: [
+            { label: '佐证材料不完整', count: returnedItems.length },
+            { label: '附件与说明不一致', count: returnedItems.length > 0 ? 1 : 0 },
+          ],
+          suggestions: ['补充资金支付凭证或核验材料', '更新整改说明中的金额和时间口径', '提交前检查附件名称与说明是否一致'],
+        },
+      };
+    }
+
+    if (isMaterialIssue) {
+      return {
+        label: filterLabel,
+        description: '当前聚焦材料不完整事项，需核实缺项清单并补充对应材料。',
+        leftItems: [
+          { key: 'step1', title: '确认材料缺项', count: 0, detail: '查看系统标注的材料缺项清单，明确需补充的内容。', actionBtn: null, viewBtn: { label: '查看材料清单', type: 'view' as const, drawer: 'material' as AssistDrawerType }, tone: 'rose' as const },
+          { key: 'step2', title: '完成提交前自查', count: 0, detail: '逐项核对整改说明、附件、关键数据和口径。', actionBtn: null, viewBtn: { label: '开始自查', type: 'view' as const, drawer: 'selfCheck' as AssistDrawerType }, tone: 'amber' as const },
+          { key: 'step3', title: '参考同类材料示例', count: 0, detail: '查看已通过事项的材料格式、内容和结构。', actionBtn: null, viewBtn: { label: '查看材料示例', type: 'view' as const, drawer: 'material' as AssistDrawerType }, tone: 'blue' as const },
+        ],
+        rightDetail: {
+          type: 'material',
+          returnReasons: [
+            { label: '佐证材料不完整', count: 1 },
+            { label: '附件与说明不一致', count: 1 },
+          ],
+          suggestions: ['补充资金支付凭证', '完善整改过程说明', '上传整改前后对比材料'],
+        },
+      };
+    }
+
+    if (isStale) {
+      return {
+        label: filterLabel,
+        description: '当前聚焦长时间未更新事项，需补充最新整改进展以避免后续退回或督办。',
+        leftItems: [
+          { key: 'step1', title: '查看更新要求', count: 0, detail: '了解当前需补充哪些进展信息，明确更新时间节点。', actionBtn: null, viewBtn: { label: '查看更新要求', type: 'view' as const, drawer: 'flow' as AssistDrawerType }, tone: 'amber' as const },
+          { key: 'step2', title: '补充最新整改进展', count: 0, detail: '填写整改进度、当前状态、下一步计划等信息。', actionBtn: { label: '去更新', type: 'action' as const, drawer: 'flow' as AssistDrawerType, filter: overviewFilter }, viewBtn: null, tone: 'blue' as const },
+          { key: 'step3', title: '了解流程影响', count: 0, detail: '长时间未更新可能导致督办或退回，需了解对整体流程的影响。', actionBtn: null, viewBtn: { label: '查看流程日志', type: 'view' as const, drawer: 'flow' as AssistDrawerType }, tone: 'slate' as const },
+        ],
+        rightDetail: {
+          type: 'stale',
+          returnReasons: [
+            { label: '最近进展', count: staleItems.length },
+            { label: '当前节点', count: 1 },
+          ],
+          suggestions: ['更新整改进展说明', '补充当前状态和下一步计划', '如有材料变更补充对应附件'],
+        },
+      };
+    }
+
+    if (isHighRisk) {
+      return {
+        label: filterLabel,
+        description: '当前聚焦高风险事项，建议优先核实风险依据和关联规则。',
+        leftItems: [
+          { key: 'step1', title: '查看风险依据', count: 0, detail: '了解事项被标记为高风险的原因和关联的规则。', actionBtn: null, viewBtn: { label: '查看风险依据', type: 'view' as const, drawer: 'priority' as AssistDrawerType }, tone: 'rose' as const },
+          { key: 'step2', title: '查看规则来源', count: 0, detail: '确认触发风险的规则定义和阈值条件。', actionBtn: null, viewBtn: { label: '查看规则来源', type: 'view' as const, drawer: 'basis' as AssistDrawerType }, tone: 'amber' as const },
+          { key: 'step3', title: '参考同类风险处理方式', count: 0, detail: '查看同类风险的历史处理案例和整改方式。', actionBtn: null, viewBtn: { label: '查看同类参考', type: 'view' as const, drawer: 'history' as AssistDrawerType }, tone: 'blue' as const },
+        ],
+        rightDetail: {
+          type: 'risk',
+          returnReasons: [
+            { label: '风险等级', count: highRiskItems.length },
+            { label: '关联规则', count: 2 },
+          ],
+          suggestions: ['优先核实风险依据', '对照关联规则逐项自查', '参考历史同类风险处理方案'],
+        },
+      };
+    }
+
+    if (isTracking) {
+      return {
+        label: filterLabel,
+        description: '当前聚焦已办流程跟踪，查看已处理事项的当前流转状态和反馈情况。',
+        leftItems: [
+          { key: 'step1', title: '查看当前流转节点', count: 0, detail: '确认已办事项当前所处的审核/复核/销号环节。', actionBtn: null, viewBtn: { label: '查看流程日志', type: 'view' as const, drawer: 'flow' as AssistDrawerType }, tone: 'blue' as const },
+          { key: 'step2', title: '关注长时间未反馈事项', count: trackingDelayedCount, detail: '对于超过关注阈值未反馈的事项，主动跟进或催办。', actionBtn: null, viewBtn: { label: '查看详情', type: 'view' as const, drawer: 'progress' as AssistDrawerType }, tone: trackingDelayedCount > 0 ? 'rose' : 'slate' as const },
+          { key: 'step3', title: '跟踪最近反馈', count: 0, detail: `最近反馈：${latestTrackingFeedback}，了解最新处理意见。`, actionBtn: null, viewBtn: { label: '查看反馈', type: 'view' as const, drawer: 'progress' as AssistDrawerType }, tone: 'amber' as const },
+        ],
+        rightDetail: {
+          type: 'tracking',
+          returnReasons: [
+            { label: '最长等待', count: longestTrackingWaitDays },
+            { label: '最近反馈', count: 0 },
+          ],
+          suggestions: ['查看流程日志了解审核进展', '关注未反馈事项主动跟进', '确认销号条件是否满足'],
+        },
+      };
+    }
+
+    return {
+      label: filterLabel,
+      description: `当前筛选：${filterLabel}，展示对应办理支撑信息。`,
+      leftItems: [
+        {
+          key: 'general',
+          title: filterLabel,
+          count: 0,
+          detail: `当前已选中"${filterLabel}"类型，可查看下方右侧处理支撑区获取更多帮助。`,
+          actionBtn: null,
+          viewBtn: null,
+          tone: 'blue' as const,
+        },
+      ],
+      rightCapabilities: [
+        { key: 'return', title: '退回原因与补正建议', desc: '查看退回意见、补正要求和材料清单。' },
+        { key: 'selfCheck', title: '提交前自查', desc: '材料完整性、附件对应关系等检查项。' },
+        { key: 'history', title: '历史同类整改参考', desc: '同主题、同问题类型的已通过案例参考。' },
+        { key: 'progress', title: '流程与反馈跟踪', desc: '已办事项的当前流转节点和反馈情况。' },
+      ],
+    };
+  }, [
+    overviewFilter,
+    activeTodoPool,
+    followedProgressCount,
+    handledProgressTodos,
+    latestTrackingFeedback,
+    longestTrackingWaitDays,
+    responseTodos,
+    returnedResponseTodos,
+    trackingDelayedCount,
+    trackingTodos,
+    uploadedNotSubmittedTodos,
+  ]);
+
+  const drawerData = useMemo(() => {
+    const returnedItems = returnedResponseTodos;
+    const uploadedNotSubmittedItems = uploadedNotSubmittedTodos;
+    const staleItems = responseTodos.filter((item) => item.responseAction === '待更新整改进度');
+    const submitReadyItems = responseTodos.filter((item) => item.responseAction === '待提交/重新提交');
+    const highImpactItems = activeTodoPool.filter((item) => item.level === '高');
+    const firstReturned = returnedItems[0];
+    const firstUploaded = uploadedNotSubmittedItems[0];
+    const selfCheckItem = firstUploaded || submitReadyItems[0];
+
+    const priorityParts = [
+      returnedItems.length > 0 ? '被退回事项' : '',
+      uploadedNotSubmittedItems.length > 0 ? '已上传未提交事项' : '',
+      staleItems.length > 0 ? '7天未更新事项' : '',
+      highImpactItems.length > 0 ? '高风险事项' : '',
+    ].filter(Boolean);
+    const prioritySummary = priorityParts.length > 0
+      ? `当前优先处理：${priorityParts.slice(0, 3).join('、')}。建议先补正退回事项，再完成已上传未提交事项的提交前自查。`
+      : '当前未发现明显阻塞事项，可按右侧待办明细顺序处理，并在提交前完成材料自查。';
+
+    return {
+      prioritySummary,
+      priorityBasis: [
+        { group: '阻塞类', label: '被退回', count: returnedItems.length, reason: returnedItems.length > 0 ? '退回说明或佐证材料不完整，阻断后续审核。' : '当前无退回阻塞。', source: '审核退回状态、退回说明', filter: { kind: 'response', value: '退回待补正', label: '被退回' } as TodoOverviewFilter },
+        { group: '时限类', label: '已超期', count: overdueTodos.length, reason: overdueTodos.length > 0 ? `存在 ${overdueTodos.length} 项超期事项，需先处理。` : '当前无超期事项。', source: '截止日期、事项流转状态', filter: { kind: 'deadline', value: 'overdue', label: '已超期' } as TodoOverviewFilter },
+        { group: '阻塞类', label: '已上传未提交', count: uploadedNotSubmittedItems.length, reason: uploadedNotSubmittedItems.length > 0 ? '材料或报送内容已准备，但尚未进入审核流程。' : '当前无已上传未提交事项。', source: '附件上传记录、流程未提交状态', filter: { kind: 'response', value: '已上传未提交', label: '已上传未提交' } as TodoOverviewFilter },
+        { group: '风险类', label: '高风险事项', count: highImpactItems.length, reason: highImpactItems.length > 0 ? '来自事项风险等级字段，建议优先核实。' : '当前无高风险事项。', source: '规则等级、风险等级、涉及金额、重复命中', filter: { kind: 'risk', value: '高', label: '高风险事项' } as TodoOverviewFilter },
+        { group: '阻塞类', label: '7天未更新', count: staleItems.length, reason: staleItems.length > 0 ? '整改进展超过关注阈值未更新，需要补充最新进展。' : '当前无7天未更新事项。', source: '整改进展更新时间、台账字段', filter: { kind: 'blockage', value: 'stale', label: '7天未更新' } as TodoOverviewFilter },
+      ],
+      returnAdvice: {
+        itemName: firstReturned?.t || '暂无被退回事项',
+        reason: returnedItems.length > 0 ? '佐证材料不完整，整改说明与附件说明不一致。' : '当前无退回原因记录。',
+        suggestions: ['补充资金支付凭证或核验材料', '更新整改说明中的金额和时间口径', '上传整改前后对比材料', '提交前检查附件名称与说明是否一致'],
+        categories: [
+          { label: '佐证材料不完整', count: returnedItems.length || 0, action: '补充凭证类材料' },
+          { label: '整改说明不充分', count: returnedItems.length > 1 ? 1 : 0, action: '补充整改过程和结果说明' },
+          { label: '附件与说明不一致', count: returnedItems.length > 0 ? 1 : 0, action: '统一附件名称和说明口径' },
+        ],
+      },
+      selfCheck: {
+        itemName: selfCheckItem?.t || '暂无待提交事项',
+        status: selfCheckItem?.status || '暂无待提交',
+        count: uploadedNotSubmittedItems.length + submitReadyItems.length,
+        attentionCount: Math.max(0, Math.min(3, uploadedNotSubmittedItems.length + submitReadyItems.length + returnedItems.length)),
+        concerns: ['整改说明是否填写完整', '上传附件是否与整改说明逐项对应', '金额、时间、责任单位是否一致', '是否需要补充整改前后对比材料'],
+      },
+      historyReference: {
+        materials: ['支付凭证', '整改报告', '会议纪要', '整改前后对比材料', '责任单位说明'],
+        matchBasis: ['同主题', '同问题类型', '同退回原因', '同材料要求'],
+        methods: ['补充资金拨付或核验凭证', '完善整改过程和结果说明', '上传整改前后对比材料', '说明后续防范措施'],
+      },
+      trackingAssist: {
+        flowLogs: [
+          { node: '我提交', role: '被监督单位经办', time: '03-22', opinion: '提交整改材料', stay: '当天', current: false },
+          { node: '审核中', role: '业务审核岗', time: '03-23', opinion: '核对材料完整性', stay: '1天', current: false },
+          { node: '复核中', role: '复核岗', time: '03-25', opinion: '等待复核意见', stay: `${Math.max(1, longestTrackingWaitDays)}天`, current: handledProgressTodos.length > 0 },
+          { node: '待销号', role: '销号确认岗', time: '待处理', opinion: '等待闭环确认', stay: '待确认', current: false },
+        ],
+      },
+    };
+  }, [
+    activeTodoPool,
+    handledProgressTodos,
+    longestTrackingWaitDays,
+    overdueTodos,
+    responseTodos,
+    returnedResponseTodos,
+    uploadedNotSubmittedTodos,
+  ]);
   const linkedRuleIds = useMemo(() => {
     const pivotId = analysisHoverConclusionId || analysisSelectedConclusionId;
     if (!pivotId) return [];
@@ -1393,6 +1942,351 @@ const Component = forwardRef<AxureHandle, AxureProps>(function Component(innerPr
     </div>
   );
 
+  const renderItemOverview = () => {
+    const submitActionItems = responseTodos.filter((item) => item.responseAction === '待提交/重新提交');
+    const uploadedNotSubmittedItems = uploadedNotSubmittedTodos;
+    const returnedItems = returnedResponseTodos;
+    const formalSubmitCount = Math.max(0, submitActionItems.length - uploadedNotSubmittedItems.length);
+    const directTodoItems = responseTodos.filter((item) => item.disposalPool === 'action' && !isTodoUploadedNotSubmitted(item));
+    const materialIncompleteItems = activeTodoPool.filter((item) => /材料|附件|补录|佐证|凭证|补充/.test(`${item.t}${item.flowNode}${item.module}${item.status}${item.category}`));
+    const staleItems = responseTodos.filter((item) => item.disposalPool === 'action' && item.responseAction === '待更新整改进度');
+    const multiReturnedItems = returnedItems.filter((item) => (item.returnCount || 0) > 1);
+    const highRiskItems = activeTodoPool.filter((item) => item.level === '高');
+    const amountRiskItems = activeTodoPool.filter((item) => /资金|债务|专项债|化债|金额|拨付|支付/.test(`${item.t}${item.flowNode}${item.module}${item.status}${item.category}`));
+    const repeatRiskItems = activeTodoPool.filter((item) => (item.returnCount || 0) > 0 || /重复|抽查|核验|台账/.test(`${item.t}${item.flowNode}${item.module}${item.status}${item.category}`));
+    const doubtRiskItems = activeTodoPool.filter((item) => /线索|核验|抽查|疑点/.test(`${item.t}${item.flowNode}${item.module}${item.status}${item.category}`));
+    const dueTodayAndSoonCount = todayDueTodos.length + within3Todos.length;
+
+    const tileTone = {
+      blue: 'text-[#0F3D8A] bg-blue-50/70',
+      amber: 'text-amber-600 bg-amber-50/70',
+      orange: 'text-orange-600 bg-orange-50/70',
+      rose: 'text-rose-600 bg-rose-50/80',
+      red: 'text-red-600 bg-red-50/70',
+      slate: 'text-slate-600 bg-slate-100/80',
+      indigo: 'text-indigo-600 bg-indigo-50/70',
+    };
+
+    const todoTypeCards = [
+      {
+        key: 'material',
+        label: '待补充说明/材料',
+        count: responseActionItems.find((item) => item.action === '待补充说明/材料')?.count || 0,
+        hint: '需补齐说明或附件',
+        filter: { kind: 'response', value: '待补充说明/材料', label: '待补充说明/材料' } as TodoOverviewFilter,
+        cls: tileTone.slate,
+      },
+      {
+        key: 'progress',
+        label: '待更新整改进度',
+        count: responseActionItems.find((item) => item.action === '待更新整改进度')?.count || 0,
+        hint: '补充最新进展',
+        filter: { kind: 'response', value: '待更新整改进度', label: '待更新整改进度' } as TodoOverviewFilter,
+        cls: tileTone.amber,
+      },
+      {
+        key: 'submit',
+        label: '待提交/重新提交',
+        count: formalSubmitCount,
+        hint: '需完成正式提交',
+        filter: { kind: 'response', value: '待提交/重新提交', label: '待提交/重新提交' } as TodoOverviewFilter,
+        cls: 'text-purple-600 bg-purple-50/70',
+      },
+      {
+        key: 'first',
+        label: '已临期',
+        count: within3To5Todos.length,
+        hint: '3-5天到期',
+        filter: { kind: 'deadline', value: 'within3to5', label: '已临期' } as TodoOverviewFilter,
+        cls: tileTone.blue,
+      },
+      {
+        key: 'overdue',
+        label: '已超期',
+        count: overdueTodos.length,
+        hint: longestOverdueDays ? `最长逾期${longestOverdueDays}天` : '暂无超期',
+        filter: { kind: 'deadline', value: 'overdue', label: '已超期' } as TodoOverviewFilter,
+        cls: tileTone.red,
+      },
+      {
+        key: 'due',
+        label: '今日/临期到期',
+        count: dueTodayAndSoonCount,
+        hint: todayDueTodos.length > 0 ? `${todayDueTodos.length}项今日到期` : '1-3日内到期',
+        filter: { kind: 'deadline', value: todayDueTodos.length > 0 ? 'today' : 'within3', label: '今日/临期到期' } as TodoOverviewFilter,
+        cls: tileTone.orange,
+      },
+    ];
+
+    const blockageCards = [
+      {
+        key: 'returned',
+        label: '被退回',
+        count: returnedItems.length,
+        hint: '退回说明待补正',
+        filter: { kind: 'response', value: '退回待补正', label: '被退回' } as TodoOverviewFilter,
+        cls: tileTone.rose,
+      },
+      {
+        key: 'materialIncomplete',
+        label: '材料不完整',
+        count: materialIncompleteItems.length,
+        hint: '附件或佐证需补齐',
+        filter: { kind: 'blockage', value: 'materialIncomplete', label: '材料不完整' } as TodoOverviewFilter,
+        cls: tileTone.slate,
+      },
+      {
+        key: 'multiReturned',
+        label: '多次退回',
+        count: multiReturnedItems.length,
+        hint: '需核对退回原因',
+        filter: { kind: 'blockage', value: 'multiReturned', label: '多次退回' } as TodoOverviewFilter,
+        cls: tileTone.red,
+      },
+      {
+        key: 'uploaded',
+        label: '已上传未提交',
+        count: uploadedNotSubmittedItems.length,
+        hint: '流程尚未启动',
+        filter: { kind: 'response', value: '已上传未提交', label: '已上传未提交' } as TodoOverviewFilter,
+        cls: tileTone.orange,
+      },
+      {
+        key: 'stale',
+        label: '7天未更新',
+        count: staleItems.length,
+        hint: '整改进展未更新',
+        filter: { kind: 'blockage', value: 'stale', label: '7天未更新' } as TodoOverviewFilter,
+        cls: tileTone.amber,
+      },
+    ];
+
+    const riskCards = [
+      {
+        key: 'high',
+        label: '高风险事项',
+        count: highRiskItems.length,
+        hint: '预警级别高',
+        filter: { kind: 'risk', value: '高', label: '高风险事项' } as TodoOverviewFilter,
+        cls: tileTone.red,
+      },
+      {
+        key: 'amount',
+        label: '涉及金额较大',
+        count: amountRiskItems.length,
+        hint: '达到主题阈值',
+        filter: { kind: 'risk', value: 'amount', label: '涉及金额较大' } as TodoOverviewFilter,
+        cls: tileTone.orange,
+      },
+      {
+        key: 'repeat',
+        label: '重复命中事项',
+        count: repeatRiskItems.length,
+        hint: '2次及以上命中',
+        filter: { kind: 'risk', value: 'repeat', label: '重复命中事项' } as TodoOverviewFilter,
+        cls: tileTone.amber,
+      },
+      {
+        key: 'doubt',
+        label: '待核实疑点',
+        count: doubtRiskItems.length,
+        hint: '线索核验未认定',
+        filter: { kind: 'risk', value: 'doubt', label: '待核实疑点' } as TodoOverviewFilter,
+        cls: tileTone.blue,
+      },
+    ];
+
+    const followProgressItems = trackingTodos.slice(0, followedProgressCount);
+    const progressStageCards = [
+      ...trackingStageItems.map((item) => ({
+        key: item.stage,
+        label: item.label,
+        count: item.count,
+        filter: { kind: 'tracking', value: item.stage, label: item.label } as TodoOverviewFilter,
+        cls: item.stage === '待销号' ? tileTone.indigo : tileTone.blue,
+      })),
+    ];
+    const trackingAttentionCards = [
+      {
+        key: 'followed',
+        label: '我关注事项',
+        value: `${followProgressItems.length}项`,
+        filter: { kind: 'progress', value: 'followed', label: '我关注事项' } as TodoOverviewFilter,
+      },
+      {
+        key: 'longest',
+        label: '最长停留',
+        value: `${longestTrackingWaitDays}天`,
+        filter: { kind: 'progress', value: 'longest', label: '最长停留' } as TodoOverviewFilter,
+      },
+      {
+        key: 'feedback',
+        label: '最近反馈',
+        value: latestTrackingFeedback,
+        filter: { kind: 'progress', value: 'all', label: '最近反馈' } as TodoOverviewFilter,
+      },
+      {
+        key: 'stalled',
+        label: '7天未反馈',
+        value: `${trackingDelayedCount}项`,
+        filter: { kind: 'progress', value: 'stalled', label: '7天未反馈' } as TodoOverviewFilter,
+      },
+    ];
+
+    const priorityParts = [
+      returnedItems.length > 0 ? `${returnedItems.length}项被退回` : '',
+      uploadedNotSubmittedItems.length > 0 ? `${uploadedNotSubmittedItems.length}项已上传未提交` : '',
+      highRiskItems.length > 0 ? `${highRiskItems.length}项高风险` : '',
+      overdueTodos.length > 0 ? `${overdueTodos.length}项已超期` : '',
+    ].filter(Boolean);
+    const priorityHintText = priorityParts.length > 0
+      ? `当前重点提醒：先看${priorityParts.slice(0, 3).join('、')}，再进入右侧待办明细处理。`
+      : '当前重点提醒：暂无明显阻塞或高风险事项，可按右侧待办明细顺序处理。';
+
+    const renderOverviewBlock = (
+      title: string,
+      desc: string,
+      cards: Array<{ key: string; label: string; count: number; hint: string; filter: TodoOverviewFilter; cls: string }>,
+      accentClass: string,
+      extra?: React.ReactNode,
+      scrollable = false,
+    ) => (
+      <div className="h-full min-h-0 rounded-xl bg-[#F8FAFF] p-4 flex flex-col overflow-hidden">
+        <div className="mb-3 flex shrink-0 items-center gap-2.5">
+          <div className={`h-[16px] w-[3px] rounded-full ${accentClass}`}></div>
+          <div className="shrink-0 text-[15px] font-bold text-slate-700">{title}</div>
+          <div className="min-w-0 truncate text-[11px] text-slate-400">{desc}</div>
+          {extra && <div className="ml-auto">{extra}</div>}
+        </div>
+        <div className={`grid grid-cols-2 auto-rows-min content-start gap-2.5 ${scrollable ? 'flex-1 min-h-0 overflow-y-auto overscroll-contain pr-1 custom-scrollbar' : ''}`}>
+          {cards.map((item) => (
+            <button
+              key={item.key}
+              type="button"
+              onClick={() => applyOverviewFilter(item.filter)}
+              className={`min-h-[56px] w-full rounded-lg px-3 py-2 text-left leading-tight transition-all ${item.cls} ${item.count === 0 ? 'opacity-60' : ''} ${
+                isOverviewFilterActive(item.filter.kind, item.filter.value) ? 'ring-2 ring-[#4E73C8]/20 bg-white' : 'hover:bg-white'
+              }`}
+            >
+              <div className="flex items-center justify-between gap-2">
+                <span className="truncate text-[12px] font-semibold leading-tight">{item.label}</span>
+                <span className="text-[18px] font-bold leading-tight">{item.count}<span className="ml-0.5 text-[11px] font-medium">项</span></span>
+              </div>
+              <div className="mt-1 truncate text-[11px] leading-tight opacity-80">{item.hint}</div>
+            </button>
+          ))}
+        </div>
+      </div>
+    );
+
+    return (
+      <div className="col-span-2 bg-white rounded-2xl shadow-sm p-4 flex flex-col overflow-hidden" style={{ height: '480px' }}>
+        <div className="mb-3 flex items-start gap-3">
+          <div className="flex shrink-0 items-center gap-2.5">
+            <div className="w-[4px] h-[18px] bg-[#4E73C8] rounded-full"></div>
+            <div className="text-[17px] font-bold text-[#0F3D8A]">办理概览</div>
+          </div>
+          <div className="min-w-0 flex flex-1 items-start justify-end gap-2">
+            <button
+              type="button"
+              onClick={() => setAssistDrawer('priority')}
+              className="min-w-0 flex-1 rounded-xl bg-blue-50/60 px-3 py-2 text-left text-[11px] leading-relaxed text-[#0F3D8A] transition-colors hover:bg-blue-50"
+              title={priorityHintText}
+            >
+              <span className="block truncate">{priorityHintText}</span>
+            </button>
+            {overviewFilter && (
+              <button
+                type="button"
+                onClick={() => setOverviewFilter(null)}
+                className="h-8 shrink-0 px-3 rounded-lg bg-[#EEF3FF] text-[11px] font-semibold text-[#4E73C8] hover:bg-blue-100/70 transition-colors"
+              >
+                清除筛选
+              </button>
+            )}
+          </div>
+        </div>
+
+        {todoFacts.length === 0 ? (
+          <div className="flex-1 rounded-xl bg-[#FAFBFC] flex flex-col items-center justify-center text-center">
+            <div className="text-sm font-semibold text-slate-700">当前暂无待处理事项</div>
+            <div className="mt-2 text-xs text-slate-400">可通过明细查询查看全部记录。</div>
+          </div>
+        ) : (
+          <div className="flex-1 min-h-0 flex flex-col gap-3">
+            <div className="grid flex-1 min-h-0 grid-cols-2 grid-rows-2 gap-3">
+              {renderOverviewBlock(
+                '待办事项',
+                '按当前办理动作归集',
+                todoTypeCards,
+                'bg-[#4E73C8]',
+                <span className="text-[12px] font-semibold text-[#4E73C8]">{directTodoItems.length}<span className="ml-0.5 text-[10px] text-slate-400">项</span></span>,
+                true,
+              )}
+              {renderOverviewBlock(
+                '阻塞流程',
+                '当前卡住或易退回事项',
+                blockageCards,
+                'bg-amber-500',
+                undefined,
+                true,
+              )}
+              {renderOverviewBlock(
+                '风险数据',
+                '按风险程度归集',
+                riskCards,
+                'bg-red-500',
+              )}
+              <div className="h-full min-h-0 rounded-xl bg-[#F8FAFF] p-4 flex flex-col overflow-hidden">
+                <div className="mb-3 flex shrink-0 items-center gap-2.5">
+                  <div className="h-[16px] w-[3px] rounded-full bg-[#6B8DD6]"></div>
+                  <div className="shrink-0 text-[15px] font-bold text-slate-700">已办跟踪</div>
+                  <div className="min-w-0 truncate text-[11px] text-slate-400">查看已处理事项流转进度</div>
+                  <div className="ml-auto shrink-0 text-[13px] font-semibold text-[#4E73C8]">未结束 {handledProgressTodos.length}<span className="ml-0.5 text-[11px] text-slate-400">项</span></div>
+                </div>
+                <div className="flex-1 min-h-0 overflow-y-auto overscroll-contain pr-1 custom-scrollbar">
+                  <div className="mb-1.5 text-[11px] font-medium text-slate-400">流转节点</div>
+                  <div className="grid grid-cols-[1fr_auto_1fr_auto_1fr] items-center gap-2">
+                    {progressStageCards.map((item, index) => (
+                      <React.Fragment key={item.key}>
+                        <button
+                          type="button"
+                          title={item.key === '待销号' ? '问题整改类为待销号，其他流程类为待完结。' : item.label}
+                          onClick={() => openTrackingDrawer(item.filter)}
+                          className={`min-h-[48px] rounded-lg bg-white/75 px-3 py-2 text-left text-[#0F3D8A] transition-all hover:bg-white ${item.count === 0 ? 'opacity-60' : ''}`}
+                        >
+                          <div className="truncate text-[12px] font-semibold">{item.label}</div>
+                          <div className="mt-1 text-[16px] font-bold">{item.count}<span className="ml-0.5 text-[11px] font-medium">项</span></div>
+                        </button>
+                        {index < progressStageCards.length - 1 && (
+                          <div className="text-center text-[14px] text-slate-300">→</div>
+                        )}
+                      </React.Fragment>
+                    ))}
+                  </div>
+                  <div className="mt-3 mb-1.5 text-[11px] font-medium text-slate-400">关注提醒</div>
+                  <div className="grid grid-cols-4 gap-2">
+                    {trackingAttentionCards.map((item) => (
+                      <button
+                        key={item.key}
+                        type="button"
+                        onClick={() => openTrackingDrawer(item.filter)}
+                        className="min-h-[42px] rounded-lg bg-white/60 px-2.5 py-1.5 text-left text-slate-600 transition-colors hover:bg-white"
+                      >
+                        <div className="truncate text-[11px] text-slate-400">{item.label}</div>
+                        <div className="mt-0.5 truncate text-[13px] font-semibold text-slate-700">{item.value}</div>
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
+      </div>
+    );
+  };
+
   // 指标详情抽屉
   const IndicatorDetailDrawer = () => (
     <div className={`fixed inset-0 z-50 flex items-start justify-end ${showIndicatorDetail ? 'opacity-100' : 'opacity-0 pointer-events-none'}`}>
@@ -1761,1097 +2655,540 @@ const Component = forwardRef<AxureHandle, AxureProps>(function Component(innerPr
             )}
           </div>
           
-          {/* 第二大区：综合分析（左） + 待办事项（右） */}
+          {/* 第二大区：办理概览（左） + 待办明细（右） */}
           <section className="grid grid-cols-3 gap-4">
-            <div className="col-span-2 bg-white rounded-2xl px-4 pt-2 pb-4 flex flex-col" style={{ height: '592.38px' }}>
-              <BreadcrumbNav />
-              <div className="grid grid-cols-12 gap-4 flex-1 min-h-0">
-                {/* 左侧图表区 */}
-                {isLocalDebt && evaluationView === 'trend' ? (
-                  renderLocalDebtTrendNavigator()
-                ) : isLocalDebt && currentLevel === 3 && selectedL2 ? (
-                  <LocalDebtLevel3Panel
-                    indicator={selectedL2}
-                    siblings={selectedL1?.indicators || [selectedL2]}
-                    onSelectIndicator={(indicator) => {
-                      setSelectedL2(indicator);
-                      setCurrentLevel(3);
-                      setActiveTab('overview');
-                    }}
-                    onBack={() => {
-                      setCurrentLevel(1);
-                      setSelectedL1(null);
-                      setSelectedL2(null);
-                      setActiveTab('overview');
-                    }}
-                  />
-                ) : (
-                  <div key="score-radar-navigator" className="col-span-5 px-4 pt-3 pb-4 relative flex flex-col min-h-0 overflow-hidden">
-                    {currentLevel === 3 && selectedL2 ? (
-                      <div className="pt-1 space-y-3">
-                        <div className="rounded-xl bg-[#FAFBFC] px-5 py-4">
-                          <div className="flex items-start justify-between gap-4">
-                            <div>
-                              <div className="text-[11px] text-slate-400 mb-1">指标概览</div>
-                              <div className="text-[22px] font-bold text-slate-800 leading-tight">{selectedL2.name}</div>
-                            </div>
-                            <span
-                              className={`inline-flex px-2 py-1 rounded-full text-[11px] font-semibold whitespace-nowrap ${
-                                selectedL2.result === '良好'
-                                  ? 'bg-green-50 text-green-600'
-                                  : selectedL2.result === '一般'
-                                  ? 'bg-amber-50 text-amber-600'
-                                  : 'bg-red-50 text-red-600'
-                              }`}
-                            >
-                              {selectedL2.result}
-                            </span>
-                          </div>
-                          <div className="grid grid-cols-2 gap-3 mt-4">
-                            <div className="rounded-lg bg-white px-4 py-3">
-                              <div className="text-[10px] text-slate-400 mb-1">当前得分</div>
-                              <div className="text-[30px] leading-none font-bold tracking-tight text-[#4E73C8]">{selectedL2.score}分</div>
-                            </div>
-                            <div className="rounded-lg bg-white px-4 py-3">
-                              <div className="text-[10px] text-slate-400 mb-1">本期值</div>
-                              <div className="text-base font-semibold text-slate-800 break-words">{selectedL2.detail.currentValue || '待补充'}</div>
-                            </div>
-                            <div className="rounded-lg bg-white px-4 py-3">
-                              <div className="text-[10px] text-slate-400 mb-1">标准值</div>
-                              <div className="text-sm font-semibold text-slate-800 break-words">{selectedL2.detail.standardValue || '待补充'}</div>
-                            </div>
-                            <div className="rounded-lg bg-white px-4 py-3">
-                              <div className="text-[10px] text-slate-400 mb-1">趋势状态</div>
-                              <div className="text-sm font-semibold text-slate-800">{calcIndicatorDelta(selectedL2) >= 0 ? '上升' : '下降'}</div>
+            {renderItemOverview()}
+            <div className="bg-white rounded-2xl shadow-sm p-4 flex flex-col" style={{ height: '480px' }}>
+              <div className="mb-3 flex items-center gap-2.5">
+                <div className="w-[4px] h-[18px] bg-[#4E73C8] rounded-full"></div>
+                <div className="text-[17px] font-bold text-[#0F3D8A]">待办明细</div>
+              </div>
+              {overviewFilter && (
+                <div className="mb-3 inline-flex w-fit items-center gap-2 rounded-full bg-blue-50/70 px-3 py-1.5 text-xs text-[#0F3D8A]">
+                  <span>当前筛选：{overviewFilter.label}</span>
+                  <button
+                    type="button"
+                    className="flex h-4 w-4 items-center justify-center rounded-full bg-white text-[11px] text-slate-400 hover:text-[#4E73C8]"
+                    onClick={() => setOverviewFilter(null)}
+                    aria-label="清除筛选"
+                  >
+                    ×
+                  </button>
+                </div>
+              )}
+              <div className="space-y-3 flex-1 min-h-0 overflow-y-auto pr-1 custom-scrollbar">
+                {displayTodos.length === 0 ? (
+                  <div className="h-full rounded-xl bg-[#FAFBFC] flex flex-col items-center justify-center text-center">
+                    <div className="text-sm font-semibold text-slate-700">当前暂无待处理事项</div>
+                    <div className="mt-2 text-xs text-slate-400">可通过明细查询查看全部记录。</div>
+                  </div>
+                ) : displayTodos.map((item, idx) => {
+                  const isOverdue = item.timing === 'overdue';
+                  const isDueSoon = item.timing === 'due';
+                  const statusCls = getTodoStatusPillClass(item.status);
+                  
+                  return (
+                    <div key={`${item.t}-${item.d}-${idx}`} className="bg-[#FAFBFC] rounded-lg p-3">
+                      <div className="flex items-center justify-between mb-2 gap-3">
+                        <div className="flex-1 min-w-0">
+                          <div className="text-sm font-semibold text-slate-800 truncate relative group">
+                            {item.t}
+                            <div className="absolute left-0 bottom-full mb-1 px-2 py-1 bg-slate-800 text-white text-xs rounded whitespace-normal max-w-[300px] opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all z-50">
+                              {item.t}
                             </div>
                           </div>
                         </div>
+                        <div className="text-xs text-slate-500 whitespace-nowrap">截止：{item.d}</div>
                       </div>
-                    ) : (
-                      <>
-                        <div className="flex-1 relative min-h-[280px] flex items-start justify-center pt-0 pb-2">
-                          <>
-                            <div className="h-full w-full" ref={radarChartRef}></div>
-                            {currentLevel < 3 && radarOverlayItems.length > 0 && (
-                              <div className="absolute inset-0 z-20 pointer-events-none">
-                                {radarOverlayItems.map((overlayItem) => {
-                                  const isActive =
-                                    currentLevel === 1
-                                      ? selectedL1?.name === overlayItem.name
-                                      : selectedL2?.name === overlayItem.name;
-                                  return (
-                                    <button
-                                      key={overlayItem.id}
-                                      type="button"
-                                      className={`absolute -translate-x-1/2 -translate-y-1/2 pointer-events-auto px-0.5 py-0 whitespace-nowrap border-none bg-transparent shadow-none transition-all ${
-                                        isActive
-                                          ? 'text-[#4E73C8] font-bold'
-                                          : 'text-slate-700 hover:text-[#4E73C8]'
-                                      }`}
-                                      style={{ left: overlayItem.left, top: overlayItem.top }}
-                                      onClick={() => {
-                                        if (currentLevel === 1) {
-                                          const dim = currentAnalysisData.find(item => item.name === overlayItem.name);
-                                          if (dim) {
-                                            setSelectedL1(dim);
-                                            setSelectedL2(null);
-                                            setCurrentLevel(2);
-                                            setActiveTab('overview');
-                                          }
-                                        } else if (currentLevel === 2 && selectedL1) {
-                                          const ind = selectedL1.indicators.find(item => item.name === overlayItem.name);
-                                          if (ind) {
-                                            setSelectedL2(ind);
-                                            setCurrentLevel(3);
-                                            setActiveTab('overview');
-                                          }
-                                        }
-                                      }}
-                                    >
-                                      <span className="text-[11px] leading-none">{overlayItem.name}</span>
-                                    </button>
-                                  );
-                                })}
-                              </div>
-                            )}
-                          </>
-                        </div>
-                      </>
-                    )}
-                    {!(currentLevel === 3 && selectedL2) && (
-                      <>
-                        <div className="mt-4 px-4 py-3 flex items-center justify-between">
-                          <div>
-                            <div className="text-[11px] text-slate-400 mb-0.5">
-                              {currentLevel === 1 ? '综合得分' : (isLocalDebt ? '指标得分' : '维度平均分')}
-                            </div>
-                            <div className="text-sm font-semibold text-slate-700">
-                              {currentLevel === 1 ? '评价体系总览' : selectedL1?.name || '维度'}
-                            </div>
-                          </div>
-                          <div className="flex items-center gap-6">
-                            <div className="text-right">
-                              <div className="text-[10px] text-slate-400 mb-0.5">
-                                {currentLevel === 1 ? '综合得分' : '指标得分'}
-                              </div>
-                              <div className="text-2xl font-bold text-[#4E73C8]">
-                                {currentLevel === 1 ? (
-                                  <span title={scoreTitle.overallFormula}>{overallScore}分</span>
-                                ) : (
-                                  <span title={selectedL1 ? scoreTitle.dimensionTitle(selectedL1) : ''}>{selectedL1?.score || 0}分</span>
-                                )}
-                              </div>
-                            </div>
-                            {currentLevel === 2 && selectedL1?.weightValue && (
-                              <div className="text-right">
-                                <div className="text-[10px] text-slate-400 mb-0.5">权重</div>
-                                <div className="text-2xl font-bold text-[#4E73C8]">{selectedL1.weightValue}</div>
-                              </div>
-                            )}
-                          </div>
-                        </div>
-                        <div className="mt-3 space-y-2 pl-4">
-                          {currentLevel === 1 ? (
-                            <>
-                              <div className="flex items-center gap-2 text-xs text-slate-600">
-                                <span className="w-1.5 h-1.5 rounded-full bg-amber-500"></span>
-                                {isLocalDebt ? '需关注指标' : '当前重点关注'}：{isLocalDebt ? focusDimensions : topicProfile.focusIndicator}
-                              </div>
-                              <div className="flex items-center gap-2 text-xs text-slate-600">
-                                <span className="w-1.5 h-1.5 rounded-full bg-red-500"></span>
-                                {isLocalDebt ? '低分指标' : '当前最低维度'}：{isLocalDebt ? `${lowestDimension?.name || topicProfile.weakestDimension}${lowestDimension ? `（${lowestDimension.score}分）` : ''}` : `${topicProfile.weakestDimension}（${currentAnalysisData[3]?.score ?? 0}分）`}
-                              </div>
-                              {isLocalDebt && highestDimension && (
-                                <div className="flex items-center gap-2 text-xs text-slate-600">
-                                  <span className="w-1.5 h-1.5 rounded-full bg-green-500"></span>
-                                  高分指标：{highestDimension.name}（{highestDimension.score}分）
-                                </div>
-                              )}
-                            </>
-                          ) : (
-                            <>
-                              <div className="flex items-center gap-2 text-xs text-slate-600">
-                                <span className="w-1.5 h-1.5 rounded-full bg-amber-500"></span>
-                                需关注指标：{focusL2Indicators || '待识别'}
-                              </div>
-                              <div className="flex items-center gap-2 text-xs text-slate-600">
-                                <span className="w-1.5 h-1.5 rounded-full bg-red-500"></span>
-                                低分指标：{weakestL2Indicator ? `${weakestL2Indicator.name}（${weakestL2Indicator.score}分）` : '待识别'}
-                              </div>
-                              <div className="flex items-center gap-2 text-xs text-slate-600">
-                                <span className="w-1.5 h-1.5 rounded-full bg-green-500"></span>
-                                高分指标：{strongestL2Indicator ? `${strongestL2Indicator.name}（${strongestL2Indicator.score}分）` : '待识别'}
-                              </div>
-                            </>
+                      <div className="flex items-center justify-between gap-3">
+                        <div className="flex items-center gap-2 flex-wrap min-w-0">
+                          <span className="text-xs px-2 py-0.5 bg-blue-50 text-blue-600 rounded-full">{item.flowNode}</span>
+                          <span className="text-xs px-2 py-0.5 bg-slate-50 text-slate-600 rounded-full truncate max-w-[130px]">{item.module}</span>
+                          <span className={`text-xs px-2 py-0.5 rounded-full ${statusCls}`}>{item.status}</span>
+                          <span className="text-xs px-2 py-0.5 rounded-full bg-slate-100 text-slate-500 truncate max-w-[160px]">{item.category}</span>
+                          {(isOverdue || isDueSoon) && (
+                            <span className={`text-xs px-2 py-0.5 rounded-full ${isOverdue ? 'bg-red-50 text-red-600' : 'bg-amber-50 text-amber-600'}`}>
+                              {isOverdue ? '超期' : '临期'}
+                            </span>
                           )}
                         </div>
-                      </>
-                    )}
-                  </div>
-                )}
-
-                {/* 右侧详情分析区 */}
-                {isLocalDebt && evaluationView === 'trend' && renderLocalDebtTrendDetail()}
-                <div className={`${isLocalDebt && evaluationView === 'trend' ? 'hidden' : 'col-span-7'} px-4 pt-3 pb-4 flex flex-col min-h-0 overflow-hidden`}>
-                  {currentLevel !== 2 && !(currentLevel === 3 && isLocalDebt) && (
-                    <div className="pb-2">
-                      <div className="flex items-center justify-between gap-3">
-                        <div className="flex items-center gap-2">
-                            <div className="w-[3px] h-[14px] bg-[#4E73C8] rounded-full"></div>
-                            <div className="text-[15px] font-bold text-slate-700">
-                              {isLocalDebt
-                                ? currentLevel === 1
-                                  ? '体系说明'
-                                  : '指标说明'
-                                : currentLevel === 1
-                                ? '一级概览'
-                                : '指标说明'}
-                            </div>
-                          </div>
-                        {currentLevel === 3 && (
-                          <div className="ml-auto flex items-center gap-2">
-                            {isLocalDebt ? null : (
-                              <div className="w-fit flex items-center gap-1 bg-[#EEF3FF] rounded-full p-1">
-                                {['overview', 'analysis'].map(t => (
-                                  <button
-                                    key={t}
-                                    className={`h-7 px-3 rounded-full text-xs whitespace-nowrap transition-all ${activeTab === t ? 'bg-white text-[#0F3D8A] shadow-sm font-semibold' : 'text-slate-600 hover:text-[#0F3D8A]'}`}
-                                    onClick={() => setActiveTab(t)}
-                                  >
-                                    {t === 'overview' ? '二级指标分析' : '地区分布'}
-                                  </button>
-                                ))}
-                              </div>
-                            )}
-                          </div>
-                        )}
-                      </div>
-                      <div className="overflow-x-auto no-scrollbar flex gap-6">
-                        {currentLevel === 3 && !isLocalDebt && (
-                          <>
-                            {['overview', 'analysis', 'anomaly', 'closure', 'trend'].map(t => (
-                              <button 
-                                key={t}
-                                className={`pb-2 text-xs whitespace-nowrap transition-all relative ${activeTab === t ? 'text-[#4E73C8] font-bold' : 'text-slate-500 hover:text-slate-700'}`}
-                                onClick={() => setActiveTab(t)}
-                              >
-                                {t === 'overview' ? '指标概览' : t === 'analysis' ? '指标分析' : t === 'anomaly' ? '异常概览' : t === 'closure' ? '闭环建议' : '趋势分析'}
-                                {activeTab === t && <div className="absolute bottom-0 left-0 right-0 h-0.5 bg-[#4E73C8]"></div>}
-                              </button>
-                            ))}
-                          </>
-                        )}
+                        <button type="button" className="text-xs text-[#4E73C8] hover:text-[#3D5FA8] transition-colors whitespace-nowrap">
+                          {item.actions[0] || '处理'}
+                        </button>
                       </div>
                     </div>
-                  )}
-
-                  <div className="flex-1 overflow-hidden min-h-0">
-                    {/* Level 1/2 内容 */}
-                    {(currentLevel === 1 || currentLevel === 2) && (
-                      <div className="h-full flex flex-col gap-4">
-                        {!selectedL1 && (
-                          <div className="flex flex-col gap-4 h-full">
-                            <div className="space-y-2">
-                              <div className="bg-[#FAFBFC] px-4 py-3.5 rounded-lg">
-                                <div className="text-xs text-slate-600 leading-relaxed">
-                                  {topicProfile.evaluationIntro}
-                                </div>
-                              </div>
-                            </div>
-                            <div className="space-y-2">
-                              <div className="flex items-center gap-2">
-                                <div className="w-[3px] h-[14px] bg-[#4E73C8] rounded-full"></div>
-                                <div className="text-[15px] font-bold text-slate-700">{isLocalDebt ? '分析结论' : '当前重点关注'}</div>
-                              </div>
-                              <div className="bg-[#FAFBFC] px-4 py-4 rounded-lg min-h-[64px] flex items-center">
-                                {isLocalDebt ? (
-                                  <div className="inline-flex items-center gap-1.5 self-start px-2 py-1 rounded-md bg-slate-100 text-[11px] text-slate-500">
-                                    <span className="w-1.5 h-1.5 rounded-full bg-slate-300"></span>
-                                    待接入AI分析
-                                  </div>
-                                ) : (
-                                  <div className="text-xs font-semibold text-slate-700">{topicProfile.focusIndicator}</div>
-                                )}
-                              </div>
-                            </div>
-                            <div className="space-y-2 flex-1 min-h-0 flex flex-col">
-                              <div className="flex items-center gap-2 mb-2">
-                                <div className="w-[3px] h-[14px] bg-[#4E73C8] rounded-full"></div>
-                                <div className="text-[15px] font-bold text-slate-700">指标概览</div>
-                              </div>
-                              <div className="flex-1 min-h-0 overflow-y-auto pr-1">
-                                <div className="grid grid-cols-2 gap-2.5 content-start">
-                                  {currentAnalysisData.map((dimension) => (
-                                    <button
-                                      key={dimension.id}
-                                      type="button"
-                                      title={`${dimension.name}\n得分：${dimension.score}分\n状态：${dimension.status}\n点击后查看该一级指标下的二级指标分析。`}
-                                      className="text-left px-3 py-2.5 bg-[#FAFBFC] rounded-lg hover:bg-blue-50/50 transition-all min-h-[74px]"
-                                      onClick={() => {
-                                        setSelectedL1(dimension);
-                                        setSelectedL2(null);
-                                        setCurrentLevel(2);
-                                        setActiveTab('overview');
-                                      }}
-                                    >
-                                      <div className="flex items-center justify-between mb-1">
-                                        <div className="text-[11px] font-bold text-slate-800 truncate">{dimension.name}</div>
-                                        <div className="text-[10px] font-semibold text-[#4E73C8]">
-                                          <span title={scoreTitle.dimensionTitle(dimension)}>{dimension.score}分</span>
-                                        </div>
-                                      </div>
-                                      <div className="flex items-center justify-between gap-2 text-[10px] text-slate-500">
-                                        <span className={`inline-flex px-1.5 py-0.5 rounded-full ${
-                                          dimension.status === '良好'
-                                            ? 'bg-green-50 text-green-600'
-                                            : dimension.status === '一般'
-                                            ? 'bg-amber-50 text-amber-600'
-                                            : 'bg-red-50 text-red-600'
-                                        }`}>
-                                          {dimension.status}
-                                        </span>
-                                        {isLocalDebt && dimension.weightValue && (
-                                          <span className="text-slate-400">权重 {dimension.weightValue}</span>
-                                        )}
-                                      </div>
-                                    </button>
-                                  ))}
-                                </div>
-                              </div>
-                            </div>
-                          </div>
-                        )}
-                        {currentLevel === 2 && selectedL1 && activeTab === 'overview' && (
-                          <div className="flex flex-col gap-4 h-full">
-                            <div className="space-y-2">
-                              <div className="flex items-center justify-between gap-3">
-                                <div className="flex items-center gap-2">
-                                  <div className="w-[3px] h-[14px] bg-[#4E73C8] rounded-full"></div>
-                                  <div className="text-[15px] font-bold text-slate-700">指标说明</div>
-                                </div>
-                              </div>
-                              <div className="bg-[#FAFBFC] px-4 py-3.5 rounded-lg">
-                                <div className="text-xs text-slate-600 leading-relaxed">
-                                  {selectedL1.description}
-                                </div>
-                              </div>
-                            </div>
-                            <div className="space-y-2">
-                              <div className="flex items-center gap-2">
-                                <div className="w-[3px] h-[14px] bg-[#4E73C8] rounded-full"></div>
-                                <div className="text-[15px] font-bold text-slate-700">分析结论</div>
-                              </div>
-                              <div className="bg-[#FAFBFC] px-4 py-4 rounded-lg min-h-[64px] flex items-center">
-                                <div className="inline-flex items-center gap-1.5 self-start px-2 py-1 rounded-md bg-slate-100 text-[11px] text-slate-500">
-                                  <span className="w-1.5 h-1.5 rounded-full bg-slate-300"></span>
-                                  待接入AI分析
-                                </div>
-                              </div>
-                            </div>
-                            <div className="space-y-2 flex-1 min-h-0 flex flex-col">
-                              <div className="flex items-center gap-2">
-                                <div className="w-[3px] h-[14px] bg-[#4E73C8] rounded-full"></div>
-                                <div className="text-[15px] font-bold text-slate-700">指标概览</div>
-                              </div>
-                              <div className="flex-1 min-h-0 overflow-y-auto pr-1">
-                                <div className="grid grid-cols-2 gap-2.5 content-start">
-                                  {selectedL1.indicators.map((indicator) => (
-                                    <button
-                                      key={indicator.id}
-                                      type="button"
-                                      title={`${indicator.name}\n得分：${indicator.score}分\n状态：${indicator.result}\n点击后查看该二级指标详情分析。`}
-                                      className="text-left px-3 py-2.5 bg-[#FAFBFC] rounded-lg hover:bg-blue-50/50 transition-all min-h-[74px]"
-                                      onClick={() => {
-                                        setSelectedL2(indicator);
-                                        setCurrentLevel(3);
-                                        setActiveTab('overview');
-                                      }}
-                                    >
-                                      <div className="flex items-center justify-between mb-1">
-                                        <div className="text-[11px] font-bold text-slate-800 truncate pr-2">{indicator.name}</div>
-                                        <div className="text-[10px] font-semibold text-[#4E73C8]">
-                                          <span title={scoreTitle.indicatorTitle(indicator)}>{indicator.score}分</span>
-                                        </div>
-                                      </div>
-                                      <div className="flex items-center justify-between gap-2 text-[10px] text-slate-500">
-                                        <span className={`inline-flex px-1.5 py-0.5 rounded-full ${
-                                          indicator.result === '良好'
-                                            ? 'bg-green-50 text-green-600'
-                                            : indicator.result === '一般'
-                                            ? 'bg-amber-50 text-amber-600'
-                                            : 'bg-red-50 text-red-600'
-                                        }`}>
-                                          {indicator.result}
-                                        </span>
-                                        {isLocalDebt && indicator.weightValue && (
-                                          <span className="text-slate-400">权重 {indicator.weightValue}</span>
-                                        )}
-                                      </div>
-                                    </button>
-                                  ))}
-                                </div>
-                              </div>
-                            </div>
-                          </div>
-                        )}
-                        {currentLevel === 2 && selectedL1 && activeTab === 'topics' && (
-                          <div className="space-y-2">
-                            {selectedL1.indicators.map((ind) => {
-                              const risk = getRiskLabel(ind.score);
-                              const delta = calcIndicatorDelta(ind);
-                              return (
-                                <button
-                                  key={ind.id}
-                                  type="button"
-                                  className="w-full bg-[#FAFBFC] rounded-lg px-3 py-3 hover:bg-blue-50/50 transition-all text-left"
-                                  onClick={() => {
-                                    setSelectedL2(ind);
-                                    setCurrentLevel(3);
-                                    setActiveTab('overview');
-                                  }}
-                                >
-                                  <div className="flex items-start justify-between gap-3">
-                                    <div className="min-w-0">
-                                      <div className="text-xs font-semibold text-slate-800 truncate">{ind.name}</div>
-                                      <div className="mt-1 text-[10px] text-slate-500 line-clamp-2">{ind.description}</div>
-                                    </div>
-                                    <div className="text-right shrink-0">
-                                      <div className="text-xs font-semibold text-[#4E73C8]">
-                                        <span title={scoreTitle.indicatorTitle(ind)}>{ind.score}分</span>
-                                      </div>
-                                      <div className={`mt-1 text-[10px] font-semibold ${delta >= 0 ? 'text-green-600' : 'text-red-600'}`}>
-                                        {delta >= 0 ? '+' : ''}{delta}分
-                                      </div>
-                                    </div>
-                                  </div>
-                                  <div className="mt-2 flex items-center gap-2">
-                                    <span className={`px-2 py-0.5 rounded-full text-[10px] ${risk.cls}`}>{risk.text}</span>
-                                    <span className={`px-2 py-0.5 rounded-full text-[10px] ${
-                                      ind.result === '良好'
-                                        ? 'bg-green-50 text-green-600'
-                                        : ind.result === '一般'
-                                        ? 'bg-amber-50 text-amber-600'
-                                        : 'bg-red-50 text-red-600'
-                                    }`}>
-                                      {ind.result}
-                                    </span>
-                                  </div>
-                                </button>
-                              );
-                            })}
-                          </div>
-                        )}
-                        {currentLevel === 2 && selectedL1 && activeTab === 'closure' && (
-                          <div className="space-y-3">
-                            <div className="p-3 rounded-lg bg-red-50/30">
-                              <div className="flex items-center gap-2 mb-2">
-                                <div className="w-[3px] h-[14px] bg-red-500 rounded-full"></div>
-                                <div className="text-[15px] font-bold text-slate-800">问题识别</div>
-                              </div>
-                              <div className="text-xs text-slate-600 leading-relaxed">
-                                {weakestIndicator ? (isLocalDebt ? `${weakestIndicator.name} 在当前维度中权重参考为 ${weakestIndicator.score}分。` : `${weakestIndicator.name} 当前得分 ${weakestIndicator.score}分，为该维度短板指标。`) : '当前维度暂无可识别问题。'}
-                              </div>
-                            </div>
-                            <div className="p-3 rounded-lg bg-[#FAFBFC]">
-                              <div className="flex items-center gap-2 mb-2">
-                                <div className="w-[3px] h-[14px] bg-slate-400 rounded-full"></div>
-                                <div className="text-[15px] font-bold text-slate-800">原因分析</div>
-                              </div>
-                              <div className="text-xs text-slate-600 leading-relaxed">
-                                {weakestIndicator ? `${weakestIndicator.name} 涉及的制度衔接与过程管控仍不充分，前置规划与执行校验存在断点。` : '当前维度暂无明显原因特征。'}
-                              </div>
-                            </div>
-                            <div className="p-3 rounded-lg bg-amber-50/30">
-                              <div className="flex items-center gap-2 mb-2">
-                                <div className="w-[3px] h-[14px] bg-amber-500 rounded-full"></div>
-                                <div className="text-[15px] font-bold text-slate-800">整改建议</div>
-                              </div>
-                              <div className="text-xs text-slate-600 leading-relaxed">
-                                {weakestIndicator ? weakestIndicator.detail.suggestions : `围绕“${selectedL1.name}”建立问题闭环跟踪机制。`}
-                              </div>
-                            </div>
-                            <div className="grid grid-cols-2 gap-3">
-                              <div className="bg-[#FAFBFC] rounded-lg p-3">
-                                <div className="text-[10px] text-slate-400 mb-1">建议动作</div>
-                                <div className="text-xs font-semibold text-slate-700">建立专项整改清单</div>
-                              </div>
-                              <div className="bg-[#FAFBFC] rounded-lg p-3">
-                                <div className="text-[10px] text-slate-400 mb-1">整改周期</div>
-                                <div className="text-xs font-semibold text-slate-700">2 周内形成阶段结果</div>
-                              </div>
-                            </div>
-                          </div>
-                        )}
-                        {currentLevel === 2 && selectedL1 && activeTab === 'trend' && (
-                          <div className="space-y-3">
-                            <div className="flex items-center gap-2 mb-2">
-                              <div className="w-[3px] h-[14px] bg-[#4E73C8] rounded-full"></div>
-                              <div className="text-[15px] font-bold text-slate-700">维度趋势概览</div>
-                            </div>
-                            <div className="bg-[#FAFBFC] rounded-lg p-3 space-y-3">
-                              <svg viewBox="0 0 360 120" className="w-full h-28">
-                                <polyline
-                                  fill="none"
-                                  stroke="#4E73C8"
-                                  strokeWidth="2"
-                                  points={selectedDimensionTrend.map((value, idx) => `${20 + idx * 64},${110 - value}`).join(' ')}
-                                />
-                                {selectedDimensionTrend.map((value, idx) => (
-                                  <circle key={idx} cx={20 + idx * 64} cy={110 - value} r="3" fill="#4E73C8" />
-                                ))}
-                              </svg>
-                              <div className="grid grid-cols-6 text-[10px] text-slate-400 text-center">
-                                {['2024Q1', '2024Q2', '2024Q3', '2024Q4', '2025Q1', '2025Q2'].map((label) => (
-                                  <span key={label}>{label}</span>
-                                ))}
-                              </div>
-                              <div className="flex items-center justify-between text-xs">
-                                <span className="text-slate-500">近6期平均</span>
-                                <span className="font-semibold text-[#4E73C8]">{selectedDimensionAvgScore}分</span>
-                              </div>
-                              <div className="text-[10px] text-slate-500">
-                                当前趋势表现整体稳定，建议持续关注“{weakestIndicator?.name || '关键二级指标'}”的改善情况。
-                              </div>
-                            </div>
-                          </div>
-                        )}
-                      </div>
-                    )}
-
-                    {/* Level 3 内容 */}
-                    {currentLevel === 3 && selectedL2 && (
-                      <div className="space-y-4">
-                        {isLocalDebt ? (
-                          <div className="space-y-4">
-                            <div className="space-y-4">
-                              <div className="flex items-center gap-2">
-                                <div className="w-[3px] h-[14px] bg-[#4E73C8] rounded-full"></div>
-                                <div className="text-[15px] font-bold text-slate-700">分析结论</div>
-                              </div>
-                              <div className="text-[18px] font-bold text-slate-800">
-                                {selectedL2.result === '良好' ? '当前指标已处于规则良好区间' : selectedL2.result === '一般' ? '当前指标接近阈值，需持续关注波动' : '当前指标未达规则要求，需优先处置'}
-                              </div>
-                              <div className="space-y-2">
-                                {selectedL2RuleConclusion.map((item) => (
-                                  <div key={item} className="text-xs text-slate-600 leading-relaxed flex items-start gap-2">
-                                    <span className="w-1.5 h-1.5 rounded-full bg-[#4E73C8] mt-1.5 flex-shrink-0"></span>
-                                    <span>{item}</span>
-                                  </div>
-                                ))}
-                              </div>
-                            </div>
-
-                            <div className="grid grid-cols-2 gap-4 mb-4">
-                              <div className="flex flex-col">
-                                <div className="flex items-center gap-2 mb-3">
-                                  <div className="w-[3px] h-[14px] bg-[#4E73C8] rounded-full"></div>
-                                  <div className="text-[15px] font-bold text-slate-700">规则定义</div>
-                                </div>
-                                <div className="space-y-3 overflow-y-auto pr-2 pb-2 scrollbar-thin" style={{height: '270px'}}>
-                                  <div className="rounded-lg bg-[#FAFBFC] px-4 py-3">
-                                    <div className="text-[10px] text-slate-400 mb-1">指标定义</div>
-                                    <div className="text-xs text-slate-600 leading-relaxed">{selectedL2.detail.definition}</div>
-                                  </div>
-                                  <div className="rounded-lg bg-[#FAFBFC] px-4 py-3">
-                                    <div className="text-[10px] text-slate-400 mb-1">评分标准</div>
-                                    <div className="text-xs text-slate-600 leading-relaxed">{selectedL2.detail.scoreFormula || '待补充评分标准'}</div>
-                                  </div>
-                                  <div className="rounded-lg bg-[#FAFBFC] px-4 py-3">
-                                    <div className="text-[10px] text-slate-400 mb-1">计算逻辑</div>
-                                    <div className="text-xs text-slate-600 leading-relaxed">
-                                      依据规则定义中的评分区间映射成规则得分；该得分直接影响上级指标评价，但不等同于综合总分。
-                                    </div>
-                                  </div>
-                                </div>
-                              </div>
-
-                              <div className="flex flex-col">
-                                <div className="flex items-center gap-2 mb-3">
-                                  <div className="w-[3px] h-[14px] bg-[#4E73C8] rounded-full"></div>
-                                  <div className="text-[15px] font-bold text-slate-700">政策依据</div>
-                                </div>
-                                <div className="space-y-3 overflow-y-auto pr-2 pb-2 scrollbar-thin" style={{height: '270px'}}>
-                                  <div className="grid grid-cols-2 gap-3">
-                                    {selectedL2PolicyItems
-                                      .filter((item) => ['政策名称', '政策文号'].includes(item.label))
-                                      .map((item) => (
-                                        <div key={item.label} className="rounded-lg bg-[#FAFBFC] px-4 py-3 min-w-0">
-                                          <div className="text-[10px] text-slate-400 mb-1">{item.label}</div>
-                                          <div className="text-xs text-slate-700 leading-relaxed break-words">{item.value}</div>
-                                        </div>
-                                      ))}
-                                  </div>
-                                  <div className="rounded-lg bg-[#FAFBFC] px-4 py-3">
-                                    <div className="text-[10px] text-slate-400 mb-1">核心条款</div>
-                                    <div className="text-xs text-slate-700 leading-relaxed break-words">
-                                      {selectedL2PolicyItems.find((item) => item.label === '政策条例')?.value || '待补充'}
-                                    </div>
-                                  </div>
-                                  <div className="rounded-lg bg-amber-50/30 px-4 py-3">
-                                    <div className="text-[10px] text-amber-500 mb-1">选取原因</div>
-                                    <div className="text-xs text-slate-700 leading-relaxed break-words">
-                                      {selectedL2PolicyItems.find((item) => item.label === '选取原因')?.value || '待补充'}
-                                    </div>
-                                  </div>
-                                  <div className="rounded-lg bg-[#FAFBFC] px-4 py-3 text-[11px] text-slate-400 break-all">
-                                    政策链接：{selectedL2PolicyItems.find((item) => item.label === '政策链接')?.value || '待补充'}
-                                  </div>
-                                </div>
-                              </div>
-                            </div>
-                          </div>
-                        ) : activeTab === 'overview' && (
-                          <div className="space-y-4">
-                            <div className="space-y-2">
-                              <div className="bg-[#FAFBFC] px-4 py-3.5 rounded-lg">
-                                <div className="text-xs text-slate-600 leading-relaxed">
-                                  {selectedL2.detail.definition}
-                                </div>
-                              </div>
-                            </div>
-                            <div className="space-y-2">
-                              <div className="flex items-center gap-2">
-                                <div className="w-[3px] h-[14px] bg-[#4E73C8] rounded-full"></div>
-                                <div className="text-[15px] font-bold text-slate-700">分析结论</div>
-                              </div>
-                              <div className="bg-[#FAFBFC] px-4 py-3 rounded-lg">
-                                <div className="inline-flex items-center gap-1.5 self-start px-2 py-1 rounded-md bg-slate-100 text-[11px] text-slate-500">
-                                  <span className="w-1.5 h-1.5 rounded-full bg-slate-300"></span>
-                                  待接入AI分析
-                                </div>
-                              </div>
-                            </div>
-                            <div className="space-y-2">
-                              <div className="flex items-center gap-2">
-                                <div className="w-[3px] h-[14px] bg-[#4E73C8] rounded-full"></div>
-                                <div className="text-[15px] font-bold text-slate-700">指标概览</div>
-                              </div>
-                              <div className="grid grid-cols-2 gap-2.5">
-                                <div className="bg-[#FAFBFC] px-3 py-3 rounded-lg">
-                                  <div className="text-[10px] text-slate-400 mb-1">当前得分</div>
-                                  <div className="text-lg font-bold text-[#4E73C8]">
-                                    <span title={scoreTitle.indicatorTitle(selectedL2)}>{selectedL2.score}分</span>
-                                  </div>
-                                </div>
-                                <div className="bg-[#FAFBFC] px-3 py-3 rounded-lg">
-                                  <div className="text-[10px] text-slate-400 mb-1">{isLocalDebt ? '业务结果' : '本期值'}</div>
-                                  <div className="text-sm font-semibold text-slate-700">
-                                    <span title={`本期值口径：当前周期该指标的业务原始数据。\n本期值：${selectedL2.detail.currentValue}`}>
-                                      {selectedL2.detail.currentValue}
-                                    </span>
-                                  </div>
-                                </div>
-                                <div className="bg-[#FAFBFC] px-3 py-3 rounded-lg">
-                                  <div className="text-[10px] text-slate-400 mb-1">{isLocalDebt ? '参考阈值' : '标准值'}</div>
-                                  <div className="text-sm font-semibold text-slate-700">
-                                    <span title={`标准值口径：该指标设定的合规/目标阈值。\n标准值：${selectedL2.detail.standardValue}`}>
-                                      {selectedL2.detail.standardValue}
-                                    </span>
-                                  </div>
-                                </div>
-                                <div className="bg-[#FAFBFC] px-3 py-3 rounded-lg">
-                                  <div className="text-[10px] text-slate-400 mb-1">状态</div>
-                                  <div className={`text-sm font-semibold ${selectedL2.result === '良好' ? 'text-green-600' : selectedL2.result === '一般' ? 'text-amber-600' : 'text-red-600'}`}>
-                                    {selectedL2.result}
-                                  </div>
-                                </div>
-                              </div>
-                            </div>
-                          </div>
-                        )}
-
-                        {!isLocalDebt && activeTab === 'analysis' && (
-                          <div className="space-y-4">
-                            <div className="flex items-center gap-2 mb-2">
-                              <div className="w-[3px] h-[14px] bg-[#4E73C8] rounded-full"></div>
-                              <div className="text-[15px] font-bold text-slate-700">地区贡献/分布情况</div>
-                            </div>
-                            <div className="space-y-2">
-                              {selectedL2.detail.regionalDistribution.length > 0 ? (
-                                selectedL2.detail.regionalDistribution.map((region) => (
-                                  <div key={region.name} className="flex items-center justify-between p-3 rounded-lg bg-[#FAFBFC] hover:bg-blue-50/50 transition-all">
-                                    <div className="flex items-center gap-3">
-                                      <div className="text-xs font-medium text-slate-700">{region.name}</div>
-                                      <div className="w-32 h-1.5 bg-slate-100 rounded-full overflow-hidden">
-                                        <div 
-                                          className={`h-full rounded-full ${region.status === 'good' ? 'bg-green-500' : region.status === 'warning' ? 'bg-amber-500' : 'bg-red-500'}`}
-                                          style={{ width: `${region.value}%` }}
-                                        />
-                                      </div>
-                                    </div>
-                                    <div className="flex items-center gap-3">
-                                      <span className="text-xs font-bold text-slate-800">{region.value}分</span>
-                                      <span className={`text-[10px] px-1.5 py-0.5 rounded ${region.status === 'good' ? 'bg-green-50 text-green-600' : region.status === 'warning' ? 'bg-amber-50 text-amber-600' : 'bg-red-50 text-red-600'}`}>
-                                        {region.status === 'good' ? '良好' : region.status === 'warning' ? '一般' : '异常'}
-                                      </span>
-                                    </div>
-                                  </div>
-                                ))
-                              ) : (
-                                <div className="text-center py-8 bg-[#FAFBFC] rounded-xl text-slate-400 text-xs">
-                                  暂无地区分布数据
-                                </div>
-                              )}
-                            </div>
-                            <div className="bg-blue-50/30 p-3 rounded-lg">
-                              <div className="text-[10px] text-blue-600 font-semibold mb-1">分析结论：</div>
-                              <div className="text-[10px] text-slate-600 leading-relaxed">
-                                当前指标在各地区的表现存在一定差异，{selectedL2.detail.regionalDistribution.find(r => r.status === 'bad')?.name || '部分地区'}的表现是拉低整体分值的主要因素。
-                              </div>
-                            </div>
-                          </div>
-                        )}
-
-                        {activeTab === 'anomaly' && (
-                          <div className="space-y-4">
-                            <div className="flex items-center gap-2 mb-2">
-                              <div className="w-[3px] h-[14px] bg-red-500 rounded-full"></div>
-                              <div className="text-[15px] font-bold text-slate-700">指标相关异常项</div>
-                            </div>
-                            <div className="space-y-3">
-                              {selectedL2.detail.rules.length > 0 ? (
-                                selectedL2.detail.rules.map((rule, idx) => (
-                                  <div key={idx} className="p-4 bg-red-50/30 rounded-xl">
-                                    <div className="flex items-center justify-between mb-2">
-                                      <div className="text-xs font-bold text-red-800">{rule.name}</div>
-                                      <div className="text-[10px] font-bold text-red-600 px-2 py-0.5 bg-red-100/50 rounded-full">异常</div>
-                                    </div>
-                                    <div className="text-[10px] text-red-700 leading-relaxed opacity-80">
-                                      {rule.context}
-                                    </div>
-                                    <div className="mt-3 pt-3 border-t border-red-100/30 flex items-center justify-between">
-                                      <div className="text-[10px] text-red-600/70">关联规则命中：1项</div>
-                                      <div className="text-[10px] text-red-600/70">涉及地区：{selectedL2.detail.regionalDistribution.filter(r => r.status === 'bad').length || 1}个</div>
-                                    </div>
-                                  </div>
-                                ))
-                              ) : (
-                                <div className="text-center py-8 bg-[#FAFBFC] rounded-xl text-slate-400 text-xs">
-                                  当前指标暂无异常记录
-                                </div>
-                              )}
-                            </div>
-                          </div>
-                        )}
-
-                        {activeTab === 'closure' && (
-                          <div className="space-y-3">
-                            <div className="p-3 rounded-lg bg-red-50/30">
-                              <div className="flex items-center gap-2 mb-2">
-                                <div className="w-[3px] h-[14px] bg-red-500 rounded-full"></div>
-                                <div className="text-[15px] font-bold text-slate-800">问题识别</div>
-                              </div>
-                              <div className="text-xs text-slate-600 leading-relaxed">
-                                {isLocalDebt ? `${selectedL2.name} 当前展示的是定义口径：业务结果 ${selectedL2.detail.currentValue}，参考阈值 ${selectedL2.detail.standardValue}，权重参考为 ${selectedL2.score}分。` : `${selectedL2.name} 当前得分为 ${selectedL2.score}分，本期值为 ${selectedL2.detail.currentValue}，标准值为 ${selectedL2.detail.standardValue}，处于“${selectedL2.result}”状态。`}
-                              </div>
-                            </div>
-                            <div className="p-3 rounded-lg bg-[#FAFBFC]">
-                              <div className="flex items-center gap-2 mb-2">
-                                <div className="w-[3px] h-[14px] bg-slate-400 rounded-full"></div>
-                                <div className="text-[15px] font-bold text-slate-800">原因分析</div>
-                              </div>
-                              <div className="text-xs text-slate-600 leading-relaxed">
-                                结合地区分布与异常规则分析，该指标的波动主要受{selectedL2.detail.regionalDistribution.find(r => r.status === 'bad')?.name || '特定因素'}影响，过程管控存在薄弱环节。
-                              </div>
-                            </div>
-                            <div className="p-3 rounded-lg bg-amber-50/40 ">
-                              <div className="flex items-center gap-2 mb-2">
-                                <div className="w-[3px] h-[14px] bg-amber-500 rounded-full"></div>
-                                <div className="text-[15px] font-bold text-slate-800">整改建议</div>
-                              </div>
-                              <div className="text-xs text-slate-600 leading-relaxed">
-                                {selectedL2.detail.suggestions}
-                              </div>
-                            </div>
-                            <div className="grid grid-cols-2 gap-3">
-                              <div className="bg-white  rounded-lg p-3">
-                                <div className="text-[10px] text-slate-400 mb-1">建议动作</div>
-                                <div className="text-xs font-semibold text-slate-700">建立指标专项整改清单</div>
-                              </div>
-                              <div className="bg-white  rounded-lg p-3">
-                                <div className="text-[10px] text-slate-400 mb-1">整改周期</div>
-                                <div className="text-xs font-semibold text-slate-700">2 周内形成阶段结果</div>
-                              </div>
-                            </div>
-                          </div>
-                        )}
-
-                        {activeTab === 'trend' && (
-                          <div className="space-y-4">
-                            <div className="flex items-center gap-2 mb-2">
-                              <div className="w-[3px] h-[14px] bg-[#4E73C8] rounded-full"></div>
-                              <div className="text-[15px] font-bold text-slate-700">{selectedL2.name} - 趋势分析</div>
-                            </div>
-                            <div className="bg-white rounded-lg  p-3 space-y-3">
-                              <svg viewBox="0 0 360 120" className="w-full h-28">
-                                <polyline
-                                  fill="none"
-                                  stroke="#4E73C8"
-                                  strokeWidth="2"
-                                  points={selectedL2.detail.trend.map((value, idx) => `${20 + idx * 64},${110 - value}`).join(' ')}
-                                />
-                                {selectedL2.detail.trend.map((value, idx) => (
-                                  <circle key={idx} cx={20 + idx * 64} cy={110 - value} r="3" fill="#4E73C8" />
-                                ))}
-                              </svg>
-                              <div className="grid grid-cols-6 text-[10px] text-slate-400 text-center">
-                                {['1月', '2月', '3月', '4月', '5月', '6月'].map((label) => (
-                                  <span key={label}>{label}</span>
-                                ))}
-                              </div>
-                              <div className="flex items-center justify-between text-xs pt-2">
-                                <span className="text-slate-500">最近周期平均得分</span>
-                                <span className="font-semibold text-[#4E73C8]">
-                                  {Math.round(selectedL2.detail.trend.reduce((a, b) => a + b, 0) / selectedL2.detail.trend.length)}分
-                                </span>
-                              </div>
-                              <div className="text-[10px] text-slate-500 bg-slate-50 p-2 rounded leading-relaxed">
-                                当前指标趋势表现{calcIndicatorDelta(selectedL2) >= 0 ? '呈上升趋势' : '存在一定波动'}，建议持续关注关键节点的执行效能。
-                              </div>
-                            </div>
-                          </div>
-                        )}
-                      </div>
-                    )}
-
-                  </div>
-                </div>
+                  );
+                })}
               </div>
-            </div>
-            
-            <div className="bg-white rounded-2xl shadow-sm p-4" style={{ height: '592.38px' }}>
-              <div className="mb-3 flex items-center justify-between">
-                <div className="flex items-center gap-2.5">
-                  <div className="w-[4px] h-[18px] bg-[#4E73C8] rounded-full"></div>
-                  <div className="text-[17px] font-bold text-[#0F3D8A]">待办事项</div>
-                </div>
-                <div className="flex items-center gap-1 bg-[#EEF3FF] rounded-full p-1">
-                  {
-                    [
-                      { k: 'pending', l: '全部' },
-                      { k: 'overdue', l: '超期' },
-                      { k: 'due', l: '临期' },
-                      { k: 'returned', l: '被退回' }
-                    ].map(t => (
-                      <button
-                        key={t.k}
-                        type="button"
-                        onClick={() => setTodoTab(t.k as any)}
-                        className={`h-7 px-3 rounded-full text-xs ${todoTab === (t.k as any) ? 'bg-white text-[#0F3D8A] shadow-sm' : 'text-slate-600 hover:text-[#0F3D8A]'}`}
-                      >
-                        {t.l}
-                      </button>
-                    ))
-                  }
-                </div>
-              </div>
-              <div className="space-y-3 max-h-[509.38px] overflow-y-auto pr-1 custom-scrollbar">
-            {displayTodos.map((item, idx) => {
-              // 计算是否临期或超期
-              const today = new Date();
-              const todayStart = new Date(today.getFullYear(), today.getMonth(), today.getDate()).getTime();
-              const [m, d] = (item.d || '01-01').split('-').map(s => parseInt(s, 10));
-              const dueDate = new Date(today.getFullYear(), (m || 1) - 1, d || 1).getTime();
-              const diff = Math.round((dueDate - todayStart) / (1000 * 60 * 60 * 24));
-              const isOverdue = diff < 0;
-              const isDueSoon = diff >= 0 && diff <= 2;
-              
-              // 状态样式
-              const statusCls = item.status.includes('待提交') ? 'bg-green-50 text-green-600' : item.status.includes('待审核') ? 'bg-blue-50 text-blue-600' : item.status.includes('待上报') ? 'bg-purple-50 text-purple-600' : 'bg-slate-50 text-slate-600';
-              
-              return (
-                <div key={idx} className="bg-[#FAFBFC] rounded-lg p-3">
-                  {/* 第一行：主信息行 */}
-                  <div className="flex items-center justify-between mb-2">
-                    <div className="flex-1 min-w-0">
-                      <div className="text-sm font-semibold text-slate-800 truncate relative group">
-                        {item.t}
-                        <div className="absolute left-0 bottom-full mb-1 px-2 py-1 bg-slate-800 text-white text-xs rounded whitespace-normal max-w-[300px] opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all z-50">
-                          {item.t}
-                        </div>
-                      </div>
-                    </div>
-                    <div className="text-xs text-slate-500 whitespace-nowrap">截止：{item.d}</div>
-                  </div>
-                  {/* 第二行：辅助信息行 */}
-                  <div className="flex items-center justify-between flex-wrap">
-                    <div className="flex items-center gap-2 flex-wrap">
-                      <span className="text-xs px-2 py-0.5 bg-blue-50 text-blue-600 rounded-full">{item.flowNode}</span>
-                      <span className="text-xs px-2 py-0.5 bg-slate-50 text-slate-600 rounded-full truncate">{item.module}</span>
-                      {todoTab === 'pending' && (isOverdue || isDueSoon) && (
-                        <span className={`text-xs px-2 py-0.5 rounded-full ${isOverdue ? 'bg-red-50 text-red-600' : 'bg-amber-50 text-amber-600'}`}>
-                          {isOverdue ? '超期' : '临期'}
-                        </span>
-                      )}
-                      {todoTab === 'overdue' && (
-                        <span className="text-xs px-2 py-0.5 rounded-full bg-red-50 text-red-600">超期</span>
-                      )}
-                      {todoTab === 'due' && (
-                        <span className="text-xs px-2 py-0.5 rounded-full bg-amber-50 text-amber-600">临期</span>
-                      )}
-                      {todoTab === 'returned' && (isOverdue || isDueSoon) && (
-                        <span className={`text-xs px-2 py-0.5 rounded-full ${isOverdue ? 'bg-red-50 text-red-600' : 'bg-amber-50 text-amber-600'}`}>
-                          {isOverdue ? '超期' : '临期'}
-                        </span>
-                      )}
-                    </div>
-                    <div>
-                      <button type="button" className="text-xs text-[#4E73C8] hover:text-[#3D5FA8] transition-colors whitespace-nowrap">
-                        处理
-                      </button>
-                    </div>
-                  </div>
-                </div>
-              );
-            })}
-          </div>
             </div>
           </section>
           
-          {/* 第三大区：智能分析 */}
+          {/* 第三大区：办理辅助区 */}
           <section className="bg-white rounded-2xl shadow-sm p-4 mb-4">
-            {/* 顶部横向摘要带 */}
-            <div className="flex items-center justify-between gap-6 mb-4 h-[72px]">
+            <div className="flex items-start justify-between gap-4 mb-4">
               <div className="flex-1">
                 <div className="flex items-center gap-2.5 mb-1">
                   <div className="w-[4px] h-[18px] bg-[#4E73C8] rounded-full"></div>
-                  <div className="text-[17px] font-bold text-[#0F3D8A]">智能分析</div>
+                  <div className="text-[17px] font-bold text-[#0F3D8A]">办理辅助区</div>
                 </div>
-                <div className="text-[11px] text-slate-600 leading-normal line-clamp-2 pl-3.5">
-                  {topicProfile.smartSummary}
+                <div className="mt-1 text-[11px] text-slate-400 pl-3.5">
+                  上面告诉我"有哪些事、哪些卡住、哪些风险高"，这里告诉我"这类事怎么处理、需要补什么、可以参考什么"。
                 </div>
               </div>
-              <div className="flex items-center gap-6">
-                <div className="flex items-center gap-6 pr-6">
-                  <div className="text-center">
-                    <div className="text-[10px] text-slate-400 mb-0.5">分析报告</div>
-                    <div className="text-base font-bold text-[#4E73C8]">3<span className="text-[10px] font-normal ml-0.5">份</span></div>
-                  </div>
-                  <div className="text-center">
-                    <div className="text-[10px] text-slate-400 mb-0.5">风险事件</div>
-                    <div className="text-base font-bold text-red-500">5<span className="text-[10px] font-normal ml-0.5">个</span></div>
-                  </div>
-                  <div className="text-center">
-                    <div className="text-[10px] text-slate-400 mb-0.5">触发规则</div>
-                    <div className="text-base font-bold text-amber-500">4<span className="text-[10px] font-normal ml-0.5">条</span></div>
-                  </div>
-                </div>
-                <div className="space-y-1.5 min-w-[140px]">
-                  <div className="flex items-center justify-between gap-2">
-                    <span className="text-[10px] text-slate-400">时间范围</span>
-                    <select
-                      value={analysisTimeRange}
-                      onChange={(e) => setAnalysisTimeRange(e.target.value as any)}
-                      className="h-6 px-1 text-[10px]  rounded bg-white text-slate-700 outline-none"
-                    >
-                      {['最近7天', '最近30天', '本月', '本季度', '自定义'].map((item) => (
-                        <option key={item} value={item}>{item}</option>
-                      ))}
-                    </select>
-                  </div>
-                  <div className="text-[10px] text-slate-400 flex items-center justify-between">
-                    <span>生成时间</span>
-                    <span className="text-slate-600 font-medium">{currentSmartAnalysis.generatedAt}</span>
-                  </div>
-                </div>
+              <div className="shrink-0 rounded-lg bg-[#EEF3FF] px-3 py-1.5 text-[11px] font-medium text-[#4E73C8]">
+                当前辅助对象：{assistContext.label}
               </div>
             </div>
 
-            <div className="grid grid-cols-12 gap-4">
-              {/* 中部左侧：重点风险 */}
-              <div className="col-span-8">
-                <div className="flex items-center justify-between mb-3">
-                  <div className="flex items-center gap-2">
-                    <div className="w-[3px] h-[14px] bg-[#4E73C8] rounded-full"></div>
-                    <div className="text-[15px] font-bold text-slate-700">重点风险</div>
-                  </div>
-                  <div className="text-[11px] text-slate-400">
-                    显示 {showAllConclusions ? currentSmartAnalysis.conclusions.length : Math.min(4, currentSmartAnalysis.conclusions.length)} 条，共 {currentSmartAnalysis.conclusions.length} 条
-                  </div>
+            <div className="flex gap-4">
+              <div className="flex-[3] min-w-0 space-y-2.5">
+                <div className="flex items-center gap-2 mb-1">
+                  <div className="w-[3px] h-[14px] bg-[#4E73C8] rounded-full"></div>
+                  <div className="text-[14px] font-bold text-slate-700">当前处理建议</div>
                 </div>
-                
-                {currentSmartAnalysis.conclusions.length === 0 ? (
-                  <div className="bg-[#FAFBFC] rounded-xl p-8 text-center">
-                    <div className="text-[11px] text-slate-400">暂无风险分析数据</div>
-                  </div>
-                ) : (
-                  <>
-                    <div className="grid grid-cols-2 gap-3">
-                      {(showAllConclusions ? currentSmartAnalysis.conclusions : currentSmartAnalysis.conclusions.slice(0, 4)).map((item) => {
-                        const triggeredRuleNames = item.ruleIds.map(rid => 
-                          currentSmartAnalysis.rules.find(r => r.id === rid)?.name || rid
-                        ).join('、');
+                {assistContext.leftItems.map((item) => {
+                  const toneConfig = item.tone === 'rose'
+                    ? { bg: 'bg-rose-50/60', dot: 'bg-rose-500', btnAction: 'bg-rose-500 hover:bg-rose-600 text-white', btnView: 'text-rose-600 hover:bg-rose-50' }
+                    : item.tone === 'amber'
+                      ? { bg: 'bg-amber-50/60', dot: 'bg-amber-500', btnAction: 'bg-amber-500 hover:bg-amber-600 text-white', btnView: 'text-amber-600 hover:bg-amber-50' }
+                      : item.tone === 'slate'
+                        ? { bg: 'bg-slate-50/80', dot: 'bg-slate-400', btnAction: 'bg-slate-500 hover:bg-slate-600 text-white', btnView: 'text-slate-600 hover:bg-slate-100' }
+                        : { bg: 'bg-blue-50/60', dot: 'bg-[#4E73C8]', btnAction: 'bg-[#4E73C8] hover:bg-[#3D5FA8] text-white', btnView: 'text-[#4E73C8] hover:bg-blue-50' };
 
-                        return (
-                          <div
-                            key={item.id}
-                            className="group relative flex flex-col justify-between p-3 rounded-xl bg-[#FAFBFC] hover:bg-blue-50/50 transition-all"
-                            onMouseEnter={() => setAnalysisHoverConclusionId(item.id)}
-                            onMouseLeave={() => setAnalysisHoverConclusionId(null)}
-                          >
-                            <div className="flex items-center justify-between mb-2">
-                              <div className="flex items-center gap-2 min-w-0">
-                                <span className={`w-1.5 h-1.5 rounded-full flex-shrink-0 ${item.risk === '高风险' ? 'bg-red-500' : 'bg-amber-500'}`}></span>
-                                <div className="text-[13px] font-semibold text-slate-800 truncate">{item.title}</div>
-                              </div>
-                              <span className={`px-1.5 py-0.5 rounded text-[10px] flex-shrink-0 ${item.risk === '高风险' ? 'text-red-600 bg-red-50' : 'text-amber-600 bg-amber-50'}`}>
-                                {item.risk}
-                              </span>
-                            </div>
-                            
-                            <div className="flex items-center justify-between mt-auto">
-                              <div className="text-[10px] text-slate-500 truncate mr-2">
-                                {triggeredRuleNames} ｜ {item.regions.join('/')}
-                              </div>
-                              <button
-                                type="button"
-                                className="text-[10px] text-[#4E73C8] hover:text-[#3D5FA8] font-medium whitespace-nowrap"
-                                onClick={(e) => {
-                                  e.stopPropagation();
-                                  setAnalysisSelectedConclusionId(item.id);
-                                  setAnalysisActiveReportId(item.report.id);
-                                }}
-                              >
-                                查看报告 →
-                              </button>
-                            </div>
-
-                            <div className="invisible group-hover:visible absolute left-1/2 -translate-x-1/2 bottom-full mb-2 w-[300px] bg-white rounded-xl shadow-xl p-3 z-50 transition-all">
-                              <div className="text-[11px] text-slate-600 leading-relaxed mb-2">
-                                {item.summary}
-                              </div>
-                              <div className="space-y-1 pt-2 border-t border-slate-100">
-                                <div className="text-[10px] text-slate-500 flex items-center gap-2">
-                                  涉及地区：<span className="text-slate-700">{item.regions.join(' / ')}</span>
-                                </div>
-                                <div className="text-[10px] text-slate-500 flex items-center gap-2">
-                                  触发规则：<span className="text-slate-700">{triggeredRuleNames}</span>
-                                </div>
-                              </div>
-                              <div className="absolute -bottom-1 left-1/2 -translate-x-1/2 w-2 h-2 bg-white border-r border-b border-slate-200 rotate-45"></div>
-                            </div>
+                  return (
+                    <div key={item.key} className={`rounded-lg px-4 py-2.5 ${toneConfig.bg}`}>
+                      <div className="flex items-start justify-between gap-4">
+                        <div className="min-w-0 flex-1">
+                          <div className="flex items-center gap-2">
+                            <span className={`h-1.5 w-1.5 rounded-full ${toneConfig.dot}`}></span>
+                            <span className="text-[13px] font-semibold text-slate-800">{item.title}</span>
+                            {item.count > 0 && <span className="text-[11px] font-medium text-slate-400">{item.count}项</span>}
                           </div>
-                        );
-                      })}
-                    </div>
-                    
-                    {currentSmartAnalysis.conclusions.length > 4 && (
-                      <button
-                        type="button"
-                        className="w-full mt-3 py-2 text-[10px] text-slate-400 hover:text-[#4E73C8] flex items-center justify-center gap-1 transition-colors"
-                        onClick={() => setShowAllConclusions(!showAllConclusions)}
-                      >
-                        {showAllConclusions ? '收起分析结论 ↑' : '查看更多分析 ↓'}
-                      </button>
-                    )}
-                  </>
-                )}
-              </div>
-
-              {/* 中部右侧：规则触发情况 */}
-              <div className="col-span-4">
-                <div className="flex items-center justify-between mb-3">
-                  <div className="flex items-center gap-2">
-                    <div className="w-[3px] h-[14px] bg-[#4E73C8] rounded-full"></div>
-                    <div className="text-[15px] font-bold text-slate-700">规则触发情况</div>
-                  </div>
-                </div>
-                
-                {currentSmartAnalysis.rules.length === 0 ? (
-                  <div className="bg-[#FAFBFC] rounded-xl p-6 text-center">
-                    <div className="text-[11px] text-slate-400">暂无触发规则数据</div>
-                  </div>
-                ) : (
-                  <div className="bg-[#FAFBFC] rounded-xl p-2 space-y-1.5 max-h-[220px] overflow-y-auto pr-1">
-                    {currentSmartAnalysis.rules.map((rule) => {
-                      return (
-                        <div
-                          key={rule.id}
-                          className="flex items-center justify-between py-2 px-2 rounded-lg hover:bg-blue-50/50 transition-all group"
-                        >
-                          <div className="flex items-center gap-2 flex-1 min-w-0">
-                            <div className="text-[12px] text-slate-700 truncate">{rule.name}</div>
-                            <span className={`px-1.5 py-0.5 rounded text-[10px] flex-shrink-0 ${rule.status === '高频触发' ? 'text-red-600 bg-red-50' : rule.status === '新增触发' ? 'text-blue-600 bg-blue-50' : 'text-amber-600 bg-amber-50'}`}>
-                              {rule.status}
-                            </span>
-                          </div>
-                          <button
-                            type="button"
-                            className="text-[10px] text-slate-400 group-hover:text-[#4E73C8] font-medium ml-2"
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              setAnalysisActiveRuleId(rule.id);
-                            }}
-                          >
-                            详情
-                          </button>
+                          <div className="mt-1 text-[12px] leading-relaxed text-slate-600">{item.detail}</div>
                         </div>
-                      );
-                    })}
+                        <div className="flex shrink-0 items-center gap-2">
+                          {item.viewBtn && (
+                            <button
+                              type="button"
+                              onClick={() => setAssistDrawer(item.viewBtn!.drawer)}
+                              className={`rounded-lg px-3 py-1.5 text-[11px] font-medium transition-colors ${toneConfig.btnView}`}
+                            >
+                              {item.viewBtn.label}
+                            </button>
+                          )}
+                          {item.actionBtn && (
+                            <button
+                              type="button"
+                              onClick={() => {
+                                if (item.actionBtn!.filter) applyOverviewFilter(item.actionBtn!.filter);
+                                setAssistDrawer(item.actionBtn!.drawer);
+                              }}
+                              className={`rounded-lg px-3 py-1.5 text-[11px] font-medium transition-colors ${toneConfig.btnAction}`}
+                            >
+                              {item.actionBtn.label}
+                            </button>
+                          )}
+                        </div>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+
+              <div className="flex-[2] min-w-0">
+                <div className="flex items-center gap-2 mb-1">
+                  <div className="w-[3px] h-[14px] bg-slate-400 rounded-full"></div>
+                  <div className="text-[14px] font-bold text-slate-700">处理支撑</div>
+                </div>
+                {assistContext.rightDetail ? (
+                  <div className="rounded-lg bg-[#F8FAFF] p-4">
+                    <div className="text-[12px] font-semibold text-slate-500 mb-2">
+                      {assistContext.rightDetail.type === 'return' ? '退回原因与补正要求' :
+                       assistContext.rightDetail.type === 'material' ? '材料缺项与示例' :
+                       assistContext.rightDetail.type === 'stale' ? '更新要求与流程影响' :
+                       assistContext.rightDetail.type === 'risk' ? '风险依据与规则来源' :
+                       assistContext.rightDetail.type === 'tracking' ? '流程状态与反馈' : '处理支撑详情'}
+                    </div>
+                    {assistContext.rightDetail.returnReasons.map((r, i) => (
+                      <div key={i} className={`flex items-center justify-between py-1.5 ${i > 0 ? 'border-t border-slate-100' : ''}`}>
+                        <span className="text-[12px] text-slate-600">{r.label}</span>
+                        <span className="text-[12px] font-semibold text-slate-700">{typeof r.count === 'number' && r.count > 0 ? `${r.count}项` : r.count}</span>
+                      </div>
+                    ))}
+                    <div className="mt-3 pt-3 border-t border-slate-100">
+                      <div className="text-[11px] font-medium text-slate-400 mb-1.5">建议</div>
+                      {assistContext.rightDetail.suggestions.map((s, i) => (
+                        <div key={i} className="flex items-center gap-1.5 text-[11px] text-slate-600 leading-relaxed">
+                          <span className="text-slate-300">{i + 1}.</span>
+                          <span>{s}</span>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                ) : (
+                  <div className="space-y-2">
+                    {assistContext.rightCapabilities!.map((cap) => (
+                      <button
+                        key={cap.key}
+                        type="button"
+                        onClick={() => setAssistDrawer(cap.key as any)}
+                        className="w-full rounded-lg bg-[#F8FAFF] p-3 text-left transition-colors hover:bg-[#EEF3FF]"
+                      >
+                        <div className="text-[12px] font-semibold text-slate-700">{cap.title}</div>
+                        <div className="mt-0.5 text-[11px] text-slate-400">{cap.desc}</div>
+                      </button>
+                    ))}
                   </div>
                 )}
               </div>
             </div>
+          </section>
+
+	            {assistDrawer && (() => {
+	              const titleMap: Record<AssistDrawerType, string> = {
+	                priority: '当前重点说明',
+		                responseList: '待办明细列表',
+		                basis: '当前排序依据',
+		                return: '退回原因与补正建议',
+		                material: '补正材料清单',
+		                selfCheck: '提交前自查提醒',
+		                history: '历史同类整改参考',
+			                progress: '已办跟踪列表',
+		                flow: '流程与反馈跟踪',
+	              };
+
+              return (
+                <div className="fixed inset-0 z-50 bg-black/30 flex items-center justify-center p-6">
+                  <div className="w-full max-w-3xl max-h-[88vh] overflow-y-auto rounded-2xl bg-white shadow-2xl p-5 custom-scrollbar">
+                    <div className="mb-4 flex items-center justify-between">
+                      <div className="text-lg font-bold text-[#0F3D8A]">{titleMap[assistDrawer]}</div>
+                      <button type="button" className="text-xs text-slate-500 hover:text-slate-700" onClick={() => setAssistDrawer(null)}>关闭</button>
+	                    </div>
+	
+	                    {assistDrawer === 'priority' && (
+	                      <div className="space-y-4">
+	                        <div className="rounded-xl bg-[#F8FAFF] p-4">
+	                          <div className="text-sm font-semibold text-slate-800">当前重点提醒</div>
+	                          <div className="mt-2 text-xs leading-relaxed text-slate-600">{drawerData.prioritySummary}</div>
+	                        </div>
+	                        <div className="grid grid-cols-2 gap-3">
+	                          {drawerData.priorityBasis.filter((item) => item.count > 0).map((item) => (
+	                            <button
+	                              key={`${item.group}-${item.label}`}
+	                              type="button"
+	                              className="rounded-xl bg-[#FAFBFC] px-4 py-3 text-left transition-colors hover:bg-blue-50/40"
+	                              onClick={() => applyOverviewFilter(item.filter)}
+	                            >
+	                              <div className="flex items-center justify-between gap-3">
+	                                <div>
+	                                  <div className="text-[10px] text-slate-400">{item.group}</div>
+	                                  <div className="mt-1 text-sm font-semibold text-slate-800">{item.label}</div>
+	                                </div>
+	                                <div className="text-lg font-bold text-[#4E73C8]">{item.count}<span className="ml-0.5 text-[10px] text-slate-400">项</span></div>
+	                              </div>
+	                              <div className="mt-2 text-xs leading-relaxed text-slate-500">{item.reason}</div>
+	                            </button>
+	                          ))}
+	                        </div>
+	                        <div className="rounded-xl bg-amber-50/50 px-4 py-3 text-xs leading-relaxed text-slate-600">
+	                          提醒依据来自流程状态、退回记录、附件/报送状态、截止日期、事项风险等级和经办流转时间，不使用无来源的临时风险分类。
+	                        </div>
+	                      </div>
+	                    )}
+
+	                    {assistDrawer === 'responseList' && (
+	                      <div className="space-y-4">
+	                        <div className="grid grid-cols-3 gap-3">
+	                          <div className="rounded-xl bg-[#F8FAFF] p-4">
+                            <div className="text-[10px] text-slate-400">待办</div>
+	                            <div className="mt-1 text-lg font-bold text-[#0F3D8A]">{responseTodos.length}项</div>
+	                          </div>
+	                          <div className="rounded-xl bg-rose-50/60 p-4">
+		                            <div className="text-[10px] text-slate-400">被退回</div>
+	                            <div className="mt-1 text-lg font-bold text-rose-600">{returnedResponseTodos.length}项</div>
+	                          </div>
+	                          <div className="rounded-xl bg-orange-50/60 p-4">
+	                            <div className="text-[10px] text-slate-400">已上传未提交</div>
+	                            <div className="mt-1 text-lg font-bold text-orange-600">{uploadedNotSubmittedTodos.length}项</div>
+	                          </div>
+	                        </div>
+	                        <div className="space-y-2">
+	                          {responseTodos.slice(0, 8).map((item) => {
+	                            const actionLabel = item.disposalPool === 'returned'
+	                              ? '退回补正'
+	                              : isTodoUploadedNotSubmitted(item)
+	                                ? '正式提交'
+	                                : item.responseAction;
+	                            const reasonLabel = item.disposalPool === 'returned'
+	                              ? '退回原因：佐证材料不完整'
+	                              : isTodoUploadedNotSubmitted(item)
+	                                ? '材料已上传但尚未进入审核流程'
+	                                : item.dueDays < 0
+	                                  ? `已超期 ${Math.abs(item.dueDays)} 天`
+	                                  : item.dueDays === 0
+	                                    ? '今日到期'
+	                                    : `${item.dueDays} 天后到期`;
+	                            return (
+	                              <div key={`${item.t}-${item.d}-${item.status}`} className="grid grid-cols-12 gap-3 rounded-xl bg-[#FAFBFC] px-4 py-3 text-xs">
+	                                <div className="col-span-5 min-w-0">
+	                                  <div className="truncate font-semibold text-slate-800">{item.t}</div>
+	                                  <div className="mt-1 text-slate-400">{item.module}</div>
+	                                </div>
+	                                <div className="col-span-2 text-slate-600">{actionLabel}</div>
+	                                <div className="col-span-3 text-slate-500">{reasonLabel}</div>
+	                                <div className="col-span-2 text-right text-[#4E73C8]">查看详情</div>
+	                              </div>
+	                            );
+	                          })}
+	                        </div>
+	                      </div>
+	                    )}
+
+		                    {assistDrawer === 'basis' && (
+		                      <div className="space-y-4">
+	                        <div className="rounded-xl bg-[#F8FAFF] p-4">
+	                          <div className="text-sm font-semibold text-slate-800">当前为什么这样排序</div>
+	                          <div className="mt-2 text-xs leading-relaxed text-slate-600">
+	                            排序只用于提示优先查看顺序，依据来自流程状态、退回记录、附件上传、整改进展时间和事项风险字段。
+	                          </div>
+	                        </div>
+	                        <div className="space-y-2">
+	                          {drawerData.priorityBasis.map((item, index) => (
+	                            <div key={`${item.group}-${item.label}`} className="grid grid-cols-12 gap-3 rounded-xl bg-[#FAFBFC] px-4 py-3">
+	                              <div className="col-span-1 flex h-6 w-6 items-center justify-center rounded-full bg-white text-xs font-bold text-[#4E73C8]">{index + 1}</div>
+	                              <div className="col-span-8 min-w-0">
+	                                <div className="text-sm font-semibold text-slate-800">{item.label}优先</div>
+	                                <div className="mt-1 text-xs text-slate-500">{item.reason}</div>
+	                                <div className="mt-1 text-[10px] text-slate-400">来源：{item.source}</div>
+	                              </div>
+	                              <div className="col-span-1 text-right text-sm font-bold text-[#4E73C8]">{item.count}</div>
+	                              <button
+	                                type="button"
+	                                className="col-span-2 shrink-0 rounded-lg bg-white px-3 py-1.5 text-xs font-medium text-[#4E73C8] hover:bg-blue-50"
+	                                onClick={() => applyOverviewFilter(item.filter)}
+	                              >
+	                                查看对应事项
+	                              </button>
+	                            </div>
+	                          ))}
+	                        </div>
+	                        <div className="text-xs text-slate-400">本排序为辅助提醒，不改变原有业务流程和审核规则。</div>
+	                      </div>
+	                    )}
+
+                    {assistDrawer === 'return' && (
+                      <div className="space-y-4">
+                        <div className="grid grid-cols-2 gap-3">
+                          <div className="rounded-xl bg-[#FAFBFC] p-4">
+                            <div className="text-[10px] text-slate-400">事项名称</div>
+                            <div className="mt-1 text-sm font-semibold text-slate-800">{drawerData.returnAdvice.itemName}</div>
+                          </div>
+                          <div className="rounded-xl bg-[#FAFBFC] p-4">
+                            <div className="text-[10px] text-slate-400">退回原因</div>
+                            <div className="mt-1 text-sm text-slate-700">{drawerData.returnAdvice.reason}</div>
+                          </div>
+                        </div>
+                        <div>
+                          <div className="mb-2 text-sm font-semibold text-slate-800">退回原因汇总</div>
+                          <div className="space-y-2">
+                            {drawerData.returnAdvice.categories.map((item) => (
+                              <div key={item.label} className="grid grid-cols-12 gap-3 rounded-xl bg-[#FAFBFC] px-4 py-3 text-xs">
+                                <div className="col-span-4 font-semibold text-slate-700">{item.label}</div>
+                                <div className="col-span-2 text-slate-500">{item.count}项</div>
+                                <div className="col-span-6 text-slate-600">{item.action}</div>
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+                        <div>
+                          <div className="mb-2 text-sm font-semibold text-slate-800">建议补正</div>
+                          <div className="grid grid-cols-2 gap-2">
+                            {drawerData.returnAdvice.suggestions.map((item) => (
+                              <div key={item} className="rounded-lg bg-amber-50/50 px-3 py-2 text-xs text-slate-700">{item}</div>
+                            ))}
+                          </div>
+                        </div>
+                      </div>
+                    )}
+
+                    {assistDrawer === 'material' && (
+                      <div className="space-y-4">
+                        <div className="rounded-xl bg-[#F8FAFF] p-4 text-xs leading-relaxed text-slate-600">
+                          材料清单用于提交前核对，不直接判断材料是否合规。
+                        </div>
+                        <div className="grid grid-cols-2 gap-3">
+                          {drawerData.historyReference.materials.map((item) => (
+                            <div key={item} className="rounded-xl bg-[#FAFBFC] px-4 py-3">
+                              <div className="text-sm font-semibold text-slate-800">{item}</div>
+                              <div className="mt-1 text-xs text-slate-500">建议与整改说明逐项对应，附件名称保持一致。</div>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+
+	                    {assistDrawer === 'selfCheck' && (
+	                      <div className="space-y-4">
+	                        <div className="grid grid-cols-3 gap-3">
+	                          <div className="col-span-2 rounded-xl bg-[#FAFBFC] p-4">
+	                            <div className="text-[10px] text-slate-400">事项名称</div>
+	                            <div className="mt-1 text-sm font-semibold text-slate-800">{drawerData.selfCheck.itemName}</div>
+	                          </div>
+	                          <div className="rounded-xl bg-amber-50/60 p-4">
+	                            <div className="text-[10px] text-amber-600">自查结果</div>
+	                            <div className="mt-1 text-sm font-semibold text-amber-700">需关注 {drawerData.selfCheck.attentionCount} 项</div>
+	                          </div>
+	                        </div>
+	                        <div className="rounded-xl bg-[#F8FAFF] p-4">
+	                          <div className="text-[10px] text-slate-400">当前状态</div>
+	                          <div className="mt-1 text-sm text-slate-700">{drawerData.selfCheck.status}</div>
+	                          <div className="mt-2 text-xs text-slate-500">以下为系统辅助检查结果，不替代审核判断。</div>
+	                        </div>
+	                        <div>
+	                          <div className="mb-2 text-sm font-semibold text-slate-800">检查项</div>
+	                          <div className="grid grid-cols-2 gap-3">
+	                          {drawerData.selfCheck.concerns.map((item) => (
+	                            <div key={item} className="rounded-xl bg-[#FAFBFC] px-4 py-3 text-xs text-slate-700">{item}</div>
+	                          ))}
+	                          </div>
+	                        </div>
+	                        <div className="flex justify-end gap-2">
+	                          <button type="button" className="rounded-lg bg-slate-100 px-3 py-1.5 text-xs font-medium text-slate-600 hover:bg-slate-200" onClick={() => setAssistDrawer('material')}>查看材料</button>
+	                          <button type="button" className="rounded-lg bg-blue-50 px-3 py-1.5 text-xs font-medium text-[#4E73C8] hover:bg-blue-100" onClick={() => applyOverviewFilter({ kind: 'response', value: '待提交/重新提交', label: '待提交/重新提交' })}>继续补充</button>
+	                          <button type="button" className="rounded-lg bg-[#4E73C8] px-3 py-1.5 text-xs font-medium text-white hover:bg-[#3D5FA8]" onClick={() => applyOverviewFilter({ kind: 'response', value: '已上传未提交', label: '已上传未提交' })}>确认提交</button>
+	                        </div>
+	                      </div>
+	                    )}
+
+	                    {assistDrawer === 'history' && (
+	                      <div className="space-y-4">
+	                        <div className="rounded-xl bg-[#F8FAFF] p-4">
+	                          <div className="text-sm font-semibold text-slate-800">匹配条件</div>
+	                          <div className="mt-2 flex flex-wrap gap-2">
+	                            {drawerData.historyReference.matchBasis.map((item) => (
+	                              <span key={item} className="rounded-full bg-white px-3 py-1 text-xs text-[#4E73C8]">{item}</span>
+	                            ))}
+	                          </div>
+	                          <div className="mt-2 text-xs leading-relaxed text-slate-600">历史参考仅供填报和材料准备参考，不替代本事项审核意见。</div>
+	                        </div>
+	                        <div>
+	                          <div className="mb-2 text-sm font-semibold text-slate-800">可参考内容</div>
+	                          <div className="grid grid-cols-2 gap-2">
+	                            {['已通过整改说明', '已通过佐证材料清单', '常见补正口径', '审核通过原因'].map((item) => (
+	                              <div key={item} className="rounded-lg bg-blue-50/50 px-3 py-2 text-xs text-[#0F3D8A]">{item}</div>
+	                            ))}
+	                          </div>
+	                        </div>
+	                        <div>
+	                          <div className="mb-2 text-sm font-semibold text-slate-800">可参考做法</div>
+	                          <div className="grid grid-cols-2 gap-2">
+	                            {drawerData.historyReference.methods.map((item) => (
+	                              <div key={item} className="rounded-lg bg-[#FAFBFC] px-3 py-2 text-xs text-slate-700">{item}</div>
+	                            ))}
+                          </div>
+                        </div>
+                        <div>
+                          <div className="mb-2 text-sm font-semibold text-slate-800">常用材料</div>
+                          <div className="flex flex-wrap gap-2">
+                            {drawerData.historyReference.materials.map((item) => (
+                              <span key={item} className="rounded-full bg-blue-50/70 px-3 py-1 text-xs text-[#4E73C8]">{item}</span>
+                            ))}
+                          </div>
+                        </div>
+	                      </div>
+	                    )}
+
+	                    {assistDrawer === 'progress' && (
+	                      <div className="space-y-4">
+			                        <div className="space-y-2">
+			                          <div className="grid grid-cols-12 gap-3 px-4 text-[10px] font-medium text-slate-400">
+			                            <div className="col-span-3">事项名称</div>
+			                            <div className="col-span-2">我上次处理动作</div>
+			                            <div className="col-span-1">处理时间</div>
+			                            <div className="col-span-2">当前节点</div>
+			                            <div className="col-span-1">处理岗</div>
+			                            <div className="col-span-1">停留</div>
+			                            <div className="col-span-1">反馈</div>
+			                            <div className="col-span-1 text-right">操作</div>
+			                          </div>
+			                          {progressDrawerTodos.length === 0 && (
+			                            <div className="rounded-xl bg-[#FAFBFC] px-4 py-6 text-center text-xs text-slate-400">
+			                              当前节点暂无流转事项。
+		                            </div>
+		                          )}
+		                          {progressDrawerTodos.slice(0, 8).map((item) => {
+		                            const stageLabel = item.flowStage === '已提交待审核'
+		                              ? '待审核'
+		                              : item.flowStage === '待销号'
+		                                ? '待最终确认'
+		                                : item.flowStage;
+		                            const handlerLabel = item.flowStage === '已提交待审核'
+		                              ? '审核岗'
+		                              : item.flowStage === '审核/复核中'
+		                                ? '复核岗'
+		                                : item.flowStage === '待销号'
+		                                  ? '确认岗'
+		                                  : '经办岗';
+		                            const lastAction = item.submittedDate ? '提交或更新' : '持续关注';
+		                            const waitDays = getTodoTrackingWaitDays(item);
+		                            return (
+		                              <div key={`${item.t}-${item.d}-${item.status}`} className="grid grid-cols-12 gap-3 rounded-xl bg-[#FAFBFC] px-4 py-3 text-xs">
+		                                <div className="col-span-3 min-w-0">
+		                                  <div className="truncate font-semibold text-slate-800">{item.t}</div>
+		                                  <div className="mt-1 text-slate-400">{item.module}</div>
+		                                </div>
+		                                <div className="col-span-2 text-slate-600">{lastAction}</div>
+		                                <div className="col-span-1 text-slate-500">{item.submittedDate || item.feedbackDate || '暂无'}</div>
+		                                <div className="col-span-2 text-slate-600">{stageLabel}</div>
+		                                <div className="col-span-1 text-slate-500">{handlerLabel}</div>
+		                                <div className="col-span-1 text-slate-500">{waitDays > 0 ? `${waitDays}天` : '待确认'}</div>
+		                                <div className="col-span-1 text-slate-500">{item.feedbackDate || '暂无'}</div>
+		                                <button type="button" className="col-span-1 text-right text-[#4E73C8]" onClick={() => setAssistDrawer('flow')}>查看流程</button>
+		                              </div>
+		                            );
+		                          })}
+	                        </div>
+	                      </div>
+	                    )}
+	
+		                    {assistDrawer === 'flow' && (
+	                      <div className="space-y-4">
+	                        <div className="rounded-xl bg-[#F8FAFF] p-4">
+	                          <div className="mb-3 text-sm font-semibold text-slate-800">流程节点</div>
+	                          <div className="flex items-center gap-2">
+	                            {drawerData.trackingAssist.flowLogs.map((item, index) => (
+	                              <React.Fragment key={item.node}>
+	                                <div className={`min-w-[92px] rounded-xl px-3 py-2 text-center ${item.current ? 'bg-[#4E73C8] text-white' : 'bg-white text-slate-600'}`}>
+	                                  <div className="text-xs font-semibold">{item.node}</div>
+	                                  <div className={`mt-1 text-[10px] ${item.current ? 'text-blue-50' : 'text-slate-400'}`}>{item.role}</div>
+	                                </div>
+	                                {index < drawerData.trackingAssist.flowLogs.length - 1 && (
+	                                  <div className="h-px flex-1 bg-blue-100"></div>
+	                                )}
+	                              </React.Fragment>
+	                            ))}
+	                          </div>
+	                        </div>
+	                        <div className="space-y-2">
+	                          {drawerData.trackingAssist.flowLogs.map((item) => (
+	                            <div key={`${item.node}-${item.time}`} className="grid grid-cols-12 gap-3 rounded-xl bg-[#FAFBFC] px-4 py-3 text-xs">
+	                              <div className="col-span-2 font-semibold text-slate-700">{item.node}</div>
+	                              <div className="col-span-2 text-slate-500">{item.role}</div>
+	                              <div className="col-span-2 text-slate-500">{item.time}</div>
+	                              <div className="col-span-4 text-slate-600">{item.opinion}</div>
+	                              <div className="col-span-2 text-right text-[#4E73C8]">{item.stay}</div>
+	                            </div>
+	                          ))}
+	                        </div>
+	                        <div className="rounded-xl bg-amber-50/50 px-4 py-3 text-xs leading-relaxed text-slate-600">
+	                          如超过7天关注阈值仍无反馈，建议主动查看反馈意见或联系对应处理岗。
+	                        </div>
+	                      </div>
+	                    )}
+                  </div>
+                </div>
+              );
+            })()}
 
             {analysisActiveReportId && (
               <div className="fixed inset-0 z-50 bg-black/30 flex items-center justify-center p-6">
@@ -2867,18 +3204,18 @@ const Component = forwardRef<AxureHandle, AxureProps>(function Component(innerPr
                         </div>
                         <div className="grid grid-cols-2 gap-3">
                           <div className="p-3 rounded-lg  bg-slate-50/50">
-                            <div className="text-[10px] text-slate-400 mb-1">结论概述</div>
+                            <div className="text-[10px] text-slate-400 mb-1">情况概述</div>
                             <div className="text-xs text-slate-700 leading-relaxed">{report.overview}</div>
                           </div>
                           <div className="p-3 rounded-lg  bg-slate-50/50">
-                            <div className="text-[10px] text-slate-400 mb-1">影响范围</div>
+                            <div className="text-[10px] text-slate-400 mb-1">办理影响</div>
                             <div className="text-xs text-slate-700 leading-relaxed">{report.impact}</div>
                           </div>
                         </div>
                         <div className="p-3 rounded-lg ">
                           <div className="flex items-center gap-2 mb-2">
                             <div className="w-[3px] h-[14px] bg-[#4E73C8] rounded-full"></div>
-                            <div className="text-[15px] font-bold text-slate-700">指标变化趋势</div>
+                            <div className="text-[15px] font-bold text-slate-700">历史走势参考</div>
                           </div>
                           <div className="grid grid-cols-6 gap-2 text-center">
                             {report.trend.map((point) => (
@@ -2888,20 +3225,20 @@ const Component = forwardRef<AxureHandle, AxureProps>(function Component(innerPr
                         </div>
                         <div className="grid grid-cols-2 gap-3">
                           <div className="p-3 rounded-lg ">
-                            <div className="text-xs font-semibold text-slate-700 mb-2">触发规则</div>
+                            <div className="text-xs font-semibold text-slate-700 mb-2">关注项</div>
                             <div className="space-y-1">
                               {report.triggeredRules.map((r) => <div key={r} className="text-xs text-slate-600">• {r}</div>)}
                             </div>
                           </div>
                           <div className="p-3 rounded-lg ">
-                            <div className="text-xs font-semibold text-slate-700 mb-2">关联制度/依据</div>
+                            <div className="text-xs font-semibold text-slate-700 mb-2">依据与流程</div>
                             <div className="space-y-1">
                               {report.basis.map((b) => <div key={b} className="text-xs text-slate-600">• {b}</div>)}
                             </div>
                           </div>
                         </div>
                         <div className="p-3 rounded-lg  bg-amber-50/40">
-                          <div className="text-xs font-semibold text-slate-700 mb-2">整改建议</div>
+                          <div className="text-xs font-semibold text-slate-700 mb-2">整改参考</div>
                           <div className="text-xs text-slate-700 leading-relaxed">{report.suggestions}</div>
                         </div>
                       </div>
@@ -2922,18 +3259,17 @@ const Component = forwardRef<AxureHandle, AxureProps>(function Component(innerPr
                           <div className="text-base font-bold text-[#0F3D8A]">{rule.name}</div>
                           <button type="button" className="text-xs text-slate-500 hover:text-slate-700" onClick={() => setAnalysisActiveRuleId(null)}>关闭</button>
                         </div>
-                        <div className="text-xs text-slate-700"><span className="text-slate-400">规则定义：</span>{rule.definition}</div>
-                        <div className="text-xs text-slate-700"><span className="text-slate-400">阈值条件：</span>{rule.threshold}</div>
-                        <div className="text-xs text-slate-700"><span className="text-slate-400">指标来源：</span>{rule.source}</div>
-                        <div className="text-xs text-slate-700"><span className="text-slate-400">触发逻辑：</span>{rule.logic}</div>
-                        <div className="text-xs text-slate-700"><span className="text-slate-400">最近触发：</span>{rule.recent}</div>
+                        <div className="text-xs text-slate-700"><span className="text-slate-400">适用说明：</span>{rule.definition}</div>
+                        <div className="text-xs text-slate-700"><span className="text-slate-400">核对条件：</span>{rule.threshold}</div>
+                        <div className="text-xs text-slate-700"><span className="text-slate-400">数据来源：</span>{rule.source}</div>
+                        <div className="text-xs text-slate-700"><span className="text-slate-400">核对逻辑：</span>{rule.logic}</div>
+                        <div className="text-xs text-slate-700"><span className="text-slate-400">近期参考：</span>{rule.recent}</div>
                       </div>
                     );
                   })()}
                 </div>
               </div>
             )}
-          </section>
           
           {/* 底部：基础支撑 */}
           <section className="bg-white rounded-2xl shadow-sm p-4">

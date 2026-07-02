@@ -1,8 +1,12 @@
 /**
  * @name 日常监督功能列表页
  *
+ * 参考资料：
+ * - /src/prototypes/topic-function-list/style.css
+ * - /assets/libraries/tailwind-css
+ * - /rules/development-standards.md
  */
-import '../../themes/ufsp-sky/globals.css';
+import './style.css';
 import React, { forwardRef, useEffect, useImperativeHandle, useMemo, useState } from 'react';
 import TopBar from '../../common/components/TopBar';
 import type { AxureHandle, AxureProps, ConfigItem, EventItem, KeyDesc } from '../../common/axure-types';

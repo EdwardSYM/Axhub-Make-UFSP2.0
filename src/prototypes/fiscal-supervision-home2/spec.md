@@ -82,7 +82,7 @@
 ### 4.1 设计规范来源
 **本设计基于**：
 - [ ] 用户提供的设计规范
-- [x] 主题设计系统：`/src/themes/ufsp-sky/`（globals.css 与 Token）
+- [x] 页面内 Tailwind/CSS 样式：`/src/prototypes/fiscal-supervision-home2/style.css`
 - [x] 内置设计指导：`/assets/docs/设计指导（简约）.md`
 
 说明：选择稳重清爽的蓝系基调，卡片化但克制；视觉主次通过字号/色彩/留白控制，而非堆叠装饰。
@@ -90,7 +90,7 @@
 ### 4.2 自定义设计要点（配色与层次）
 - 主色阶：
   - Primary：`#0F3D8A`（主）、Secondary：`#1456B8`、Subtle：`#EEF5FF`
-  - 背景：继承 `ufsp-sky` 全局渐变变量 `--ufsp-global-page-background`，以全局总览同款浅蓝径向+纵向渐变替代原纯色 `#F5F8FF`
+  - 背景：页面使用浅蓝底色 `#F5F8FF`，配合白色模块容器与蓝系浅边框形成政务系统层次
 - 中性色：`#0F172A / #334155 / #64748B / #E2E8F0 / #FFFFFF`
 - 功能色：红 `#DC2626`、黄 `#F59E0B`、蓝 `#2563EB`
 - 边框体系：主容器 `#D9E6FF`，模块边框 `#E6EFFF`

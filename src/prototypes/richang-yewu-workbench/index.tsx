@@ -2,7 +2,6 @@
  * @name 日常监督业务监控工作台
  */
 import './style.css';
-import '../../themes/ufsp-sky/globals.css';
 import React, { forwardRef, useEffect, useImperativeHandle, useMemo, useRef, useState } from 'react';
 import { BankOutlined, SearchOutlined, BellOutlined, NodeIndexOutlined, SettingOutlined } from '@ant-design/icons';
 import * as echarts from 'echarts/core';

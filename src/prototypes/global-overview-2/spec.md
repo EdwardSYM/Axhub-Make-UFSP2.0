@@ -113,7 +113,7 @@ TopBar
 
 ### 6.1 设计来源
 
-- 项目主题：/src/themes/ufsp-sky/globals.css
+- 页面内 Tailwind/CSS 样式：/src/prototypes/global-overview-2/style.css
 - 现有首页：/src/prototypes/fiscal-supervision-home2
 - 用户要求：无边框设计、允许渐变、不能与现有系统脱节。
 - 页面底色：全局总览的浅蓝径向渐变已沉淀为公共主题变量。
