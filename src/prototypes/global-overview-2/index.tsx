@@ -500,8 +500,8 @@ const metricItems: MetricItem[] = [
       summary: '当前需关注主体主要集中在区县财政和重点预算部门，建议先按类型、体系和主题判断风险聚集方向。',
       rows: riskSubjectRows,
       actions: [
-        { label: '查看全部', path: '/prototypes/theme-analysis', params: { filter: 'high-risk-subject', view: 'all' } },
-        { label: '进入主题分析', path: '/prototypes/theme-analysis', params: { filter: 'high-risk-subject' } },
+        { label: '查看全部', path: '/prototypes/jurisdiction-supervision-analysis', params: { filter: 'high-risk-subject', view: 'all' } },
+        { label: '进入全辖分析', path: '/prototypes/jurisdiction-supervision-analysis', params: { filter: 'high-risk-subject' } },
       ],
     },
   },
@@ -516,11 +516,11 @@ const metricItems: MetricItem[] = [
     focus: 'risk-theme',
     target: 'theme',
     detail: {
-      summary: '重点主题由事项规模、影响主体数和未闭环状态共同抬升，先看主题分布再进入主题分析下钻。',
+      summary: '重点主题由事项规模、影响主体数和未闭环状态共同抬升，先看主题分布再进入全辖分析下钻。',
       rows: riskThemeRows,
       actions: [
-        { label: '查看全部', path: '/prototypes/theme-analysis', params: { filter: 'high-risk-theme', view: 'all' } },
-        { label: '进入主题分析', path: '/prototypes/theme-analysis', params: { filter: 'high-risk-theme' } },
+        { label: '查看全部', path: '/prototypes/jurisdiction-supervision-analysis', params: { filter: 'high-risk-theme', view: 'all' } },
+        { label: '进入全辖分析', path: '/prototypes/jurisdiction-supervision-analysis', params: { filter: 'high-risk-theme' } },
       ],
     },
   },
@@ -614,8 +614,8 @@ const metricItems: MetricItem[] = [
       summary: '低分对象包含主体和主题两类，当前先按对象类型、分数区间和主题来源判断复核重点。',
       rows: lowScoreRows,
       actions: [
-        { label: '查看全部', path: '/prototypes/theme-analysis', params: { filter: 'low-score', view: 'all' } },
-        { label: '进入主题分析', path: '/prototypes/theme-analysis', params: { filter: 'low-score' } },
+        { label: '查看全部', path: '/prototypes/jurisdiction-supervision-analysis', params: { filter: 'low-score', view: 'all' } },
+        { label: '进入全辖分析', path: '/prototypes/jurisdiction-supervision-analysis', params: { filter: 'low-score' } },
       ],
     },
   },
@@ -972,11 +972,11 @@ const GlobalOverview: React.FC = () => {
   }, [scope, system, subjectRiskFactor]);
 
   const navigateSubject = (subject: string) => {
-    handleNavigate(buildUrl('/prototypes/theme-analysis', { subject, from: 'global-overview-2' }));
+    handleNavigate(buildUrl('/prototypes/jurisdiction-supervision-analysis', { subject, from: 'global-overview-2' }));
   };
 
   const navigateTheme = (themeName: string) => {
-    handleNavigate(buildUrl('/prototypes/theme-analysis', { theme: themeName, from: 'global-overview-2' }));
+    handleNavigate(buildUrl('/prototypes/jurisdiction-supervision-analysis', { theme: themeName, from: 'global-overview-2' }));
   };
 
   const navigateMonitor = (focus: string) => {
@@ -984,7 +984,7 @@ const GlobalOverview: React.FC = () => {
   };
 
   const handleSubjectDistributionClick = (item: SubjectRiskDistributionItem) => {
-    handleNavigate(buildUrl('/prototypes/theme-analysis', {
+    handleNavigate(buildUrl('/prototypes/jurisdiction-supervision-analysis', {
       range: item.name,
       view: 'risk-subjects',
       scope,
@@ -1138,8 +1138,8 @@ const GlobalOverview: React.FC = () => {
                 <div className="section-title">主体风险概览</div>
                 <div className="section-subtitle">当前范围内风险区划分布及高风险主体排行</div>
               </div>
-              <button type="button" onClick={() => handleNavigate('/prototypes/theme-analysis')} className="ghost-link">
-                进入主题视角
+              <button type="button" onClick={() => handleNavigate(buildUrl('/prototypes/jurisdiction-supervision-analysis', { view: 'subject-risk', from: 'global-overview-2' }))} className="ghost-link">
+                查看全辖分析
                 <ChevronRight className="h-4 w-4" />
               </button>
             </div>
@@ -1225,8 +1225,8 @@ const GlobalOverview: React.FC = () => {
                 <div className="section-kicker">主题风险概览</div>
                 <div className="section-title">高风险主题与影响主体</div>
               </div>
-              <button type="button" onClick={() => handleNavigate('/prototypes/theme-analysis')} className="ghost-link">
-                进入主题分析
+              <button type="button" onClick={() => handleNavigate(buildUrl('/prototypes/jurisdiction-supervision-analysis', { view: 'theme-risk', from: 'global-overview-2' }))} className="ghost-link">
+                查看主题概览
                 <ChevronRight className="h-4 w-4" />
               </button>
             </div>

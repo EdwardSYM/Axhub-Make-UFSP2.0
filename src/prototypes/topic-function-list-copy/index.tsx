@@ -236,28 +236,40 @@ const Component = forwardRef<AxureHandle, AxureProps>(function Component(innerPr
         <div className="flex gap-4 h-[920px]">
           {/* 左侧轻量专题导航 */}
           <aside
-            className="flex flex-col overflow-hidden bg-white/90 backdrop-blur-sm rounded-xl shadow-sm flex-shrink-0 transition-all duration-300 ease-in-out"
-            style={{ width: collapsed ? 72 : 240 }}
+            className="flex flex-col overflow-hidden bg-white rounded-lg shadow-sm flex-shrink-0 transition-all duration-300 ease-in-out"
+            style={{ width: collapsed ? 64 : 240 }}
           >
-            {/* 专题信息与返回区域 - 整体可点击 */}
-            <button
-              type="button"
-              onClick={() => onNavigate(workbenchHref)}
-              className="flex items-center gap-3 px-5 py-3 transition-all duration-300 hover:bg-gray-50 w-full text-left group"
-              title="返回工作台"
-            >
-              <div className="w-8 h-8 bg-gradient-to-br from-[#1E3A8A] to-[#3B82F6] rounded-full flex items-center justify-center shadow-md group-hover:shadow-lg transition-all duration-300 flex-shrink-0">
-                <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-white">
-                  <rect x="2" y="3" width="20" height="14" rx="2" ry="2"/>
-                  <line x1="8" y1="21" x2="16" y2="21"/>
-                  <line x1="12" y1="17" x2="12" y2="21"/>
+            {/* 专题信息与收起控制 */}
+            <div className={`flex min-h-[72px] transition-colors duration-200 ${collapsed ? 'flex-col items-center justify-center gap-2 px-2 py-3' : 'items-center gap-2 px-[18px] py-3'}`}>
+              <button
+                type="button"
+                onClick={() => onNavigate(workbenchHref)}
+                className={`flex min-w-0 items-center gap-3 rounded transition-colors duration-200 hover:bg-[#F4F7FB] text-left group ${collapsed ? 'h-9 w-9 justify-center' : 'h-12 flex-1 px-0'}`}
+                title="返回工作台"
+              >
+                <div className="w-8 h-8 flex items-center justify-center flex-shrink-0 text-[#0F3D8A]">
+                  <svg xmlns="http://www.w3.org/2000/svg" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.9" strokeLinecap="round" strokeLinejoin="round">
+                    <rect x="2" y="3" width="20" height="14" rx="2" ry="2"/>
+                    <line x1="8" y1="21" x2="16" y2="21"/>
+                    <line x1="12" y1="17" x2="12" y2="21"/>
+                  </svg>
+                </div>
+                <div className={`${collapsed ? 'hidden' : 'flex min-w-0 flex-col'}`}>
+                  <span className="text-[#1E293B] font-bold">工作台</span>
+                  <span className="text-[#94A3B8] text-xs mt-0.5 truncate">{topicName}</span>
+                </div>
+              </button>
+              <button
+                type="button"
+                className="w-7 h-7 rounded hover:bg-[#F4F7FB] flex items-center justify-center text-[#7B8798] hover:text-[#0F3D8A] transition-colors duration-200"
+                onClick={() => setCollapsed(v => !v)}
+                aria-label={collapsed ? '展开菜单' : '收起菜单'}
+              >
+                <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.1" strokeLinecap="round" strokeLinejoin="round" className={`transition-transform duration-200 ${collapsed ? 'rotate-180' : ''}`}>
+                  <polyline points="9 18 15 12 9 6"/>
                 </svg>
-              </div>
-              <div className={`${collapsed ? 'hidden' : 'flex flex-col'}`}>
-                <span className="text-[#1E293B] font-bold">工作台</span>
-                <span className="text-[#94A3B8] text-xs mt-0.5">{topicName}</span>
-              </div>
-            </button>
+              </button>
+            </div>
 
             {/* 功能节点菜单 */}
             <nav className="flex-1 py-2">
@@ -265,33 +277,54 @@ const Component = forwardRef<AxureHandle, AxureProps>(function Component(innerPr
                 {FEATURES.map((item, index) => {
                   if (item.type === 'group') {
                     const isExpanded = expandedGroups.includes(index);
+                    const groupActive = item.children.some((childItem) => childItem.key === featureKey);
+                    const groupSelected = groupActive && (!isExpanded || collapsed);
+                    const groupAncestor = groupActive && isExpanded && !collapsed;
+                    const groupIcon = item.children[0]?.icon;
                     return (
-                      <div key={index}>
-                        <div 
-                          className={`${collapsed ? 'hidden' : 'flex'} items-center justify-between mb-2 px-3 text-xs font-semibold text-[#94A3B8] uppercase tracking-wider cursor-pointer`}
+                      <div key={index} className="space-y-1">
+                        <button
+                          type="button"
+                          className={`w-full h-11 flex ${collapsed ? 'justify-center px-0' : 'items-center justify-between gap-2.5 px-3'} rounded text-sm transition-colors duration-200 ${
+                            groupSelected
+                              ? 'bg-[#EDF3FA] text-[#0F3D8A] font-semibold'
+                              : groupAncestor
+                              ? 'text-[#0F3D8A] hover:bg-[#F4F7FB]'
+                              : 'text-[#334155] hover:bg-[#F4F7FB]'
+                          }`}
                           onClick={() => setExpandedGroups(prev => 
                             isExpanded 
                               ? prev.filter(i => i !== index) 
                               : [...prev, index]
                           )}
+                          title={item.name}
                         >
-                          {item.name}
-                          <svg 
-                            xmlns="http://www.w3.org/2000/svg" 
-                            width="14" 
-                            height="14" 
-                            viewBox="0 0 24 24" 
-                            fill="none" 
-                            stroke="currentColor" 
-                            strokeWidth="2" 
-                            strokeLinecap="round" 
-                            strokeLinejoin="round"
-                            className={`transition-transform duration-300 ${isExpanded ? 'transform rotate-90' : ''}`}
-                          >
-                            <polyline points="9 18 15 12 9 6"/>
-                          </svg>
-                        </div>
-                        {isExpanded && (
+                          <span className={`flex min-w-0 items-center ${collapsed ? 'justify-center' : 'gap-2.5'}`}>
+                            <span className={`w-[30px] h-[30px] rounded-md flex items-center justify-center flex-shrink-0 ${
+                              groupSelected ? 'bg-[rgba(42,72,126,0.14)] text-[#0F3D8A]' : groupAncestor ? 'bg-[#F3F6FA] text-[#0F3D8A]' : 'bg-[#F3F6FA] text-[#46566D]'
+                            }`}>
+                              {groupIcon}
+                            </span>
+                            <span className={`${collapsed ? 'hidden' : 'block'} truncate`}>{item.name}</span>
+                          </span>
+                          {!collapsed ? (
+                            <svg
+                              xmlns="http://www.w3.org/2000/svg"
+                              width="14"
+                              height="14"
+                              viewBox="0 0 24 24"
+                              fill="none"
+                              stroke="currentColor"
+                              strokeWidth="2"
+                              strokeLinecap="round"
+                              strokeLinejoin="round"
+                              className={`flex-shrink-0 text-[#7B8798] transition-transform duration-200 ${isExpanded ? 'transform rotate-90' : ''}`}
+                            >
+                              <polyline points="9 18 15 12 9 6"/>
+                            </svg>
+                          ) : null}
+                        </button>
+                        {isExpanded && !collapsed && (
                           <div className="space-y-1">
                             {item.children.map(childItem => {
                               const active = childItem.key === featureKey;
@@ -300,10 +333,10 @@ const Component = forwardRef<AxureHandle, AxureProps>(function Component(innerPr
                                   key={childItem.key}
                                   type="button"
                                   onClick={() => onNavigate(featureHref(childItem.key))}
-                                  className={`w-full flex ${collapsed ? 'justify-center' : 'items-center gap-3'} px-3 py-2.5 rounded-lg text-sm transition-all duration-200 ${active ? 'bg-[#1E3A8A] text-white font-medium' : 'hover:bg-gray-50 text-[#334155]'}`}
+                                  className={`w-full h-11 flex ${collapsed ? 'justify-center px-0' : 'items-center gap-2.5 pl-6 pr-3'} rounded text-sm transition-colors duration-200 ${active ? 'bg-[#EDF3FA] text-[#0F3D8A] font-semibold' : 'hover:bg-[#F4F7FB] text-[#334155]'}`}
                                   title={childItem.name}
                                 >
-                                  <span className={`w-5 h-5 flex items-center justify-center flex-shrink-0 ${active ? 'text-white' : 'text-[#64748B]'}`}>
+                                  <span className={`w-[30px] h-[30px] rounded-md flex items-center justify-center flex-shrink-0 ${active ? 'bg-[rgba(42,72,126,0.14)] text-[#0F3D8A]' : 'bg-[#F3F6FA] text-[#46566D]'}`}>
                                     {childItem.icon}
                                   </span>
                                   <span className={`${collapsed ? 'hidden' : 'block'} truncate`}>{childItem.name}</span>
@@ -322,10 +355,10 @@ const Component = forwardRef<AxureHandle, AxureProps>(function Component(innerPr
                         key={item.key}
                         type="button"
                         onClick={() => onNavigate(featureHref(item.key))}
-                        className={`w-full flex ${collapsed ? 'justify-center' : 'items-center gap-3'} px-3 py-2.5 rounded-lg text-sm transition-all duration-200 ${active ? 'bg-[#1E3A8A] text-white font-medium' : 'hover:bg-gray-50 text-[#334155]'}`}
+                        className={`w-full h-11 flex ${collapsed ? 'justify-center px-0' : 'items-center gap-2.5 px-3'} rounded text-sm transition-colors duration-200 ${active ? 'bg-[#EDF3FA] text-[#0F3D8A] font-semibold' : 'hover:bg-[#F4F7FB] text-[#334155]'}`}
                         title={item.name}
                       >
-                        <span className={`w-5 h-5 flex items-center justify-center flex-shrink-0 ${active ? 'text-white' : 'text-[#64748B]'}`}>
+                        <span className={`w-[30px] h-[30px] rounded-md flex items-center justify-center flex-shrink-0 ${active ? 'bg-[rgba(42,72,126,0.14)] text-[#0F3D8A]' : 'bg-[#F3F6FA] text-[#46566D]'}`}>
                           {item.icon}
                         </span>
                         <span className={`${collapsed ? 'hidden' : 'block'} truncate`}>{item.name}</span>
@@ -336,25 +369,6 @@ const Component = forwardRef<AxureHandle, AxureProps>(function Component(innerPr
               </div>
             </nav>
 
-            {/* 菜单折叠按钮 - 右下角向左展示 */}
-            <div className="p-4 flex justify-end">
-              <button
-                type="button"
-                className="w-8 h-8 rounded-lg hover:bg-gray-100 flex items-center justify-center text-[#64748B] transition-all duration-300 group"
-                onClick={() => setCollapsed(v => !v)}
-                aria-label={collapsed ? '展开菜单' : '收起菜单'}
-              >
-                {collapsed ? (
-                  <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="group-hover:text-[#334155] transition-all duration-300 transform rotate-180">
-                    <polyline points="9 18 15 12 9 6"/>
-                  </svg>
-                ) : (
-                  <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="group-hover:text-[#334155] transition-all duration-300">
-                    <polyline points="9 18 15 12 9 6"/>
-                  </svg>
-                )}
-              </button>
-            </div>
           </aside>
 
           {/* 右侧内容区 */}

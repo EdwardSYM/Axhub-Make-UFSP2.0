@@ -1,5 +1,5 @@
 /**
- * @name 重点领域整改工作台
+ * @name 监督者工作台
  */
 import './style.css';
 import React, { forwardRef, useEffect, useImperativeHandle, useMemo, useRef, useState } from 'react';
@@ -24,12 +24,15 @@ import { createEventEmitter, getConfigValue } from '../../common/axure-types';
 
 type NavActive = 'home' | 'daily' | 'special' | 'policy' | 'evaluation' | 'support';
 
+const WORKBENCH_PAGE_NAME = '监督者工作台';
+const WORKBENCH_PAGE_DESC = '当前页面基于重点领域整改工作台复制，后续用于承载监督者角色的任务督办、审核跟踪和综合研判等工作。';
+
 const EVENT_LIST: EventItem[] = [{ name: 'onNavigate', desc: '页面内导航', payload: 'string' }];
 const ACTION_LIST: Array<{ name: string; desc: string; params?: string }> = [];
 const VAR_LIST: KeyDesc[] = [{ name: 'active_category', desc: '当前激活的顶栏分类' }, { name: 'topic_key', desc: '当前主题 key' }];
 const CONFIG_LIST: ConfigItem[] = [
   { type: 'input', attributeId: 'title', displayName: '系统标题', initialValue: '财会监督系统' },
-  { type: 'input', attributeId: 'topic_name', displayName: '主题名称', initialValue: '主题工作台' }
+  { type: 'input', attributeId: 'topic_name', displayName: '主题名称', initialValue: WORKBENCH_PAGE_NAME }
 ];
 
 function useQuery() {
@@ -123,7 +126,7 @@ const Component = forwardRef<AxureHandle, AxureProps>(function Component(innerPr
   const query = useQuery();
 
   const title = getConfigValue<string>(configSource, 'title', '财会监督系统');
-  const topicName = getConfigValue<string>(configSource, 'topic_name', String(query.topic || '专项领域通用工作台'));
+  const topicName = getConfigValue<string>(configSource, 'topic_name', String(query.topic || WORKBENCH_PAGE_NAME));
   const categoryFromQuery = String(query.category || 'special').toLowerCase();
 
   const activeCategory: NavActive =
@@ -296,8 +299,8 @@ const Component = forwardRef<AxureHandle, AxureProps>(function Component(innerPr
           : name.replace(/地方政府债务|债务|化债/g, topicShortName)
       );
       return {
-        displayName: `${topicTitle}专项工作台`,
-        descText: `用于汇聚${topicTitle}的规则评价、整改督办、政策依据和趋势研判等重点任务。`,
+        displayName: WORKBENCH_PAGE_NAME,
+        descText: WORKBENCH_PAGE_DESC,
         stageData: [
           { name: '识别', count: 17, rate: 0.88 },
           { name: '核验', count: 12, rate: 0.72 },
@@ -328,8 +331,8 @@ const Component = forwardRef<AxureHandle, AxureProps>(function Component(innerPr
       };
     }
     return {
-      displayName: '专项领域整改工作台',
-      descText: '用于汇聚重点领域整改相关任务，支撑台账分发录入、问题整改更新及整改进展跟踪。',
+      displayName: WORKBENCH_PAGE_NAME,
+      descText: WORKBENCH_PAGE_DESC,
       stageData: [
         { name: '受理', count: 9, rate: 0.6 },
         { name: '研判', count: 6, rate: 0.5 },
@@ -380,7 +383,7 @@ const Component = forwardRef<AxureHandle, AxureProps>(function Component(innerPr
   const topicParam = encodeURIComponent(topicKey);
   const categoryParam = encodeURIComponent(activeCategory);
   const featureHref = (featureKey: string) =>
-    `/prototypes/problem-library-function-list?topic=${topicParam}&category=${categoryParam}&feature=${encodeURIComponent(featureKey)}`;
+    `/prototypes/topic-function-list-copy?topic=${topicParam}&category=${categoryParam}&feature=${encodeURIComponent(featureKey)}`;
   const evaluationConfigHref = `/prototypes/evaluation-graph?topic=${topicParam}&category=${categoryParam}`;
   const FLOW_STEPS = useMemo(() => {
     return topicProfile.flowSteps.map((step) => ({

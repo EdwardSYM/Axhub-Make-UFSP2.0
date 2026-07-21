@@ -1,6 +1,6 @@
 {
   "version": 1,
-  "updatedAt": "2026-05-15T10:47:13.545Z",
+  "updatedAt": "2026-07-21T03:40:09.542Z",
   "prototypes": [
     {
       "id": "item-prototypes-fiscal-supervision-home2",
@@ -9,21 +9,34 @@
       "itemKey": "prototypes/fiscal-supervision-home2"
     },
     {
-      "id": "folder-1778553700459-y1vwky",
+      "id": "folder-1780629691130-7j3550",
       "kind": "folder",
-      "title": "全局分析",
+      "title": "扩展功能",
       "children": [
         {
-          "id": "item-prototypes-global-overview",
+          "id": "item-prototypes-agent",
           "kind": "item",
-          "title": "全局总览",
-          "itemKey": "prototypes/global-overview"
+          "title": "Agent配置",
+          "itemKey": "prototypes/agent"
+        }
+      ]
+    },
+    {
+      "id": "folder-1778553700459-y1vwky",
+      "kind": "folder",
+      "title": "全景分析",
+      "children": [
+        {
+          "id": "item-prototypes-jurisdiction-supervision-analysis",
+          "kind": "item",
+          "title": "全辖监督分析",
+          "itemKey": "prototypes/jurisdiction-supervision-analysis"
         },
         {
-          "id": "item-prototypes-theme-analysis",
+          "id": "item-prototypes-local-supervision-analysis",
           "kind": "item",
-          "title": "主题分析",
-          "itemKey": "prototypes/theme-analysis"
+          "title": "本级监督分析",
+          "itemKey": "prototypes/local-supervision-analysis"
         }
       ]
     },
@@ -32,6 +45,18 @@
       "kind": "folder",
       "title": "工作台",
       "children": [
+        {
+          "id": "item-prototypes-supervised-workbench",
+          "kind": "item",
+          "title": "被监督者工作台",
+          "itemKey": "prototypes/supervised-workbench"
+        },
+        {
+          "id": "item-prototypes-supervisor-workbench",
+          "kind": "item",
+          "title": "监督者工作台",
+          "itemKey": "prototypes/supervisor-workbench"
+        },
         {
           "id": "item-prototypes-topic-workbench2",
           "kind": "item",
@@ -58,22 +83,54 @@
       "title": "列表页",
       "children": [
         {
-          "id": "item-prototypes-topic-function-list",
-          "kind": "item",
-          "title": "日常监督功能列表页",
-          "itemKey": "prototypes/topic-function-list"
-        },
-        {
           "id": "item-prototypes-topic-function-list-copy",
           "kind": "item",
           "title": "重点领域整改功能列表页",
           "itemKey": "prototypes/topic-function-list-copy"
         },
         {
-          "id": "item-prototypes-evaluation-graph",
-          "kind": "item",
-          "title": "评价图谱",
-          "itemKey": "prototypes/evaluation-graph"
+          "id": "folder-1783315814822-2i34yr",
+          "kind": "folder",
+          "title": "案例库（AI改造）",
+          "children": [
+            {
+              "id": "item-prototypes-case-library-ai",
+              "kind": "item",
+              "title": "一般案例管理",
+              "itemKey": "prototypes/case-library-ai"
+            },
+            {
+              "id": "item-prototypes-typical-case-application",
+              "kind": "item",
+              "title": "典型案例管理-申请",
+              "itemKey": "prototypes/typical-case-application"
+            },
+            {
+              "id": "item-prototypes-typical-case-review",
+              "kind": "item",
+              "title": "典型案例管理-审核",
+              "itemKey": "prototypes/typical-case-review"
+            }
+          ]
+        },
+        {
+          "id": "folder-1783560995729-9mfjfm",
+          "kind": "folder",
+          "title": "问题库（AI改造）",
+          "children": [
+            {
+              "id": "item-prototypes-problem-library-function-list",
+              "kind": "item",
+              "title": "工作台账录入与审核",
+              "itemKey": "prototypes/problem-library-function-list"
+            },
+            {
+              "id": "item-prototypes-problem-library-ledger-audit",
+              "kind": "item",
+              "title": "工作台账审核",
+              "itemKey": "prototypes/problem-library-ledger-audit"
+            }
+          ]
         }
       ]
     },
@@ -87,6 +144,12 @@
           "kind": "item",
           "title": "全局总览2",
           "itemKey": "prototypes/global-overview-2"
+        },
+        {
+          "id": "item-prototypes-global-overview",
+          "kind": "item",
+          "title": "全辖监督分析",
+          "itemKey": "prototypes/global-overview"
         }
       ]
     }
@@ -112,6 +175,24 @@
     }
   ],
   "docs": [
+    {
+      "id": "item-docs-----------------md",
+      "kind": "item",
+      "title": "工作台账智能校验与审核留痕规则.md",
+      "itemKey": "docs/工作台账智能校验与审核留痕规则.md"
+    },
+    {
+      "id": "item-docs----------md-2",
+      "kind": "item",
+      "title": "业务页面设计规范.md",
+      "itemKey": "docs/业务页面设计规范.md"
+    },
+    {
+      "id": "item-docs--------------------md",
+      "kind": "item",
+      "title": "被监督者工作台 办理概览板块操作逻辑.md",
+      "itemKey": "docs/被监督者工作台-办理概览板块操作逻辑.md"
+    },
     {
       "id": "item-docs-problem-library-analysis-md",
       "kind": "item",
@@ -243,7 +324,6 @@
   "canvas": [],
   "themes": [
     "dribbble",
-    "ufsp-sky",
     "antd-new",
     "trae-design",
     "firecrawl"

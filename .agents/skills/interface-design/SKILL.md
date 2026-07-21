@@ -1,6 +1,6 @@
 ---
 name: interface-design
-description: This skill is for interface design — dashboards, admin panels, apps, tools, and interactive products. NOT for marketing design (landing pages, marketing sites, campaigns).
+description: This skill is for interface design — dashboards, admin panels, apps, tools, navigation/sidebar patterns, and interactive products. NOT for marketing design (landing pages, marketing sites, campaigns).
 ---
 
 # Interface Design
@@ -292,6 +292,20 @@ Every interactive element needs states: default, hover, active, focus, disabled.
 
 Screens need grounding. A data table floating in space feels like a component demo, not a product. Include navigation showing where you are in the app, location indicators, and user context. When building sidebars, consider same background as main content with border separation rather than different colors.
 
+## UFSP2.0 List-Page Side Menus
+
+For `/Users/edwardm/Documents/trae_projects/UFSP2.0`, apply this standard to all list-page side menus, including 问题库, 案例库, 日常监督功能列表页, and 重点领域整改功能列表页.
+
+- Keep menu behavior consistent across list pages. Users move between these pages as one supervision workspace, so different side-menu row heights, active states, collapse density, or parent styles weaken location awareness.
+- Use at most two levels. Parent rows organize or collapse groups; leaf rows and standalone first-level rows are page destinations.
+- Make parent rows with children and standalone first-level rows share the same row system: `44px` row height, `30px` icon slot in expanded mode, `32px` icon container in collapsed mode, `10px` icon-text gap, `12px` horizontal padding, `4px` radius, and a fixed trailing chevron for expandable rows.
+- Use child indentation, not a new visual style, to show hierarchy. Child rows keep the same row height, icon slot, font size, hover style, and active style; use about `24px` left indentation.
+- Treat selected and ancestor states separately. Only the current leaf row, current standalone row, or a collapsed parent row representing the current hidden child may use selected background and `font-weight: 600`. An expanded parent whose child is current is only an ancestor state: deep-blue text or a light icon tint is allowed, but no bold text and no selected background.
+- Use the top bar color system for menu emphasis: derive brand from `#2A487E -> #4A6FA8`; use a low-saturation blue-gray active row, deep-blue text, and a translucent deep-blue icon background. Do not use bright blue fills, thick left active bars, gradient active rows, strong shadows, oversized rounded corners, or solid blue icon badges.
+- Keep the module logo separate from menu item treatment. The logo is identity, not navigation; do not put a border, pale icon box, solid badge, or menu-item icon-slot background around it. Prefer a plain top-bar-blue line icon beside the module title.
+- Put the menu collapse/expand control in the sidebar header area or the top of the collapsed rail. Do not place a lonely collapse button in the lower empty area. Use a small, quiet icon button around `28px`, without shadow or heavy border.
+- In collapsed mode, every visible icon row keeps the same `44px` rhythm regardless of whether it has children. A collapsed parent that contains the current page may take the selected icon feedback so the user still knows where they are.
+
 ## Dark Mode
 
 Dark interfaces have different needs. Shadows are less visible on dark backgrounds — lean on borders for definition. Semantic colors (success, warning, error) often need slight desaturation. The hierarchy system still applies, just with inverted values.
@@ -389,3 +403,55 @@ For more detail on specific topics:
 - `/interface-design:audit` — Check code against system
 - `/interface-design:extract` — Extract patterns from code
 - `/interface-design:critique` — Critique your build for craft, then rebuild what defaulted
+
+---
+
+# UFSP2.0 Business List Page Addendum
+
+Use these project-specific rules when designing or revising 财会监督V2.0 business list pages:
+
+- For list pages with both status tabs and a left tree/catalog, the tab bar sits one level above the tree and table, spanning the whole business panel. Do not place status tabs only inside the right table region.
+- The left tree/catalog should support collapse when it consumes horizontal space. Put the collapse handle on the vertical split line between tree and table; expanded state uses a left arrow, collapsed state uses a right arrow.
+- Evaluate divider lines in UFSP list pages instead of deleting all of them. Keep structural lines that clarify hierarchy, such as the tab-bar baseline, tree/table split line, table grid, and form title baseline; remove redundant full-width lines under toolbars, selection notes, and pagination.
+- Keep the business list density close to the Axure standard: 32px controls, 32px table rows, 4px radius, white panels, subtle shadows rather than heavy borders.
+- Use button levels consistently: primary blue for the main flow action, blue-outline secondary for import/export/batch/query-scheme actions, neutral tertiary for reset/cancel/back, danger for delete/destructive actions, and blue text buttons for table row actions.
+- When professional SVG/iconfont assets are provided or already downloaded for UFSP pages, use those SVG originals for primary navigation and toolbar icons. Do not self-draw replacement paths, and do not use Lucide/Ant Design/etc. as main menu or toolbar icons unless no professional SVG source exists.
+- Keep menu and toolbar icon sizing as separate systems. Left feature-menu icons use a 30px visible icon container, 34px in collapsed mode, and may use per-source optical scaling because downloaded SVG viewBoxes and padding differ. Toolbar icons use a strict 14px by 14px frame; rectangular SVGs must preserve aspect ratio with the longest side at 14px, and toolbar icons must not inherit menu optical scaling.
+- Choose business-semantic icons, not generic file-transfer icons, for business nodes: use submit/send-review semantics for `上报/提交`, dispatch/distribution semantics for `下发/分发`, verification semantics for `审核/校验`, reminder semantics for `督办`, and search semantics for `查询`.
+- Search in the toolbar uses a primary icon button; refresh, filter, and column settings use secondary icon buttons.
+- Right-side list toolbar search controls are a fixed UFSP component group. For business list pages such as 工作台账录入, 工作台账审核, and 案例库一般案例管理, use exactly this order and component treatment: `ufsp-search-box ufsp-filter-input` input with placeholder `请输入`, `ufsp-icon-btn ufsp-icon-btn-primary` search button, `ufsp-icon-btn ufsp-icon-btn-secondary` refresh button, `ufsp-icon-btn ufsp-icon-btn-secondary` filter button, `ufsp-btn ufsp-btn-secondary` query-scheme button, and `ufsp-icon-btn ufsp-icon-btn-secondary` column-settings button. Keep controls at `32px`, input width `240px`, radius `4px`, toolbar gap `8px`, subtle shadows, and `14px` toolbar icons. Use a gear/settings icon for column settings; do not substitute tag, filter, or decorative icons.
+- Import and export actions should use matching semantic line icons at 14px, centered with text and 6px icon-text gap.
+- Business list add actions use the fixed label `新增`; do not label the main toolbar button `手工新增` or `人工新增`. Put the choice of add method inside the subsequent modal, drawer, or form.
+- For case-library pages, source type is a shared business dimension. The left source tree, list source-type column, list/filter source options, add/edit source-type dropdown, and related analysis filters must use the same source value set; when adding, removing, or renaming a source type, update all of these surfaces and the page spec together.
+- For case-library general-case pages, list status must mirror the lifecycle tabs. Use `待入库`, `已入库`, `不入库`, and `已停用` for the list status column, filter options, overview copy, mock data, and page spec; do not introduce a separate processing-status vocabulary for the same rows.
+- Reuse confirmed UFSP iconfont/SVG originals for main toolbar actions: `action-add` for add, `action-import` for import, `action-export` for export, and submit/check semantics for submit-or-store batch actions. Do not mix Lucide, Ant Design, or self-drawn icons into the same confirmed toolbar pattern.
+- Name lifecycle batch actions by the business result. For case-library pages use `批量入库`, not `批量确认入库`; do not add standalone danger `X` toolbar buttons unless the action is truly delete/destructive.
+- For horizontally scrollable business tables, freeze the checkbox column on the left, freeze the primary identity column next to it, and freeze the operations column on the right. The frozen cells must keep the same normal, hover, and selected row backgrounds as the rest of the row.
+- Do not put left/right padding on the scroll container that owns sticky table columns. Sticky `right: 0` attaches to the scroll container's inner edge, so horizontal padding makes the operations column bleed into the gutter while dragging. Put page spacing on an outer wrapper or margin instead. The scroll container should clip the table with `overflow: auto`, `border-radius: 4px`, and an opaque background; sticky cells should use opaque backgrounds/background clipping, and the right operations column should include a subtle left separator such as `box-shadow: -1px 0 0 #E4E4E4`.
+- For full-page add/edit/process forms, reuse `ufsp-form-head`, `ufsp-form-title`, and `ufsp-form-actions`. When a primary flow action other than save exists, place `保存` immediately to its left and style it as a blue-outline secondary button. Full-page add/edit forms without a right AI column use a four-column field grid by default; only process pages that reserve a separate right column for AI overview/suggestions should reduce the left form to a three-column `ufsp-ledger-form-grid`. Add/edit forms are data-entry states: after the form header, show section titles and fields directly. Do not reuse detail-page summary blocks, status summaries, detail tabs, usage statistic cards, or other read-only structures in add/edit pages. For pure add pages, keep only the current primary action `保存` in the header unless the user explicitly confirms submit/store/publish actions for that page. Keep the body at about 24px horizontal padding, 16px section-to-field rhythm, 14px/22px labels, 8px label-control spacing, and 32px controls with 4px radius.
+- Default pagination for main lists is the centered compact pattern: total count, previous, current page, next, and page-size selector. Add a jump-to-page input only when the dataset or business scenario requires it.
+- Avoid visible demo copy in the UI. Prototype-only口径 belongs in `spec.md`, not in the business page surface.
+
+# UFSP2.0 AI Consistency Check Addendum
+
+Use these project-specific rules when designing AI佐证一致性校验、审核校验 or similar evidence-comparison workspaces:
+
+- Do not add state chips, warning labels, or buttons just because there is room in the header. Before adding any element, check whether the same status or action is already expressed by the conclusion area, left list, or row-level actions; remove duplicates.
+- Header actions are page-level only. Use actions such as `刷新状态`, `推理过程`, and `提交`. Do not place `处理异常项` in the header when the detail region already provides current-data processing.
+- AI evidence results are returned per data item/project, not per field. Do not put `保存`, `修改录入`, or `补充附件` actions on every field/fact row. Put one current-data-level `修改` entry in the abnormal-detail header. The action should open the original-system-style full edit page, not a custom quick-edit drawer; saving that edit page returns to the check workspace and starts async checking for the selected data item.
+- After current-data changes are saved, show an async checking state: the left project row becomes grey/disabled and cannot be selected or submitted; the right panel shows `正在校验`. The header action should be `刷新状态`, which refreshes the validation-result state and re-enables the row when results are available.
+- The primary submit button should remain `提交`. If unresolved issues still exist after the click, show an objection-record dialog; only the dialog confirmation uses `仍然提交`. This dialog is not a simple warning: users must fill an explanation or upload one or more proof screenshots before `仍然提交` is enabled, and the only actions should be `取消` and `仍然提交`.
+- Conclusion areas should answer one question first: whether the current project is fully consistent. Show the conclusion, current project context, and concise counts before any detail. Avoid repeating the same conclusion as both a header chip and an in-card badge.
+- Conclusion layout should be integrated into the page, not drawn as a stack of metric cards. Use a white workspace, a short vertical status line, strong title text, supporting copy, and compact inline statistics separated by spacing or soft row dividers.
+- For batch submission, the left project list contains exactly the items carried in from the list page. Each item is checked by default and only checked items participate in `提交`; do not show unrelated mock rows that the user did not select.
+- If the source list uses dynamic table headers, do not hand-pick identity fields such as project name, unit, or region for the check workspace. Show a row snapshot table instead: sticky checkbox and carried-in order number on the left, the original row fields rendered from the same column metadata, horizontal scrolling for overflow fields, and sticky validation result on the right. Do not display the original table row number again; the carried-in order is the cross-reference for item 1/2/3. Keep columns compact; truncate long cell text by default and reveal the full value on hover instead of widening every column.
+- Left-side summary should act as a compact filter, not a description area. Use `全部数据 / 全部一致 / 存在异常` as clickable filters when users need to quickly find items to process. Remove low-value copy such as submission mode labels, source explanations, and repeated count sentences.
+- Left-side summary and project rows should be borderless or nearly borderless. Prefer text hierarchy, selected-row tint, checkbox state, small red exception count, rounded row surfaces, and whitespace. Avoid card-looking project rows, boxed stat cards, sharp rectangles, or large enclosed panels.
+- Issue details should be organized as a review report: field name and field conclusion first, then one or more fact rows. Each fact row must show the original input text, matched attachment/source, original evidence text, issue type, reasoning, and suggested correction.
+- For rich text fields such as `整改措施` and `问题描述`, never compare only one formatted summary. Split the input into all key facts first, then match evidence for each fact without omission. Display the original raw descriptions so users can judge whether the AI comparison is valid.
+- Fact rows for rich text should not be compressed into two generic text boxes. Each extracted fact needs a readable row with fact label, original input paragraph, evidence attachment name/page, original evidence paragraph, mismatch type, reasoning, and correction suggestion.
+- Use subtle surfaces and spacing to show hierarchy. Avoid stacking heavy cards inside cards, large empty panels, decorative status blocks, and full-width dividers that do not clarify the workflow.
+- Do not solve hierarchy by adding more borders, shadows, vertical accent bars, or nested cards. In this project, AI check workspaces should use borderless information bands, shallow background grouping, rounded row surfaces, row rhythm, and typography instead.
+- Before stacking labels vertically, evaluate available horizontal space. Compact section headers should place title, short helper text, counts, and lightweight actions on one row when width allows; vertical stacking is only for narrow containers or genuinely separate information groups.
+- Avoid full-height accent bars or hard vertical selection lines in list/detail regions. Use selected background, rounded row surfaces, text weight, small status text, or compact pills instead.
+- Current-data-level action buttons must keep component proportions: 30-32px height, enough horizontal padding, 4-8px radius depending on context, and readable but not oversized text. Do not use tiny buttons with large text or cramped padding.

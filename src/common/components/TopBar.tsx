@@ -1,9 +1,13 @@
 import React, { useState, useEffect, useRef } from 'react';
+import './TopBar.css';
 
 interface TopBarProps {
   title?: string;
   onNavigate: (path: string) => void;
 }
+
+type ChildMenuItem = { label: string; link: string };
+type TreeMenuItem = { id: string; label: string; children?: ChildMenuItem[] };
 
 const TopBar: React.FC<TopBarProps> = ({ title = '财会监督系统', onNavigate }) => {
   const [openMenu, setOpenMenu] = useState<string | null>(null);
@@ -148,11 +152,12 @@ const TopBar: React.FC<TopBarProps> = ({ title = '财会监督系统', onNavigat
   ];
 
   const globalAnalysisMenu = [
-    { label: '全辖日常监督分析', link: '/prototypes/global-overview' },
-    { label: '主题视角', link: '/prototypes/theme-analysis' },
+    { label: '全辖监督分析', link: '/prototypes/jurisdiction-supervision-analysis' },
+    { label: '本级监督分析', link: '/prototypes/local-supervision-analysis' },
   ];
 
   const extensionMenu = [
+    { label: 'Agent', link: '/prototypes/agent' },
     { label: '全省信息共享', link: '/prototypes/extension/share' },
     { label: '即席分析', link: '/prototypes/extension/analysis' },
     { label: '统计看板', link: '/prototypes/extension/dashboard' },
@@ -160,109 +165,103 @@ const TopBar: React.FC<TopBarProps> = ({ title = '财会监督系统', onNavigat
 
   // 解析当前URL，确定激活的菜单
   useEffect(() => {
-    const currentUrl = window.location.href;
-    
-    // 检查是否是首页
-    if (currentUrl.includes('/home') || currentUrl.includes('/fiscal-supervision-home2')) {
-      setActiveMenu('home');
-      setActiveSubMenu(null);
-      return;
-    }
-    
-    // 检查是否是专项监督
-    if (currentUrl.includes('category=special')) {
-      setActiveMenu('special');
-      // 提取topic参数
-      const urlParams = new URLSearchParams(currentUrl.split('?')[1] || '');
-      const topic = urlParams.get('topic');
-      
-      // 先检查是否是直接点击二级标题进入的
+    const normalizeLink = (link: string) => link.replace('/pages/', '/prototypes/');
+    const getLinkTopic = (link: string) => new URLSearchParams(link.split('?')[1] || '').get('topic');
+    const matchTreeMenuLabel = (items: TreeMenuItem[], topic: string | null, currentPathWithSearch: string) => {
       if (topic) {
-        for (const menuItem of specialMenu) {
-          if (menuItem.id === topic) {
-            setActiveSubMenu(menuItem.label);
-            return;
+        const parent = items.find((item) => item.id === topic);
+        if (parent) return parent.label;
+      }
+
+      for (const item of items) {
+        for (const child of item.children || []) {
+          const childLink = normalizeLink(child.link);
+          if (currentPathWithSearch === childLink || currentPathWithSearch.includes(childLink)) {
+            return item.label;
+          }
+          if (topic && getLinkTopic(child.link) === topic) {
+            return item.label;
           }
         }
       }
-      
-      // 再检查是否是点击子菜单进入的
-      for (const menuItem of specialMenu) {
-        if (menuItem.children) {
-          for (const child of menuItem.children) {
-            // 修正路径匹配，忽略 /pages/ 或 /prototypes/ 前缀
-            const childPath = child.link.replace('/pages/', '');
-            if (currentUrl.includes(childPath)) {
-              setActiveSubMenu(menuItem.label);
-              return;
-            }
-          }
-        }
+      return null;
+    };
+
+    const applyActiveState = () => {
+      const { pathname, search } = window.location;
+      const params = new URLSearchParams(search);
+      const topic = params.get('topic');
+      const category = params.get('category');
+      const currentPathWithSearch = `${pathname}${search}`;
+
+      const activate = (menu: string, subMenu: string | null = null) => {
+        setActiveMenu(menu);
+        setActiveSubMenu(subMenu);
+      };
+
+      if (pathname.includes('/home') || pathname.includes('/fiscal-supervision-home2')) {
+        activate('home');
+        return;
       }
-      return;
-    }
-    
-    // 检查是否是日常监督
-    if (currentUrl.includes('category=daily')) {
-      setActiveMenu('daily');
-      // 提取topic参数
-      const urlParams = new URLSearchParams(currentUrl.split('?')[1] || '');
-      const topic = urlParams.get('topic');
-      
-      // 先检查是否是直接点击二级标题进入的
-      if (topic) {
-        for (const menuItem of dailyMenu) {
-          if (menuItem.id === topic) {
-            setActiveSubMenu(menuItem.label);
-            return;
-          }
-        }
+
+      if (category === 'evaluation' || topic?.startsWith('eval-') || pathname.includes('/evaluation-graph')) {
+        activate('evaluation');
+        return;
       }
-      
-      // 再检查是否是点击子菜单进入的
-      for (const menuItem of dailyMenu) {
-        if (menuItem.children) {
-          for (const child of menuItem.children) {
-            // 修正路径匹配，忽略 /pages/ 或 /prototypes/ 前缀
-            const childPath = child.link.replace('/pages/', '');
-            if (currentUrl.includes(childPath)) {
-              setActiveSubMenu(menuItem.label);
-              return;
-            }
-          }
-        }
+
+      if (
+        category === 'daily' ||
+        pathname.includes('/richang-yewu-workbench') ||
+        pathname.includes('/richang-zhuanti-workbench')
+      ) {
+        const inferredSubMenu =
+          pathname.includes('/richang-zhuanti-workbench') ? '专题监控' :
+          pathname.includes('/richang-yewu-workbench') ? '业务监控' :
+          null;
+        activate('daily', matchTreeMenuLabel(dailyMenu, topic, currentPathWithSearch) || inferredSubMenu);
+        return;
       }
-      return;
-    }
-    
-    // 检查是否是财会考评
-    if (currentUrl.includes('category=evaluation')) {
-      setActiveMenu('evaluation');
-      setActiveSubMenu(null);
-      return;
-    }
-    
-    // 检查是否是基础支撑
-    if (currentUrl.includes('/resources/')) {
-      setActiveMenu('support');
-      setActiveSubMenu(null);
-      return;
-    }
-    
-    // 检查是否是全局分析相关页面
-    if (currentUrl.includes('/global-overview') || 
-        currentUrl.includes('/theme-analysis')) {
-      setActiveMenu('global');
-      setActiveSubMenu(null);
-      return;
-    }
-    
-    // 检查是否是扩展功能
-    if (currentUrl.includes('/extension/')) {
-      setActiveMenu('extension');
-      setActiveSubMenu(null);
-      return;
-    }
+
+      if (
+        category === 'special' ||
+        pathname.includes('/topic-workbench2') ||
+        pathname.includes('/supervised-workbench') ||
+        pathname.includes('/supervisor-workbench')
+      ) {
+        activate('special', matchTreeMenuLabel(specialMenu, topic, currentPathWithSearch));
+        return;
+      }
+
+      if (pathname.includes('/resources/')) {
+        activate('support');
+        return;
+      }
+
+      if (
+        pathname.includes('/global-overview') ||
+        pathname.includes('/global-overview-2') ||
+        pathname.includes('/jurisdiction-supervision-analysis') ||
+        pathname.includes('/local-supervision-analysis')
+      ) {
+        activate('global');
+        return;
+      }
+
+      if (pathname.includes('/extension/') || pathname.includes('/prototypes/agent')) {
+        activate('extension');
+        return;
+      }
+
+      activate('');
+    };
+
+    applyActiveState();
+    window.addEventListener('popstate', applyActiveState);
+    window.addEventListener('hashchange', applyActiveState);
+    return () => {
+      window.removeEventListener('popstate', applyActiveState);
+      window.removeEventListener('hashchange', applyActiveState);
+    };
   }, []);
 
   // 处理导航，保留旧 /pages 链接的兼容兜底。
@@ -311,7 +310,7 @@ const TopBar: React.FC<TopBarProps> = ({ title = '财会监督系统', onNavigat
               </button>
               {openMenu === 'special' ? (
                 <div 
-                  className="topbar-menu absolute left-0 top-full mt-2 bg-white/98 backdrop-blur-md text-slate-800 rounded-xl shadow-xl z-50 min-w-[260px] py-3 transition-all duration-300 transform origin-top-right scale-95 opacity-0 animate-fade-in"
+                  className="topbar-menu absolute left-0 top-full mt-2 bg-white/98 backdrop-blur-md text-slate-800 rounded-xl shadow-xl z-50 min-w-[260px] py-3 transition-all duration-300 transform origin-top-right scale-100 opacity-100 topbar-fade-in"
                   onMouseEnter={() => setOpenMenu('special')}
                   onMouseLeave={(e) => {
                     // 检查鼠标是否移动到了二级菜单
@@ -349,7 +348,7 @@ const TopBar: React.FC<TopBarProps> = ({ title = '财会监督系统', onNavigat
                       </button>
                       {i.children && openSub === i.label ? (
                         <div 
-                          className="topbar-submenu absolute left-full top-0 ml-2 bg-white/98 backdrop-blur-md text-slate-800 rounded-xl shadow-xl z-50 min-w-[280px] max-h-80 overflow-auto py-3 transition-all duration-300 transform origin-top-left scale-95 opacity-0 animate-fade-in"
+                          className="topbar-submenu absolute left-full top-0 ml-2 bg-white/98 backdrop-blur-md text-slate-800 rounded-xl shadow-xl z-50 min-w-[280px] max-h-80 overflow-auto py-3 transition-all duration-300 transform origin-top-left scale-100 opacity-100 topbar-fade-in"
                           onMouseEnter={() => setOpenSub(i.label)}
                           onMouseLeave={(e) => {
                             // 检查鼠标是否移动回了一级菜单
@@ -391,7 +390,7 @@ const TopBar: React.FC<TopBarProps> = ({ title = '财会监督系统', onNavigat
               </button>
               {openMenu === 'daily' ? (
                 <div 
-                  className="topbar-menu absolute left-0 top-full mt-2 bg-white/98 backdrop-blur-md text-slate-800 rounded-xl shadow-xl z-50 min-w-[240px] py-3 transition-all duration-300 transform origin-top-right scale-95 opacity-0 animate-fade-in"
+                  className="topbar-menu absolute left-0 top-full mt-2 bg-white/98 backdrop-blur-md text-slate-800 rounded-xl shadow-xl z-50 min-w-[240px] py-3 transition-all duration-300 transform origin-top-right scale-100 opacity-100 topbar-fade-in"
                   onMouseEnter={() => setOpenMenu('daily')}
                   onMouseLeave={(e) => {
                     // 检查鼠标是否移动到了二级菜单
@@ -429,7 +428,7 @@ const TopBar: React.FC<TopBarProps> = ({ title = '财会监督系统', onNavigat
                       </button>
                       {i.children && openSub === i.label ? (
                         <div 
-                          className="topbar-submenu absolute left-full top-0 ml-2 bg-white/98 backdrop-blur-md text-slate-800 rounded-xl shadow-xl z-50 min-w-[280px] max-h-80 overflow-auto py-3 transition-all duration-300 transform origin-top-left scale-95 opacity-0 animate-fade-in"
+                          className="topbar-submenu absolute left-full top-0 ml-2 bg-white/98 backdrop-blur-md text-slate-800 rounded-xl shadow-xl z-50 min-w-[280px] max-h-80 overflow-auto py-3 transition-all duration-300 transform origin-top-left scale-100 opacity-100 topbar-fade-in"
                           onMouseEnter={() => setOpenSub(i.label)}
                           onMouseLeave={(e) => {
                             // 检查鼠标是否移动回了一级菜单
@@ -471,7 +470,7 @@ const TopBar: React.FC<TopBarProps> = ({ title = '财会监督系统', onNavigat
               </button>
               {openMenu === 'evaluation' ? (
                 <div 
-                  className="absolute left-0 top-full mt-2 bg-white/98 backdrop-blur-md text-slate-800 rounded-xl shadow-xl z-50 min-w-[240px] py-3 transition-all duration-300 transform origin-top-right scale-95 opacity-0 animate-fade-in"
+                  className="absolute left-0 top-full mt-2 bg-white/98 backdrop-blur-md text-slate-800 rounded-xl shadow-xl z-50 min-w-[240px] py-3 transition-all duration-300 transform origin-top-right scale-100 opacity-100 topbar-fade-in"
                   onMouseEnter={() => setOpenMenu('evaluation')}
                   onMouseLeave={() => setOpenMenu(null)}
                 >
@@ -501,7 +500,7 @@ const TopBar: React.FC<TopBarProps> = ({ title = '财会监督系统', onNavigat
               </button>
               {openMenu === 'support' ? (
                 <div 
-                  className="absolute left-0 top-full mt-2 bg-white/98 backdrop-blur-md text-slate-800 rounded-xl shadow-xl z-50 min-w-[240px] py-3 transition-all duration-300 transform origin-top-right scale-95 opacity-0 animate-fade-in"
+                  className="absolute left-0 top-full mt-2 bg-white/98 backdrop-blur-md text-slate-800 rounded-xl shadow-xl z-50 min-w-[240px] py-3 transition-all duration-300 transform origin-top-right scale-100 opacity-100 topbar-fade-in"
                   onMouseEnter={() => setOpenMenu('support')}
                   onMouseLeave={() => setOpenMenu(null)}
                 >
@@ -526,11 +525,11 @@ const TopBar: React.FC<TopBarProps> = ({ title = '财会监督系统', onNavigat
                 className={`px-4 py-2 rounded-full text-sm font-medium transition-all duration-300 ${activeMenu === 'global' || openMenu === 'global' ? 'bg-white/25 shadow-md' : 'hover:bg-white/15 hover:shadow-sm'}`}
                 onMouseEnter={() => setOpenMenu('global')}
               >
-                全局分析
+                全景分析
               </button>
               {openMenu === 'global' ? (
                 <div 
-                  className="absolute left-0 top-full mt-2 bg-white/98 backdrop-blur-md text-slate-800 rounded-xl shadow-xl z-50 min-w-[240px] py-3 transition-all duration-300 transform origin-top-right scale-95 opacity-0 animate-fade-in"
+                  className="absolute left-0 top-full mt-2 bg-white/98 backdrop-blur-md text-slate-800 rounded-xl shadow-xl z-50 min-w-[240px] py-3 transition-all duration-300 transform origin-top-right scale-100 opacity-100 topbar-fade-in"
                   onMouseEnter={() => setOpenMenu('global')}
                   onMouseLeave={() => setOpenMenu(null)}
                 >
@@ -559,7 +558,7 @@ const TopBar: React.FC<TopBarProps> = ({ title = '财会监督系统', onNavigat
               </button>
               {openMenu === 'extension' ? (
                 <div 
-                  className="absolute left-0 top-full mt-2 bg-white/98 backdrop-blur-md text-slate-800 rounded-xl shadow-xl z-50 min-w-[240px] py-3 transition-all duration-300 transform origin-top-right scale-95 opacity-0 animate-fade-in"
+                  className="absolute left-0 top-full mt-2 bg-white/98 backdrop-blur-md text-slate-800 rounded-xl shadow-xl z-50 min-w-[240px] py-3 transition-all duration-300 transform origin-top-right scale-100 opacity-100 topbar-fade-in"
                   onMouseEnter={() => setOpenMenu('extension')}
                   onMouseLeave={() => setOpenMenu(null)}
                 >
@@ -712,7 +711,7 @@ const TopBar: React.FC<TopBarProps> = ({ title = '财会监督系统', onNavigat
               
               {/* 消息通知面板 */}
               {showNotifications && (
-                <div className="absolute right-0 top-full mt-3 w-[400px] bg-white rounded-xl shadow-2xl overflow-hidden z-50 animate-fade-in">
+                <div className="absolute right-0 top-full mt-3 w-[400px] bg-white rounded-xl shadow-2xl overflow-hidden z-50 topbar-fade-in">
                   {/* 面板头部 */}
                   <div className="px-5 py-4 flex items-center justify-between">
                     <div className="flex items-center gap-3">
@@ -828,7 +827,7 @@ const TopBar: React.FC<TopBarProps> = ({ title = '财会监督系统', onNavigat
               
               {/* 用户菜单面板 */}
               {showUserMenu && (
-                <div className="absolute right-0 top-full mt-3 w-64 bg-white rounded-xl shadow-2xl overflow-hidden z-50 animate-fade-in">
+                <div className="absolute right-0 top-full mt-3 w-64 bg-white rounded-xl shadow-2xl overflow-hidden z-50 topbar-fade-in">
                   {/* 用户信息区域 */}
                   <div className="px-5 py-4">
                     <div className="flex items-center gap-4">
