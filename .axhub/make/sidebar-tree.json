@@ -1,6 +1,6 @@
 {
   "version": 1,
-  "updatedAt": "2026-07-21T03:40:09.542Z",
+  "updatedAt": "2026-07-22T02:56:10.000Z",
   "prototypes": [
     {
       "id": "item-prototypes-fiscal-supervision-home2",
@@ -96,7 +96,7 @@
             {
               "id": "item-prototypes-case-library-ai",
               "kind": "item",
-              "title": "一般案例管理",
+              "title": "案例库（AI改造）",
               "itemKey": "prototypes/case-library-ai"
             },
             {
@@ -121,7 +121,7 @@
             {
               "id": "item-prototypes-problem-library-function-list",
               "kind": "item",
-              "title": "工作台账录入与审核",
+              "title": "工作台账录入",
               "itemKey": "prototypes/problem-library-function-list"
             },
             {
@@ -129,6 +129,25 @@
               "kind": "item",
               "title": "工作台账审核",
               "itemKey": "prototypes/problem-library-ledger-audit"
+            }
+          ]
+        },
+        {
+          "id": "folder-1784688160455-wd5ac2",
+          "kind": "folder",
+          "title": "考评库（AI改造）",
+          "children": [
+            {
+              "id": "item-prototypes-evaluation-info-supplement",
+              "kind": "item",
+              "title": "考核信息补充",
+              "itemKey": "prototypes/evaluation-info-supplement"
+            },
+            {
+              "id": "item-prototypes-evaluation-assessment",
+              "kind": "item",
+              "title": "考核评价",
+              "itemKey": "prototypes/evaluation-assessment"
             }
           ]
         }
