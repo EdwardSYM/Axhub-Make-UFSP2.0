@@ -28,6 +28,8 @@
 
 若第 2-7 项冲突，按优先级高者执行。通用 skill 只能辅助判断，不得覆盖项目已确认页面样式。
 
+同一类组件存在多个实现口径时，在用户没有给出更新确认的前提下，优先采用项目中真实复用最多、覆盖页面最广的公共组件或稳定实现。例如全局顶栏以公共 `TopBar` 为唯一基准，单页顶栏、旧 HTML 顶栏和示例组件不得覆盖。复用次数不能覆盖用户最新明确确认。
+
 ## 3. 新页面启动流程
 
 收到新需求后，不直接写页面。先完成以下判断：
@@ -160,7 +162,6 @@
 - `src/prototypes/problem-library-function-list`
 - `src/prototypes/case-library-ai`
 - `src/prototypes/evaluation-assessment`
-- `src/prototypes/prompt-version-management-v1`
 
 设计要点：
 
@@ -184,7 +185,6 @@
 
 - `src/prototypes/case-library-ai` 的新增、申请、审核页。
 - `src/prototypes/problem-library-function-list` 的表单页。
-- `src/prototypes/prompt-version-management-v1` 的版本维护页。
 
 设计要点：
 
@@ -350,8 +350,9 @@ UFSP2.0 的默认设计语言不是通用“高级感”模板，而是政务财
 
 - `src/prototypes/problem-library-function-list/style.css`
 - `src/prototypes/case-library-ai/style.css`
-- `src/prototypes/evaluation-assessment/style.css`
-- `src/prototypes/prompt-version-management-v1/style.css`
+- `src/prototypes/evaluation-assessment/index.tsx`（主要复用问题库样式）
+
+当前 `src/prototypes/prompt-version-management-v1` 仍在校准，只能用于业务理解，不作为组件样式来源。
 
 已沉淀但待组件化的标准件：
 
@@ -489,11 +490,11 @@ Agent 工作规则目录。
 | 首页 / 总览入口 | `fiscal-supervision-home2` | `global-overview-2` |
 | 专项 / 日常工作台 | `topic-workbench2`、`richang-yewu-workbench`、`richang-zhuanti-workbench` | `supervisor-workbench`、`supervised-workbench` |
 | 有系统菜单的业务列表 | `case-library-ai` | `problem-library-function-list`、`evaluation-assessment` |
-| 有业务树的列表 | `problem-library-function-list` | `case-library-ai`、`prompt-version-management-v1` |
+| 有业务树的列表 | `problem-library-function-list` | `case-library-ai` |
 | 申请 / 审核表单 | `case-library-ai` | `typical-case-application`、`typical-case-review` |
-| 普通表单编辑 | `case-library-ai` | `problem-library-function-list`、`prompt-version-management-v1` |
-| 抽屉维护 | `case-library-ai` | `problem-library-function-list`、`prompt-version-management-v1` |
-| 规则配置类页面 | `prompt-version-management-v1` | `case-library-ai` |
+| 普通表单编辑 | `case-library-ai` | `problem-library-function-list` |
+| 抽屉维护 | `case-library-ai` | `problem-library-function-list` |
+| 规则配置类页面 | 暂无强基准 | `case-library-ai` 的表单组件、旧 HTML 的配置业务语义；使用前需确认新增变体 |
 
 如果参考页面本身存在未确认或明显偏差，必须在实现前说明，并选择更稳定的同类页面作为主参考。
 

@@ -17,7 +17,8 @@
 2. 需求变更前，先判断是否会影响已确认冻结项。
 3. 新确认样式需要同步旧页面时，先按 `rules/ufsp-page-governance.md` 第 12 节判断同步范围。
 4. 如果两个强基准存在冲突，不能直接覆盖，应先让用户确认是否拆成组件变体。
-5. 本文件只登记“已确认口径”，不替代页面自己的 `spec.md`。
+5. 同类实现存在冲突但没有新的用户确认时，优先采用项目中真实复用最多、覆盖页面最广的公共组件或稳定实现。
+6. 本文件只登记“已确认口径”，不替代页面自己的 `spec.md`。
 
 ## 2. 当前强基准
 
@@ -29,8 +30,9 @@
 | 标准查询工具栏 | 业务列表页右侧工具区 | `src/prototypes/case-library-ai/spec.md`、`src/prototypes/problem-library-function-list/style.css` | 新增/导入/导出等左侧动作，右侧搜索框、查询、刷新、筛选、查询方案、列设置；图标 14px、控件 32px | 不新增无语义危险按钮，不把工具栏做成大标题块 |
 | 标准业务表格 | 业务列表、附件表、规则表 | `src/docs/业务页面设计规范.md`、`src/prototypes/problem-library-function-list/style.css`、`src/prototypes/case-library-ai/style.css` | 表头 `#6A8DC4`、白色表头文字、32px 表头/行高、浅灰网格、4px 表头圆角、行 hover 浅灰 | 不使用大字号、厚边框、卡片式表格或过高行距 |
 | 简版分页 | 业务列表页 | `src/prototypes/case-library-ai/spec.md`、`src/prototypes/problem-library-function-list/spec.md` | `共 X 条 / 上一页 / 当前页 / 下一页 / 20 条/页`，居中，当前页 `#6A8DC4` | 不使用深蓝重分页或卡片式分页 |
-| 全页面表单页头 | 新增、编辑、查看、审核、校验工作区 | `src/prototypes/case-library-ai/spec.md`、`src/prototypes/problem-library-function-list/spec.md`、`src/prototypes/prompt-version-management-v1/spec.md` | 64px 白底标题操作栏，左侧圆形返回按钮，标题格式“功能名称 / 动作”，右侧集中动作 | 不做自定义大标题栏、摘要卡片式页头 |
-| 标准录入控件状态 | 表单、查询、业务树搜索 | `src/docs/业务页面设计规范.md`、`src/prototypes/prompt-version-management-v1/spec.md` | 控件 32px、字号 14px/13px、4px 圆角、弱边界、聚焦弱蓝阴影 | 不出现浏览器原生粗蓝 outline |
+| 完整业务页层级 | 业务列表、表单、详情、审核工作区 | `src/docs/业务页面设计规范.md`、`src/prototypes/problem-library-function-list`、`src/prototypes/case-library-ai` | 公共 TopBar → 系统功能菜单 → 业务核心区；有业务树时继续为业务树 → 列表 | 业务树不得替代系统功能菜单 |
+| 全页面表单页头 | 新增、编辑、查看、审核、校验工作区 | `src/prototypes/case-library-ai/spec.md`、`src/prototypes/problem-library-function-list/spec.md` | 64px 白底标题操作栏，左侧圆形返回按钮，标题格式“功能名称 / 动作”，右侧集中动作 | 不做自定义大标题栏、摘要卡片式页头 |
+| 标准录入控件状态 | 表单、查询、业务树搜索 | `src/docs/业务页面设计规范.md`、`src/prototypes/problem-library-function-list/style.css`、`src/prototypes/case-library-ai/style.css` | 控件 32px、字号 14px/13px、4px 圆角、弱边界、聚焦弱蓝阴影 | 不出现浏览器原生粗蓝 outline |
 
 ## 3. 当前局部基准
 
@@ -39,16 +41,16 @@
 | 案例库（AI改造） | 左侧功能菜单、一般案例管理列表、案例新增/编辑全页表单、案例聚类分析的产品化信息收口方式 | `src/prototypes/case-library-ai/index.tsx`、`style.css`、`spec.md` | 案例业务字段、案例类型、入库流程不泛化到其他业务 |
 | 问题库工作台账录入与审核 | 工作台账录入列表、业务树、AI 校验工作区、审核校验页头和异常处理结构 | `src/prototypes/problem-library-function-list/index.tsx`、`style.css`、`spec.md` | AI 校验业务口径、异常类型、台账字段不泛化 |
 | 考评库 / 考核评价 | 考评类矩阵表、保存后进入校验页、校验页沿用问题库全页面结构 | `src/prototypes/evaluation-assessment/index.tsx`、`spec.md` | 矩阵字段、考核指标、校验公式不泛化；当前无独立 `style.css` |
-| 提示词版本管理 V1 | 提示词管理系统菜单、提示词业务分类树、规则配置列表、提示词新增/编辑/详情全页表单 | `src/prototypes/prompt-version-management-v1/index.tsx`、`style.css`、`spec.md` | V1 只覆盖提示词配置管理，不覆盖 V2 测试发布、V3 反馈优化 |
-| 业务树 / 分类树 | 白底、浅分隔线、32px 行高、14px 搜索、低饱和蓝灰选中态、分隔线折叠把手 | `src/prototypes/problem-library-function-list/style.css`、`src/prototypes/prompt-version-management-v1/style.css` | 业务节点文案、层级、数量统计按页面业务决定 |
-| 规则配置类页面 | 规则/版本列表与全页维护表单组合 | `src/prototypes/prompt-version-management-v1/spec.md` | 只适用于配置管理类，不直接作为案例/问题库业务办理页主结构 |
+| 业务树 / 分类树 | 白底、浅分隔线、32px 行高、14px 搜索、低饱和蓝灰选中态、分隔线折叠把手 | `src/prototypes/problem-library-function-list/style.css`、`src/prototypes/case-library-ai/style.css` | 业务节点文案、层级、数量统计按页面业务决定 |
 
 ## 4. 待确认参考
 
 | 对象 | 当前用途 | 使用限制 |
 | --- | --- | --- |
-| `src/prototypes/prompt-version-management-v1` | 规则配置类页面参考 | 近期刚调整过，作为规则配置类局部基准使用；如果用户继续指出细节问题，应优先更新本登记表 |
+| `src/prototypes/prompt-version-management-v1` | 配置类页面业务理解参考 | 用户已明确当前页面仍不够准确；暂不作为系统菜单、业务树、列表、表单或控件样式基准 |
 | `src/prototypes/evaluation-assessment` | 考评类矩阵与校验页参考 | 可参考业务形态和问题库框架复用方式，但不作为独立菜单 / 表格全局基准 |
+| `/Users/edwardm/Desktop/ufsp文件/` | 旧 Axure 页面范式、业务语义和交互场景参考 | 不能直接覆盖当前确认页面；48px 顶栏、256px 左栏、绝对坐标和单页局部样式已淘汰 |
+| `src/components/side-menu`、`src/components/ref-button` | 通用/示例组件参考 | 规格中存在 240px 菜单、40px 按钮等与当前业务基线不一致的值，不作为业务页默认组件 |
 | `src/themes/dribbble`、`src/themes/firecrawl`、`src/themes/trae-design` | 历史或风格参考 | 不参与 UFSP2.0 新业务页默认设计 |
 | 根目录 `skills/` | 历史 / 第三方 / 通用技能库 | 不作为 UFSP2.0 页面默认执行入口 |
 
