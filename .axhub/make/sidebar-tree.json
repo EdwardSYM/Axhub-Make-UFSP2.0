@@ -1,7 +1,13 @@
 {
   "version": 1,
-  "updatedAt": "2026-07-29T07:45:09.372Z",
+  "updatedAt": "2026-07-30T01:01:10.737Z",
   "prototypes": [
+    {
+      "id": "item-prototypes-ufsp-visual-baseline",
+      "kind": "item",
+      "title": "ufsp visual baseline",
+      "itemKey": "prototypes/ufsp-visual-baseline"
+    },
     {
       "id": "item-prototypes-fiscal-supervision-home2",
       "kind": "item",
@@ -207,6 +213,18 @@
     }
   ],
   "docs": [
+    {
+      "id": "item-docs--------------Prompt-----md",
+      "kind": "item",
+      "title": "提示词配置与问题库智能校验Prompt对应关系.md",
+      "itemKey": "docs/提示词配置与问题库智能校验Prompt对应关系.md"
+    },
+    {
+      "id": "item-docs-------------md-2",
+      "kind": "item",
+      "title": "业务页面组件与模板盘点.md",
+      "itemKey": "docs/业务页面组件与模板盘点.md"
+    },
     {
       "id": "item-docs-----------------md",
       "kind": "item",
