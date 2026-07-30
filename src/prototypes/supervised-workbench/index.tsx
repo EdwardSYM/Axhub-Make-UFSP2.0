@@ -4,8 +4,8 @@
  * 参考资料：
  * - /src/prototypes/supervised-workbench/spec.md
  * - /src/prototypes/supervised-workbench/style.css
- * - /assets/libraries/tailwind-css
- * - /rules/development-standards.md
+ * - /rules/development-guide.md
+ * - /rules/ufsp-page-governance.md
  */
 import './style.css';
 import React, { forwardRef, useEffect, useImperativeHandle, useMemo, useRef, useState } from 'react';

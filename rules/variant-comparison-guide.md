@@ -8,7 +8,7 @@
 1. 为用户提供有价值的备选方案
 2. 方案数量可控，便于用户决策
 3. 及时引导用户进行收敛决策
-4. 使用 `VariantSwitcher` 组件进行方案展示
+4. 根据决策需要选择对话文字比选或页面内可视化比选
 
 ## 📋 核心规则
 
@@ -25,7 +25,7 @@
 - 方案过多容易导致决策疲劳
 - 3 个方案足以覆盖大多数设计维度（如：保守、平衡、激进）
 
-> 注意：这是工作指导原则，组件本身不强制限制方案数量。
+> 注意：普通路线选择直接在对话中说明即可；只有用户需要在页面中切换查看视觉效果时，才使用 `VariantSwitcher`。
 
 ### 2. 何时触发比选
 
@@ -63,7 +63,9 @@
 - 方案 C：浅蓝色按钮
 ```
 
-## 🛠️ 使用 VariantSwitcher 组件
+## 🛠️ 页面内比选时使用 VariantSwitcher
+
+本节只适用于用户明确要求可运行视觉比选页面。普通需求澄清和路线选择不创建比选页面。
 
 ### 组件导入
 
@@ -287,7 +289,7 @@ AI: 我为您准备了 3 种页面布局方案：
 
 ### 比选进行中
 
-- [ ] 使用 `VariantSwitcher` 组件展示方案
+- [ ] 页面内可视化比选时使用 `VariantSwitcher`；对话比选不创建额外页面
 - [ ] 设置有意义的 `name` 属性（中文名称）
 - [ ] 为每个方案提供 `title` 和 `description`
 - [ ] 向用户说明如何切换和确认
@@ -301,6 +303,6 @@ AI: 我为您准备了 3 种页面布局方案：
 ## 🔗 相关文档
 
 - `src/common/VariantSwitcher.tsx` - 组件实现代码
-- `src/pages/ref-variant-switcher-demo/` - 演示页面
-- `requirements-alignment.md` - 需求对齐规则
-- `development-standards.md` - 开发标准
+- `rules/requirements-alignment.md` - 需求对齐规则
+- `rules/README.md` - 当前规则分流入口
+- `rules/development-guide.md` - 当前开发规则

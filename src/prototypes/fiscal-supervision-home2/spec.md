@@ -83,7 +83,7 @@
 **本设计基于**：
 - [ ] 用户提供的设计规范
 - [x] 页面内 Tailwind/CSS 样式：`/src/prototypes/fiscal-supervision-home2/style.css`
-- [x] 内置设计指导：`/assets/docs/设计指导（简约）.md`
+- [x] 内置设计指导：`/src/docs/设计指导（简约）.md`
 
 说明：选择稳重清爽的蓝系基调，卡片化但克制；视觉主次通过字号/色彩/留白控制，而非堆叠装饰。
 

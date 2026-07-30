@@ -4,8 +4,8 @@
  * 参考资料：
  * - /src/prototypes/fiscal-supervision-home2/spec.md
  * - /src/prototypes/fiscal-supervision-home2/style.css
- * - /assets/libraries/tailwind-css
- * - /rules/development-standards.md
+ * - /rules/development-guide.md
+ * - /rules/ufsp-page-governance.md
  */
 
 import './style.css';

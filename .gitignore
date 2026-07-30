@@ -64,6 +64,8 @@ logs/
 *.tmp
 *.temp
 .cache/
+__pycache__/
+*.py[cod]
 
 # Coverage reports
 coverage/

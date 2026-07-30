@@ -4,8 +4,7 @@
  * 参考资料：
  * - /rules/development-guide.md
  * - /rules/axure-api-guide.md
- * - /docs/设计规范.UIGuidelines.md
- * - /skills/default-resource-recommendations/SKILL.md (ECharts)
+ * - /src/docs/default-chart-libraries.md
  * 
  */
 

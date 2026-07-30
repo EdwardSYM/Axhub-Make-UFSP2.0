@@ -85,7 +85,7 @@ ECharts 折线图
 ### 4.1 设计规范来源
 
 **设计依据**：
-- [x] 用户提供的设计规范：`/docs/设计规范.UIGuidelines.md`
+- [x] 项目图表资源建议：`/src/docs/default-chart-libraries.md`
 
 ### 4.2 自定义设计要点
 

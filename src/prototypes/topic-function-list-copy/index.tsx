@@ -2,9 +2,10 @@
  * @name 重点领域整改功能列表页
  *
  * 参考资料：
+ * - /src/prototypes/topic-function-list-copy/spec.md
  * - /src/prototypes/topic-function-list-copy/style.css
- * - /assets/libraries/tailwind-css
- * - /rules/development-standards.md
+ * - /rules/development-guide.md
+ * - /rules/ufsp-page-governance.md
  */
 import './style.css';
 import React, { forwardRef, useEffect, useImperativeHandle, useMemo, useState } from 'react';
