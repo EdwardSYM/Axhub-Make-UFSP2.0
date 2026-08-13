@@ -31,8 +31,10 @@
 | 标准业务表格 | 业务列表、附件表、规则表 | `src/docs/业务页面设计规范.md`、`src/prototypes/problem-library-function-list/style.css`、`src/prototypes/case-library-ai/style.css` | 表头 `#6A8DC4`、白色表头文字、32px 表头/行高、浅灰网格、4px 表头圆角、行 hover 浅灰 | 不使用大字号、厚边框、卡片式表格或过高行距 |
 | 简版分页 | 业务列表页 | `src/prototypes/case-library-ai/spec.md`、`src/prototypes/problem-library-function-list/spec.md` | `共 X 条 / 上一页 / 当前页 / 下一页 / 20 条/页`，居中，当前页 `#6A8DC4` | 不使用深蓝重分页或卡片式分页 |
 | 完整业务页层级 | 业务列表、表单、详情、审核工作区 | `src/docs/业务页面设计规范.md`、`src/prototypes/problem-library-function-list`、`src/prototypes/case-library-ai` | 公共 TopBar → 系统功能菜单 → 业务核心区；有业务树时继续为业务树 → 列表 | 业务树不得替代系统功能菜单 |
-| 全页面表单页头 | 新增、编辑、查看、审核、校验工作区 | `src/prototypes/case-library-ai/spec.md`、`src/prototypes/problem-library-function-list/spec.md` | 64px 白底标题操作栏，左侧圆形返回按钮，标题格式“功能名称 / 动作”，右侧集中动作 | 不做自定义大标题栏、摘要卡片式页头 |
+| 全页面操作页头 | 新增、编辑、详情、审核、校验工作区 | `src/prototypes/case-library-ai/spec.md`、`src/prototypes/problem-library-function-list/spec.md`、`src/prototypes/hunan-case-library/spec.md` | 64px 白底操作栏、左侧圆形返回按钮、右侧集中页面级动作；标题使用最短且不歧义的页面身份，新增编辑页可用“功能名称 / 动作”，详情阅读页不强制重复模块名和对象元数据 | 不做自定义大标题栏，不在页头和摘要重复同一组对象身份信息 |
 | 标准录入控件状态 | 表单、查询、业务树搜索 | `src/docs/业务页面设计规范.md`、`src/prototypes/problem-library-function-list/style.css`、`src/prototypes/case-library-ai/style.css` | 控件 32px、字号 14px/13px、4px 圆角、弱边界、聚焦弱蓝阴影 | 不出现浏览器原生粗蓝 outline |
+| 业务页面层级与边界 | 全项目业务页面的内容分组、摘要、列表和阅读区 | `src/docs/业务页面设计规范.md`、用户最新确认 | 信息层级优先、边界克制；先判断同组信息、相邻分组、业务阶段、阅读列或独立载体，再选择留白、浅底、局部分隔、结构线或完整边界 | 不使用卡片套卡片、重描边，也不以“全部去线、全部去卡片”代替设计判断 |
+| 业务卡片圆角层级 | 全项目业务页面的核心面板和业务卡片 | `src/docs/业务页面设计规范.md`、用户最新确认 | 业务面板和业务卡片统一 `8px`，控件统一 `4px`；胶囊搜索框、圆形返回按钮和头像按形态语义保留全圆角 | 同一页面不混用 `8px / 12px / 16px` 业务卡片圆角，不把控件圆角套用到外层面板 |
 
 ## 3. 当前局部基准
 
@@ -42,6 +44,7 @@
 | 问题库工作台账录入与审核 | 工作台账录入列表、业务树、AI 校验工作区、审核校验页头和异常处理结构 | `src/prototypes/problem-library-function-list/index.tsx`、`style.css`、`spec.md` | AI 校验业务口径、异常类型、台账字段不泛化 |
 | 考评库 / 考核评价 | 考评类矩阵表、保存后进入校验页、校验页沿用问题库全页面结构 | `src/prototypes/evaluation-assessment/index.tsx`、`spec.md` | 矩阵字段、考核指标、校验公式不泛化；当前无独立 `style.css` |
 | 业务树 / 分类树 | 白底、浅分隔线、32px 行高、14px 搜索、低饱和蓝灰选中态、分隔线折叠把手 | `src/prototypes/problem-library-function-list/style.css`、`src/prototypes/case-library-ai/style.css` | 业务节点文案、层级、数量统计按页面业务决定 |
+| 智能检索三页 | 检索首页的单任务聚焦、首页/结果页同源胶囊检索框、筛选 + 单一命令栏 + 连续结果册、命中原因、连续白色文书阅读详情 | `src/prototypes/hunan-case-library/index.tsx`、`style.css`、`spec.md`、`src/docs/业务页面设计规范.md` | 湖南文书文案、字段和 mock 数据不泛化；胶囊检索框不覆盖普通列表页标准查询工具栏；详情页宏观容器不拆成悬浮卡片 |
 
 ## 4. 待确认参考
 
@@ -63,6 +66,11 @@
 | 原生输入聚焦框 | 输入框点击后出现浏览器原生粗蓝 outline | 使用弱蓝阴影和项目控件聚焦态 |
 | 页面级通用控件覆盖 | 在页面根节点覆盖 `button/input/table` 等导致标准组件失效 | 禁止页面级通用覆盖，改为复用公共 class 或局部明确 class |
 | 需求调整带动样式回退 | 改业务字段或流程时把已确认按钮、输入框、表格、菜单样式改掉 | 先保护冻结区，需求变更只能改可变区 |
+| 内容区过度描边 | 普通摘要、列表项、说明区、匹配原因等每块都使用完整边框或卡片阴影 | 删除非必要描边，改用留白、浅底、文字层级和局部必要分隔 |
+| 容器叠套制造“高级感” | 白色页头、搜索框和实心按钮连续套多层底板，或为普通内容增加大圆角、重阴影 | 只保留一层主要交互载体，用间距、对齐、字重和浅底建立层级 |
+| 无归属留白 | 数据不足时在业务内容末尾暴露大块灰色页面画布，左右面板底线断裂 | 主体面板等高，空间归入白色业务阅读面；超出时使用内部滚动 |
+| 辅助信息纵向堆砌 | 示例语、说明、数量、排序和轻操作各自占一行，宽屏下仍产生松散高度 | 先按任务关系组成横向工具组，仅在窄屏或信息确实独立时换行 |
+| 边界处理一刀切 | 因页面横线过多而全部删线，或为恢复层级又把所有区块重新画线 | 先判断区块关系和阅读任务，再分级使用留白、浅底、主结构线、短分隔线与独立载体边界；以整体美观和结构可识别为准 |
 
 ## 6. 维护规则
 
