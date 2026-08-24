@@ -1,6 +1,6 @@
 {
   "version": 1,
-  "updatedAt": "2026-08-13T01:17:21.202Z",
+  "updatedAt": "2026-08-13T02:13:01.323Z",
   "prototypes": [
     {
       "id": "folder-1786081161976-1jrynr",
@@ -12,6 +12,12 @@
           "kind": "item",
           "title": "案例库",
           "itemKey": "prototypes/hunan-case-library"
+        },
+        {
+          "id": "item-prototypes-hunan-problem-library",
+          "kind": "item",
+          "title": "湖南问题库",
+          "itemKey": "prototypes/hunan-problem-library"
         }
       ]
     },
@@ -201,12 +207,6 @@
           "kind": "item",
           "title": "UFSP2.0业务页面可视化基线",
           "itemKey": "prototypes/ufsp-visual-baseline"
-        },
-        {
-          "id": "item-prototypes-hunan-problem-library",
-          "kind": "item",
-          "title": "问题库",
-          "itemKey": "prototypes/hunan-problem-library"
         }
       ]
     }

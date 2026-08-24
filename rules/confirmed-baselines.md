@@ -32,6 +32,7 @@
 | 简版分页 | 业务列表页 | `src/prototypes/case-library-ai/spec.md`、`src/prototypes/problem-library-function-list/spec.md` | `共 X 条 / 上一页 / 当前页 / 下一页 / 20 条/页`，居中，当前页 `#6A8DC4` | 不使用深蓝重分页或卡片式分页 |
 | 完整业务页层级 | 业务列表、表单、详情、审核工作区 | `src/docs/业务页面设计规范.md`、`src/prototypes/problem-library-function-list`、`src/prototypes/case-library-ai` | 公共 TopBar → 系统功能菜单 → 业务核心区；有业务树时继续为业务树 → 列表 | 业务树不得替代系统功能菜单 |
 | 全页面操作页头 | 新增、编辑、详情、审核、校验工作区 | `src/prototypes/case-library-ai/spec.md`、`src/prototypes/problem-library-function-list/spec.md`、`src/prototypes/hunan-case-library/spec.md` | 64px 白底操作栏、左侧圆形返回按钮、右侧集中页面级动作；标题使用最短且不歧义的页面身份，新增编辑页可用“功能名称 / 动作”，详情阅读页不强制重复模块名和对象元数据 | 不做自定义大标题栏，不在页头和摘要重复同一组对象身份信息 |
+| 全页面录入表单正文 | 新增、编辑、登记、结果回录 | `src/prototypes/case-library-ai`、`src/docs/业务页面设计规范.md`、用户最新确认 | 连续白色工作面；蓝色竖线章节标题、纵向间距和必要弱分隔组织字段；独立核验或附件预览可作为并列辅助面板 | 字段分组不等于业务卡片，不为每章增加圆角、阴影、底色或完整边框 |
 | 标准录入控件状态 | 表单、查询、业务树搜索 | `src/docs/业务页面设计规范.md`、`src/prototypes/problem-library-function-list/style.css`、`src/prototypes/case-library-ai/style.css` | 控件 32px、字号 14px/13px、4px 圆角、弱边界、聚焦弱蓝阴影 | 不出现浏览器原生粗蓝 outline |
 | 业务页面层级与边界 | 全项目业务页面的内容分组、摘要、列表和阅读区 | `src/docs/业务页面设计规范.md`、用户最新确认 | 信息层级优先、边界克制；先判断同组信息、相邻分组、业务阶段、阅读列或独立载体，再选择留白、浅底、局部分隔、结构线或完整边界 | 不使用卡片套卡片、重描边，也不以“全部去线、全部去卡片”代替设计判断 |
 | 业务卡片圆角层级 | 全项目业务页面的核心面板和业务卡片 | `src/docs/业务页面设计规范.md`、用户最新确认 | 业务面板和业务卡片统一 `8px`，控件统一 `4px`；胶囊搜索框、圆形返回按钮和头像按形态语义保留全圆角 | 同一页面不混用 `8px / 12px / 16px` 业务卡片圆角，不把控件圆角套用到外层面板 |

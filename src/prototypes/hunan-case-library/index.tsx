@@ -39,10 +39,14 @@ import {
   FolderTree,
   History,
   Link2,
+  LoaderCircle,
+  RotateCcw,
   Search,
   Sparkles,
   SlidersHorizontal,
   Tag,
+  ThumbsDown,
+  ThumbsUp,
   Info,
   X,
   type LucideIcon,
@@ -55,6 +59,8 @@ type FeatureKey = 'search' | 'entry' | 'archive' | 'analysis' | 'typical';
 type Feature = { key: FeatureKey; name: string; desc: string; Icon: LucideIcon };
 type PanelState = null | { title: string; kind: 'entry' | 'archive' | 'typical'; id?: string };
 type OperationState = null | { kind: 'entry-confirm' | 'archive-detail' | 'analysis-detail'; id?: string };
+type AnalysisStatus = 'loading' | 'complete';
+type AnalysisFeedback = { vote?: 'up' | 'down'; reasons: string[]; note: string; submitted: boolean };
 
 const FEATURES: Feature[] = [
   { key: 'search', name: '案例检索', desc: '关键词、自然语言和相似案例检索', Icon: Search },
@@ -110,6 +116,48 @@ const SEARCH_RESULTS = [
     excerpt: '工程款支付审核主要依据施工单位申请，未充分核验监理确认的工程进度和合同约定，支付审核控制存在薄弱环节。',
   },
 ];
+
+const DEEP_ANALYSIS: Record<string, {
+  similarity: string;
+  commonIssues: string[];
+  differences: string[];
+  referenceLevel: string;
+  referenceAdvice: string;
+  citations: string[];
+}> = {
+  S01: {
+    similarity: '两者都指向专项债券资金支付进度与实际建设进度脱节，并涉及支付依据、验收资料不完整的问题。',
+    commonIssues: ['资金支付与工程进度不匹配', '验收及计量资料未形成完整依据链'],
+    differences: ['该案例已识别超进度支付风险，本次事项仍需结合实际支付比例核实', '项目年度、建设阶段和责任主体不同'],
+    referenceLevel: '较高',
+    referenceAdvice: '值得重点参考，可复用“工程计量—监理确认—资金支付”三方衔接的整改机制。',
+    citations: ['问题事实 · 第3段', '处理意见 · 第6段', '整改要求 · 第8段'],
+  },
+  S02: {
+    similarity: '均涉及专项债券项目建设进度滞后、资金支出比例偏高，以及拨付依据与工程计量资料对应不足。',
+    commonIssues: ['建设进度与资金支出比例失衡', '拨付依据和工程计量资料对应不完整'],
+    differences: ['该案例为综合检查报告，覆盖多个项目；本次事项更聚焦单个项目', '案例侧重管理共性，本次事项需进一步核定具体支付责任'],
+    referenceLevel: '较高',
+    referenceAdvice: '适合参考其项目分级核验和资金拨付资料清单，用于补充检查范围与审核口径。',
+    citations: ['检查发现 · 第4段', '原因分析 · 第7段', '监督建议 · 第11段'],
+  },
+  S03: {
+    similarity: '两者都涉及建设进度与财政资金使用节奏不协调，但资金表现方向不同。',
+    commonIssues: ['工程进度未按计划推进', '资金使用未与实物工作量有效衔接'],
+    differences: ['该案例表现为资金闲置，本次事项更接近支付进度偏快', '可参考管理机制，不宜直接套用问题定性'],
+    referenceLevel: '中等',
+    referenceAdvice: '可用于对照判断资金与实物工作量的匹配关系，但不建议直接复用其问题定性和处理结论。',
+    citations: ['问题事实 · 第2段', '处理决定 · 第5段'],
+  },
+  S04: {
+    similarity: '均关注工程款支付审核，以及工程进度、监理确认和合同约定之间的校验关系。',
+    commonIssues: ['支付审核依据不充分', '工程进度核验控制存在薄弱环节'],
+    differences: ['该案例属于一般政府投资项目，本次事项具有专项债券资金管理要求', '资金来源和适用制度不同'],
+    referenceLevel: '中等',
+    referenceAdvice: '可参考支付审核控制措施，涉及专项债券的定性和整改要求仍应以专项制度为准。',
+    citations: ['问题事实 · 第4段', '整改要求 · 第7段'],
+  },
+};
 
 const ENTRY_ROWS = [
   { id: 'E01', title: '专项债券资金绩效目标设置不完整', doc: '整改通知书', project: '2026年地方政府债务专项检查', unit: '长沙市某项目单位', quality: '待确认', time: '2026-08-08 10:32' },
@@ -275,20 +323,126 @@ function SearchFilters({ onNotice, onCollapse }: { onNotice: (message: string) =
   );
 }
 
+function DeepAnalysisPanel({
+  itemId,
+  status,
+  feedback,
+  onRerun,
+  onFeedbackChange,
+  onSubmit,
+  onNotice,
+}: {
+  itemId: string;
+  status: AnalysisStatus;
+  feedback: AnalysisFeedback;
+  onRerun: () => void;
+  onFeedbackChange: (patch: Partial<AnalysisFeedback>) => void;
+  onSubmit: () => void;
+  onNotice: (message: string) => void;
+}) {
+  const analysis = DEEP_ANALYSIS[itemId];
+  const negativeReasons = ['相似原因不准确', '共同问题有遗漏', '差异判断不合理', '参考建议不可用'];
+  const canSubmit = feedback.vote === 'up' || (feedback.vote === 'down' && (feedback.reasons.length > 0 || feedback.note.trim().length > 0));
+
+  if (status === 'loading') {
+    return (
+      <section className="hn-inline-analysis is-loading" aria-live="polite" aria-label="深度分析生成中">
+        <div className="hn-analysis-loading-copy"><LoaderCircle size={17} /><div><strong>正在生成深度分析</strong><span>结合候选案例原文，对共同问题、关键差异和参考价值进行判断</span></div></div>
+        <div className="hn-analysis-skeleton" aria-hidden="true"><i /><i /><i /></div>
+      </section>
+    );
+  }
+
+  return (
+    <section className="hn-inline-analysis" aria-live="polite">
+      <div className="hn-inline-analysis-head">
+        <div><Sparkles size={15} /><strong>AI 深度分析</strong><span>基于本次检索与案例原文生成</span></div>
+        <button type="button" onClick={onRerun}><RotateCcw size={13} />重新分析</button>
+      </div>
+      <div className="hn-analysis-dimensions">
+        <div><span>为什么相似</span><p>{analysis.similarity}</p></div>
+        <div><span>共同问题</span><ul>{analysis.commonIssues.map((issue) => <li key={issue}>{issue}</li>)}</ul></div>
+        <div><span>关键差异</span><ul>{analysis.differences.map((difference) => <li key={difference}>{difference}</li>)}</ul></div>
+      </div>
+      <div className="hn-reference-verdict">
+        <div><span>是否值得参考</span><strong>{analysis.referenceLevel}</strong></div>
+        <p>{analysis.referenceAdvice}</p>
+      </div>
+      <div className="hn-analysis-citations"><span>分析依据</span>{analysis.citations.map((citation) => <button type="button" key={citation} onClick={() => onNotice(`已定位至${citation}`)}>{citation}</button>)}</div>
+      <div className="hn-analysis-feedback">
+        <div className="hn-feedback-question"><span>这份分析有帮助吗？</span><div><button type="button" className={feedback.vote === 'up' ? 'is-active' : ''} aria-label="分析有帮助" aria-pressed={feedback.vote === 'up'} onClick={() => onFeedbackChange({ vote: 'up', reasons: [], submitted: false })}><ThumbsUp size={14} /></button><button type="button" className={feedback.vote === 'down' ? 'is-active' : ''} aria-label="分析没有帮助" aria-pressed={feedback.vote === 'down'} onClick={() => onFeedbackChange({ vote: 'down', submitted: false })}><ThumbsDown size={14} /></button></div></div>
+        {feedback.vote ? <div className="hn-feedback-form">
+          {feedback.vote === 'down' ? <div className="hn-feedback-reasons">{negativeReasons.map((reason) => { const active = feedback.reasons.includes(reason); return <button type="button" key={reason} className={active ? 'is-active' : ''} aria-pressed={active} onClick={() => onFeedbackChange({ reasons: active ? feedback.reasons.filter((item) => item !== reason) : [...feedback.reasons, reason], submitted: false })}>{reason}</button>; })}</div> : null}
+          <textarea value={feedback.note} maxLength={200} placeholder={feedback.vote === 'up' ? '可补充哪些内容对你最有帮助（选填）' : '请补充需要修正的内容（选填）'} onChange={(event) => onFeedbackChange({ note: event.target.value, submitted: false })} />
+          <div><span>{feedback.submitted ? '反馈已提交，可继续修改' : '反馈将用于优化后续分析结果'}</span><button type="button" className="ufsp-btn ufsp-btn-primary" disabled={!canSubmit} onClick={onSubmit}>提交反馈</button></div>
+        </div> : null}
+      </div>
+    </section>
+  );
+}
+
 function SearchResultsPage({ query, onQueryChange, onSearch, onOpenDetail, onBack, onNotice }: { query: string; onQueryChange: (value: string) => void; onSearch: () => void; onOpenDetail: (id: string) => void; onBack: () => void; onNotice: (message: string) => void }) {
   const [sort, setSort] = useState('相关度优先');
   const [filtersOpen, setFiltersOpen] = useState(true);
+  const [expandedAnalysisId, setExpandedAnalysisId] = useState<string | null>(null);
+  const [analysisStatusById, setAnalysisStatusById] = useState<Record<string, AnalysisStatus>>({});
+  const [feedbackById, setFeedbackById] = useState<Record<string, AnalysisFeedback>>({});
+
+  const runDeepAnalysis = (id: string) => {
+    setExpandedAnalysisId(id);
+    setAnalysisStatusById((current) => ({ ...current, [id]: 'loading' }));
+    window.setTimeout(() => setAnalysisStatusById((current) => ({ ...current, [id]: 'complete' })), 900);
+  };
+
+  const toggleDeepAnalysis = (id: string) => {
+    const status = analysisStatusById[id];
+    if (expandedAnalysisId === id && status === 'complete') {
+      setExpandedAnalysisId(null);
+      return;
+    }
+    if (status) {
+      setExpandedAnalysisId(id);
+      return;
+    }
+    runDeepAnalysis(id);
+  };
+
+  const updateFeedback = (id: string, patch: Partial<AnalysisFeedback>) => {
+    setFeedbackById((current) => ({
+      ...current,
+      [id]: { vote: undefined, reasons: [], note: '', submitted: false, ...current[id], ...patch },
+    }));
+  };
+
+  const rerunSearch = () => {
+    setExpandedAnalysisId(null);
+    setAnalysisStatusById({});
+    setFeedbackById({});
+    onSearch();
+  };
+
   return (
     <div className="case-workspace hn-search-results-page">
       <div className={`hn-search-results-layout ${filtersOpen ? '' : 'is-filter-collapsed'}`}>
         {filtersOpen ? <SearchFilters onNotice={onNotice} onCollapse={() => setFiltersOpen(false)} /> : <button type="button" className="hn-filter-rail" aria-label="展开筛选条件" title="展开筛选条件" onClick={() => setFiltersOpen(true)}><SlidersHorizontal size={17} /><ChevronRight size={14} /></button>}
         <section className="hn-search-result-main">
-          <div className="hn-result-command"><button type="button" className="ufsp-form-back" onClick={onBack} aria-label="返回检索首页" title="返回检索首页"><ArrowLeft size={16} /></button><SearchBox compact value={query} onChange={onQueryChange} onSearch={onSearch} /><div className="hn-result-tools"><span className="hn-result-count"><strong>36</strong><span>份相关文书</span></span><i aria-hidden="true" /><label><span className="hn-select-control"><select aria-label="结果排序" value={sort} onChange={(event) => setSort(event.target.value)}><option>相关度优先</option><option>最新时间</option><option>最早时间</option></select><ChevronDown size={14} /></span></label></div></div>
+          <div className="hn-result-command"><button type="button" className="ufsp-form-back" onClick={onBack} aria-label="返回检索首页" title="返回检索首页"><ArrowLeft size={16} /></button><SearchBox compact value={query} onChange={onQueryChange} onSearch={rerunSearch} /><div className="hn-result-tools"><span className="hn-result-count"><strong>36</strong><span>份相关文书</span></span><i aria-hidden="true" /><label><span className="hn-select-control"><select aria-label="结果排序" value={sort} onChange={(event) => setSort(event.target.value)}><option>相关度优先</option><option>最新时间</option><option>最早时间</option></select><ChevronDown size={14} /></span></label></div></div>
           <div className="hn-result-ledger">
-          <div className="hn-search-result-list">{SEARCH_RESULTS.map((item, index) => <article key={item.id}>
-            <div className="hn-result-rank"><strong>{index + 1}</strong><span>{item.score}%</span><em>相关度</em></div>
-            <div className="hn-result-content"><div className="hn-result-title-row"><button type="button" className="hn-result-title" onClick={() => onOpenDetail(item.id)}>{item.title}</button><div className="hn-result-actions"><button type="button" onClick={() => onOpenDetail(item.id)}>查看详情</button><button type="button" className="hn-result-preview" aria-label="预览原文" title="预览原文" onClick={() => onNotice(`已打开“${item.title}”源文件预览`)}><Eye size={14} /></button></div></div><div className="hn-result-meta"><span>{item.code}</span><span>{item.type}</span><span>{item.date}</span><span>{item.unit}</span></div><p><b>命中片段：</b>{item.excerpt}</p><div className="hn-match-reasons"><b>匹配原因</b>{item.reason.map((reason) => <span key={reason}><CheckCircle2 size={12} />{reason}</span>)}</div></div>
-          </article>)}</div>
+          <div className="hn-search-result-list">{SEARCH_RESULTS.map((item, index) => {
+            const analysisStatus = analysisStatusById[item.id];
+            const analysisExpanded = expandedAnalysisId === item.id;
+            const feedback = feedbackById[item.id] || { reasons: [], note: '', submitted: false };
+            return <article key={item.id} className={analysisExpanded ? 'is-analysis-expanded' : ''}>
+              <div className="hn-result-rank"><strong>{index + 1}</strong><span>{item.score}%</span><em>相关度</em></div>
+              <div className="hn-result-content">
+                <div className="hn-result-title-row"><button type="button" className="hn-result-title" onClick={() => onOpenDetail(item.id)}>{item.title}</button><div className="hn-result-actions"><button type="button" className={`hn-deep-analysis-trigger ${analysisExpanded ? 'is-active' : ''}`} disabled={analysisExpanded && analysisStatus === 'loading'} onClick={() => toggleDeepAnalysis(item.id)}>{analysisExpanded && analysisStatus === 'loading' ? <LoaderCircle size={13} /> : <Sparkles size={13} />}{analysisExpanded && analysisStatus === 'loading' ? '分析中' : analysisStatus === 'complete' ? analysisExpanded ? '收起分析' : '查看分析' : '深度分析'}</button><button type="button" className="hn-result-detail" onClick={() => onOpenDetail(item.id)}>查看详情</button></div></div>
+                <div className="hn-result-meta"><span>{item.code}</span><span>{item.type}</span><span>{item.date}</span><span>{item.unit}</span></div>
+                <p><b>命中片段：</b>{item.excerpt}</p>
+                <div className="hn-match-reasons"><b>检索依据</b>{item.reason.map((reason) => <span key={reason}><CheckCircle2 size={12} />{reason}</span>)}</div>
+                {analysisExpanded && analysisStatus ? <DeepAnalysisPanel itemId={item.id} status={analysisStatus} feedback={feedback} onRerun={() => runDeepAnalysis(item.id)} onFeedbackChange={(patch) => updateFeedback(item.id, patch)} onSubmit={() => { updateFeedback(item.id, { submitted: true }); onNotice('深度分析反馈已提交'); }} onNotice={onNotice} /> : null}
+              </div>
+            </article>;
+          })}</div>
           </div>
         </section>
       </div>
