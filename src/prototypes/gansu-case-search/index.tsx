@@ -1,9 +1,13 @@
 /**
- * @name 案例库
+ * @name 案例检索（甘肃）
  *
  * 参考资料：
  * - /rules/ufsp-page-governance.md
  * - /rules/confirmed-baselines.md
+ * - /src/prototypes/hunan-case-library/index.tsx
+ * - /src/prototypes/hunan-case-library/spec.md
+ * - /src/components/case-library-feature-menu/index.tsx
+ * - /src/components/case-library-feature-menu/spec.md
  * - /src/prototypes/case-library-ai/index.tsx
  * - /src/prototypes/case-library-ai/spec.md
  */
@@ -20,19 +24,15 @@ import searchIconSvg from '../problem-library-function-list/icons/search.svg?raw
 import React, { forwardRef, useImperativeHandle, useMemo, useState } from 'react';
 import {
   ArrowLeft,
-  Archive,
-  BookOpenCheck,
   CheckCircle2,
   ChevronDown,
   ChevronLeft,
   ChevronRight,
   CircleAlert,
   Clock3,
-  Database,
   Download,
   Eye,
   ExternalLink,
-  FileCheck2,
   FileSearch,
   FileText,
   Files,
@@ -49,71 +49,159 @@ import {
   ThumbsUp,
   Info,
   X,
-  type LucideIcon,
 } from 'lucide-react';
 import TopBar from '../../common/components/TopBar';
+import CaseLibraryFeatureMenu from '../../components/case-library-feature-menu';
 import type { AxureHandle, AxureProps, ConfigItem, EventItem, KeyDesc } from '../../common/axure-types';
 import { createEventEmitter, getConfigValue } from '../../common/axure-types';
 
 type FeatureKey = 'search' | 'entry' | 'archive' | 'analysis' | 'typical';
-type Feature = { key: FeatureKey; name: string; desc: string; Icon: LucideIcon };
 type PanelState = null | { title: string; kind: 'entry' | 'archive' | 'typical'; id?: string };
 type OperationState = null | { kind: 'entry-confirm' | 'archive-detail' | 'analysis-detail'; id?: string };
 type AnalysisStatus = 'loading' | 'complete';
 type AnalysisFeedback = { vote?: 'up' | 'down'; reasons: string[]; note: string; submitted: boolean };
 
-const FEATURES: Feature[] = [
-  { key: 'search', name: '案例检索', desc: '关键词、自然语言和相似案例检索', Icon: Search },
-  { key: 'entry', name: '案例入库管理', desc: '文书导入、质量确认和信息补充', Icon: FileCheck2 },
-  { key: 'archive', name: '案例档案', desc: '造册归档、检索和原文预览', Icon: Archive },
-  { key: 'analysis', name: '案例智能分析', desc: '聚类、整改措施和问题画像', Icon: Sparkles },
-  { key: 'typical', name: '典型案例管理', desc: '候选确认、维护和发布', Icon: BookOpenCheck },
-];
+type SearchResult = {
+  id: string;
+  code: string;
+  title: string;
+  status: '已入库';
+  sourceType: '日常监督形成' | '专项监督形成' | '上级下发' | '外部公开案例' | '其他来源';
+  region: string;
+  occurrenceTime: string;
+  subjects: string[];
+  entryOrg: string;
+  entryPerson: string;
+  description: string;
+  remark: string;
+  tags: string[];
+  score: number;
+  reason: string[];
+  hits: Array<{ field: string; text: string }>;
+  sourceFields: Array<{ label: string; value: string }>;
+  sourceUrl?: string;
+  attachments: Array<{ name: string; meta: string }>;
+  typicalAssociations: Array<{ title: string; status: string; appliedAt: string }>;
+};
 
-const SEARCH_RESULTS = [
+const SEARCH_RESULTS: SearchResult[] = [
   {
     id: 'S01',
-    code: '湘财监整〔2025〕42号',
-    title: '关于专项债券项目资金支付进度异常问题的整改通知书',
-    type: '整改通知书',
-    date: '2025-11-18',
-    unit: '岳阳市某园区建设单位',
+    code: 'GC202608015220',
+    title: '转拨资金类应用案例——关于转拨从非本级政府财政部门取得资金的会计处理',
+    status: '已入库',
+    sourceType: '外部公开案例',
+    region: '甘肃省',
+    occurrenceTime: '2022-01-01',
+    subjects: ['甲行政单位', '乙事业单位'],
+    entryOrg: '甘肃省',
+    entryPerson: '财会监督基础用户',
+    description: '当事人：中央直属甲行政单位及下属乙事业单位。违规事实：本案为合规会计处理示例，无违规事实。甲单位收到省财政厅拨款50万元，其中10万元留用，40万元转拨乙单位。依据政府会计准则，甲单位将转拨部分通过往来科目核算，留用部分确认为非同级财政拨款收入，乙单位确认为非同级财政拨款收入。处罚结果：无行政处罚，系统范围业务操作指导。',
+    remark: '-',
+    tags: ['财政拨款', '事业单位', '预算管理'],
     score: 96,
-    reason: ['问题描述语义高度相似', '命中“资金支付进度”', '同属专项债券项目'],
-    excerpt: '检查发现，项目资金支付进度明显快于实际建设进度，部分资金支付缺少与工程进度相匹配的验收资料，存在超进度支付风险。',
+    reason: ['案例描述与检索问题高度一致', '命中“非同级财政拨款”', '涉及主体和案例标签匹配'],
+    hits: [
+      { field: '案例标题', text: '转拨资金类应用案例——关于转拨从非本级政府财政部门取得资金的会计处理' },
+      { field: '案例描述', text: '甲单位将转拨部分通过往来科目核算，留用部分确认为非同级财政拨款收入。' },
+      { field: '案例标签', text: '财政拨款、事业单位、预算管理' },
+    ],
+    sourceFields: [
+      { label: '发布机构或来源网站', value: '会计司' },
+      { label: '发布时间', value: '2022-09-28 17:14:00' },
+      { label: '来源说明', value: '会计司' },
+    ],
+    sourceUrl: 'http://kjs.mof.gov.cn/zt/zfkjzz/yyal/zbzjl/202209/t20220928_3843477.htm',
+    attachments: [],
+    typicalAssociations: [
+      { title: '转拨资金会计处理不规范', status: '待提交', appliedAt: '2026-08-18 11:29:00' },
+      { title: '某单位日常经费支出审核不严，存在不合规票据报销问题财会监督案例', status: '待提交', appliedAt: '2026-08-04 11:35:26' },
+    ],
   },
   {
     id: 'S02',
-    code: '湘财监报〔2024〕16号',
-    title: '专项债券资金使用管理监督检查报告',
-    type: '检查报告',
-    date: '2024-09-26',
-    unit: '株洲市某项目建设单位',
+    code: 'GC202608014806',
+    title: '专项债券项目资金支付与工程进度不匹配整改案例',
+    status: '已入库',
+    sourceType: '日常监督形成',
+    region: '兰州市',
+    occurrenceTime: '2025-11-18',
+    subjects: ['兰州市某园区建设单位'],
+    entryOrg: '兰州市财政局',
+    entryPerson: '监督业务用户A',
+    description: '日常监督发现，项目资金支付进度明显快于实际建设进度，部分支付缺少与工程计量、监理确认相匹配的验收资料。整改中建立工程计量、监理确认、资金支付三方衔接的审核机制，并按月复核支付比例。',
+    remark: '由日常监督闭环事项沉淀形成。',
+    tags: ['专项债券', '资金支付', '工程进度'],
     score: 91,
-    reason: ['命中专项债券专有名词', '问题事实表达相近', '相关单位类型相似'],
-    excerpt: '部分项目存在建设进度滞后、债券资金支出比例偏高的问题，资金拨付依据和工程计量资料未能形成完整对应关系。',
+    reason: ['案例描述命中资金支付问题', '案例标签包含专项债券', '涉及主体类型相近'],
+    hits: [
+      { field: '案例描述', text: '项目资金支付进度明显快于实际建设进度，部分支付缺少与工程计量、监理确认相匹配的验收资料。' },
+      { field: '案例标签', text: '专项债券、资金支付、工程进度' },
+      { field: '来源信息', text: '关联日常监督问题 WT-2026-0312。' },
+    ],
+    sourceFields: [{ label: '关联问题', value: 'WT-2026-0312 专项债券资金支付进度异常' }],
+    attachments: [
+      { name: '问题整改报告.pdf', meta: '1.8 MB · 2026-07-28上传' },
+      { name: '工程进度验收记录.pdf', meta: '3.2 MB · 2026-07-28上传' },
+    ],
+    typicalAssociations: [],
   },
   {
     id: 'S03',
-    code: '湘财监处〔2023〕28号',
-    title: '关于项目建设进度滞后及资金闲置问题的处理决定',
-    type: '处理决定书',
-    date: '2023-12-08',
-    unit: '常德市某基础设施项目单位',
+    code: 'GC202608013972',
+    title: '行政事业单位资产处置收益未及时上缴整改案例',
+    status: '已入库',
+    sourceType: '上级下发',
+    region: '张掖市',
+    occurrenceTime: '2024-12-08',
+    subjects: ['张掖市某事业单位'],
+    entryOrg: '张掖市财政局',
+    entryPerson: '案例管理用户B',
+    description: '上级下发案例反映，部分行政事业单位资产处置收益未按规定及时上缴，存在账务处理和收入管理衔接不及时的问题。整改后统一资产处置收入核算口径，建立处置、收款和上缴联动台账。',
+    remark: '-',
+    tags: ['资产处置', '非税收入', '事业单位'],
     score: 86,
-    reason: ['建设进度与资金使用关系相似', '命中“项目建设进度”'],
-    excerpt: '项目建设未达到计划进度，已拨付专项资金未及时形成实物工作量，部分资金长期滞留项目账户。',
+    reason: ['问题形成机制相似', '涉及主体类型匹配', '案例标签命中资产管理'],
+    hits: [
+      { field: '案例描述', text: '资产处置收益未按规定及时上缴，存在账务处理和收入管理衔接不及时的问题。' },
+      { field: '涉及主体', text: '张掖市某事业单位' },
+      { field: '来源信息', text: '甘财资函〔2026〕18号下发案例。' },
+    ],
+    sourceFields: [
+      { label: '下发单位', value: '甘肃省财政厅资产管理处' },
+      { label: '文件名称', value: '行政事业单位资产处置收益管理案例参考' },
+      { label: '文件编号', value: '甘财资函〔2026〕18号' },
+    ],
+    attachments: [{ name: '资产处置收益整改说明.docx', meta: '860 KB · 2026-07-18上传' }],
+    typicalAssociations: [],
   },
   {
     id: 'S04',
-    code: '湘财监整〔2022〕63号',
-    title: '关于政府投资项目工程款支付审核不严问题的整改通知书',
-    type: '整改通知书',
-    date: '2022-08-15',
-    unit: '衡阳市某项目管理中心',
+    code: 'GC202608012634',
+    title: '政府采购合同履约资料闭环管理案例',
+    status: '已入库',
+    sourceType: '专项监督形成',
+    region: '酒泉市',
+    occurrenceTime: '2023-08-15',
+    subjects: ['酒泉市某项目管理中心'],
+    entryOrg: '酒泉市财政局',
+    entryPerson: '专项监督用户C',
+    description: '专项监督发现，采购合同履约验收资料不完整，付款审核主要依据供应商申请，未充分核验验收记录和合同约定。整改后建立合同、验收、付款材料清单，按项目形成闭环档案。',
+    remark: '相关材料已完成补充。',
+    tags: ['政府采购', '合同履约', '付款审核'],
     score: 78,
-    reason: ['同属工程款支付管理', '支付依据问题相近'],
-    excerpt: '工程款支付审核主要依据施工单位申请，未充分核验监理确认的工程进度和合同约定，支付审核控制存在薄弱环节。',
+    reason: ['命中付款审核问题', '整改机制具有参考价值', '案例标签与检索主题相关'],
+    hits: [
+      { field: '案例描述', text: '付款审核主要依据供应商申请，未充分核验验收记录和合同约定。' },
+      { field: '案例标签', text: '政府采购、合同履约、付款审核' },
+      { field: '来源信息', text: '关联专项监督问题 ZX-2023-087。' },
+    ],
+    sourceFields: [{ label: '关联问题', value: 'ZX-2023-087 政府采购履约验收资料不完整' }],
+    attachments: [
+      { name: '采购合同履约验收记录.pdf', meta: '2.1 MB · 2026-06-30上传' },
+      { name: '整改完成情况说明.docx', meta: '640 KB · 2026-06-30上传' },
+    ],
+    typicalAssociations: [],
   },
 ];
 
@@ -126,36 +214,36 @@ const DEEP_ANALYSIS: Record<string, {
   citations: string[];
 }> = {
   S01: {
-    similarity: '两者都指向专项债券资金支付进度与实际建设进度脱节，并涉及支付依据、验收资料不完整的问题。',
-    commonIssues: ['资金支付与工程进度不匹配', '验收及计量资料未形成完整依据链'],
-    differences: ['该案例已识别超进度支付风险，本次事项仍需结合实际支付比例核实', '项目年度、建设阶段和责任主体不同'],
+    similarity: '案例标题、描述和标签均指向非同级财政拨款的确认与转拨处理，涉及行政单位和事业单位之间的资金流转。',
+    commonIssues: ['非同级财政拨款收入确认', '转拨资金与留用资金分别核算'],
+    differences: ['该案例属于合规会计处理示例，不包含违规事实', '实际业务仍需结合资金用途和单位性质判断'],
     referenceLevel: '较高',
-    referenceAdvice: '值得重点参考，可复用“工程计量—监理确认—资金支付”三方衔接的整改机制。',
-    citations: ['问题事实 · 第3段', '处理意见 · 第6段', '整改要求 · 第8段'],
+    referenceAdvice: '适合用于理解转拨资金和留用资金的会计处理口径，并核对相关单位的收入确认方式。',
+    citations: ['案例标题', '案例描述', '案例标签'],
   },
   S02: {
-    similarity: '均涉及专项债券项目建设进度滞后、资金支出比例偏高，以及拨付依据与工程计量资料对应不足。',
-    commonIssues: ['建设进度与资金支出比例失衡', '拨付依据和工程计量资料对应不完整'],
-    differences: ['该案例为综合检查报告，覆盖多个项目；本次事项更聚焦单个项目', '案例侧重管理共性，本次事项需进一步核定具体支付责任'],
+    similarity: '均涉及专项债券项目资金支付与建设进度不匹配，以及工程计量和验收资料不完整。',
+    commonIssues: ['资金支付与工程进度不匹配', '审核依据未形成完整链条'],
+    differences: ['案例发生地区和责任主体不同', '当前检索事项仍需核实实际支付比例'],
     referenceLevel: '较高',
-    referenceAdvice: '适合参考其项目分级核验和资金拨付资料清单，用于补充检查范围与审核口径。',
-    citations: ['检查发现 · 第4段', '原因分析 · 第7段', '监督建议 · 第11段'],
+    referenceAdvice: '适合参考其工程计量、监理确认和资金支付三方衔接机制。',
+    citations: ['案例描述', '案例标签', '关联问题'],
   },
   S03: {
-    similarity: '两者都涉及建设进度与财政资金使用节奏不协调，但资金表现方向不同。',
-    commonIssues: ['工程进度未按计划推进', '资金使用未与实物工作量有效衔接'],
-    differences: ['该案例表现为资金闲置，本次事项更接近支付进度偏快', '可参考管理机制，不宜直接套用问题定性'],
+    similarity: '案例涉及事业单位财务管理、收入核算和应缴资金管理，可用于对照类似资金管理问题。',
+    commonIssues: ['收入管理与账务处理衔接', '应缴资金未按规定及时处理'],
+    differences: ['案例来源为上级下发', '具体资金性质和适用制度不同'],
     referenceLevel: '中等',
-    referenceAdvice: '可用于对照判断资金与实物工作量的匹配关系，但不建议直接复用其问题定性和处理结论。',
-    citations: ['问题事实 · 第2段', '处理决定 · 第5段'],
+    referenceAdvice: '可参考收入处置和联动台账机制，但不应直接复用问题定性。',
+    citations: ['案例描述', '涉及主体', '来源信息'],
   },
   S04: {
-    similarity: '均关注工程款支付审核，以及工程进度、监理确认和合同约定之间的校验关系。',
-    commonIssues: ['支付审核依据不充分', '工程进度核验控制存在薄弱环节'],
-    differences: ['该案例属于一般政府投资项目，本次事项具有专项债券资金管理要求', '资金来源和适用制度不同'],
+    similarity: '均关注付款审核依据是否完整，以及合同、验收和付款材料之间的对应关系。',
+    commonIssues: ['付款审核依据不充分', '履约验收材料未形成闭环'],
+    differences: ['该案例属于政府采购场景', '涉及主体和资金来源不同'],
     referenceLevel: '中等',
-    referenceAdvice: '可参考支付审核控制措施，涉及专项债券的定性和整改要求仍应以专项制度为准。',
-    citations: ['问题事实 · 第4段', '整改要求 · 第7段'],
+    referenceAdvice: '可参考合同、验收、付款材料清单及闭环档案机制。',
+    citations: ['案例描述', '案例标签', '关联问题'],
   },
 };
 
@@ -196,19 +284,13 @@ const TYPICAL_ROWS = [
 
 const EVENT_LIST: EventItem[] = [{ name: 'onNavigate', desc: '页面内导航', payload: 'string' }];
 const VAR_LIST: KeyDesc[] = [
-  { name: 'feature_key', desc: '当前湖南案例库功能 key' },
-  { name: 'feature_name', desc: '当前湖南案例库功能名称' },
+  { name: 'feature_key', desc: '当前甘肃案例库功能 key' },
+  { name: 'feature_name', desc: '当前甘肃案例库功能名称' },
 ];
 const CONFIG_LIST: ConfigItem[] = [
   { type: 'input', attributeId: 'title', displayName: '系统标题', initialValue: '财会监督系统' },
-  { type: 'input', attributeId: 'topic_name', displayName: '页面主题', initialValue: '湖南案例库' },
+  { type: 'input', attributeId: 'topic_name', displayName: '页面主题', initialValue: '甘肃案例库' },
 ];
-
-function initialFeature(): FeatureKey {
-  if (typeof window === 'undefined') return 'search';
-  const value = new URLSearchParams(window.location.search).get('feature');
-  return FEATURES.some((item) => item.key === value) ? (value as FeatureKey) : 'search';
-}
 
 function normalizeSvg(svg: string) {
   return svg
@@ -222,14 +304,6 @@ function normalizeSvg(svg: string) {
 function RawIcon({ svg }: { svg: string }) {
   const html = useMemo(() => normalizeSvg(svg), [svg]);
   return <span className="ufsp-iconfont-box" dangerouslySetInnerHTML={{ __html: html }} />;
-}
-
-function FeatureMark({ Icon, active }: { Icon: LucideIcon; active?: boolean }) {
-  return (
-    <span className={`case-nav-icon ${active ? 'is-active' : ''}`} aria-hidden="true">
-      <Icon size={17} />
-    </span>
-  );
 }
 
 function SearchTools({ onNotice }: { onNotice: (message: string) => void }) {
@@ -282,14 +356,14 @@ function SearchBox({ value, onChange, onSearch, compact = false }: { value: stri
   return (
     <div className={`hn-case-search-box ${compact ? 'is-compact' : ''}`}>
       <Search size={compact ? 17 : 20} />
-      <input value={value} onChange={(event) => onChange(event.target.value)} onKeyDown={(event) => { if (event.key === 'Enter') onSearch(); }} placeholder="请输入文号、标题、单位名称，或描述需要查找的问题" aria-label="案例检索内容" />
+      <input value={value} onChange={(event) => onChange(event.target.value)} onKeyDown={(event) => { if (event.key === 'Enter') onSearch(); }} placeholder="请输入案例编号、标题、涉及主体、标签，或描述需要查找的问题" aria-label="案例检索内容" />
       <button type="button" onClick={onSearch}>检索</button>
     </div>
   );
 }
 
 function SearchHome({ query, onQueryChange, onSearch, onNotice }: { query: string; onQueryChange: (value: string) => void; onSearch: () => void; onNotice: (message: string) => void }) {
-  const examples = ['专项债券资金支付进度与建设进度不匹配', '政府采购履约验收资料缺失', '财政暂付款长期挂账', '惠民补贴重复发放'];
+  const examples = ['非同级财政拨款如何确认收入', '专项债券资金支付与工程进度不匹配', '政府采购履约验收资料缺失', '事业单位资产处置收益未及时上缴'];
   const [helpOpen, setHelpOpen] = useState(false);
   return (
     <div className="case-workspace hn-search-home">
@@ -298,12 +372,12 @@ function SearchHome({ query, onQueryChange, onSearch, onNotice }: { query: strin
         <SearchBox value={query} onChange={onQueryChange} onSearch={onSearch} />
         <div className="hn-search-assist">
           <div className="hn-search-examples"><b><Sparkles size={13} />试试这样搜</b><div>{examples.map((item) => <button type="button" key={item} onClick={() => { onQueryChange(item); window.setTimeout(onSearch, 0); }}>{item}</button>)}</div></div>
-          <div className={`hn-search-help ${helpOpen ? 'is-open' : ''}`}><button type="button" aria-label="检索说明" title="检索说明" aria-expanded={helpOpen} onClick={() => setHelpOpen((value) => !value)}><Info size={15} /></button>{helpOpen ? <p><CircleAlert size={14} /><span>支持文号、专有名词等精确检索，也支持使用自然语言描述事项；结果直接来自已入库历史文书。</span></p> : null}</div>
+          <div className={`hn-search-help ${helpOpen ? 'is-open' : ''}`}><button type="button" aria-label="检索说明" title="检索说明" aria-expanded={helpOpen} onClick={() => setHelpOpen((value) => !value)}><Info size={15} /></button>{helpOpen ? <p><CircleAlert size={14} /><span>支持案例编号、标题、描述、涉及主体和标签等字段检索，也支持使用自然语言描述事项；结果来自已入库一般案例。</span></p> : null}</div>
         </div>
       </div>
       <div className="hn-search-home-grid">
-        <section><div className="hn-search-block-title"><History size={16} /><strong>最近检索</strong><button type="button" onClick={() => onNotice('已清空最近检索演示记录')}>清空</button></div><div className="hn-recent-searches">{['专项债券资金支付进度异常', '湘财监整〔2025〕42号', '采购合同履约验收资料', '暂付款长期挂账整改'].map((item) => <button type="button" key={item} onClick={() => { onQueryChange(item); window.setTimeout(onSearch, 0); }}><Search size={14} /><span>{item}</span><em>再次检索</em></button>)}</div></section>
-        <section><div className="hn-search-block-title"><SlidersHorizontal size={16} /><strong>可检索范围</strong><span>当前知识库</span></div><div className="hn-search-scope"><div><strong>12,680</strong><span>历史监督文书</span></div><div><strong>2021—2026</strong><span>文书年度范围</span></div><div><strong>4 类</strong><span>主要文书类型</span></div><p>整改通知书、检查报告、行政处罚决定书及其他监督执法文书。</p></div></section>
+        <section><div className="hn-search-block-title"><History size={16} /><strong>最近检索</strong><button type="button" onClick={() => onNotice('已清空最近检索演示记录')}>清空</button></div><div className="hn-recent-searches">{['转拨资金会计处理', 'GC202608015220', '采购合同履约验收资料', '事业单位资产处置收益'].map((item) => <button type="button" key={item} onClick={() => { onQueryChange(item); window.setTimeout(onSearch, 0); }}><Search size={14} /><span>{item}</span><em>再次检索</em></button>)}</div></section>
+        <section><div className="hn-search-block-title"><SlidersHorizontal size={16} /><strong>可检索范围</strong><span>已入库案例</span></div><div className="hn-search-scope"><div><strong>12,680</strong><span>一般案例</span></div><div><strong>2021—2026</strong><span>发生时间范围</span></div><div><strong>5 类</strong><span>来源类型</span></div><p>覆盖日常监督形成、专项监督形成、上级下发、外部公开案例和其他来源。</p></div></section>
       </div>
     </div>
   );
@@ -327,31 +401,38 @@ function MetadataMultiSelect({ label, value, options, open, onToggle, onChange }
 }
 
 function SearchFilters({ onNotice, onCollapse }: { onNotice: (message: string) => void; onCollapse: () => void }) {
-  const [year, setYear] = useState('全部年度');
-  const [documentType, setDocumentType] = useState('全部类型');
-  const [supervisionDomain, setSupervisionDomain] = useState('全部领域');
-  const [violationTypes, setViolationTypes] = useState<string[]>([]);
-  const [documentNo, setDocumentNo] = useState('');
-  const [relatedUnit, setRelatedUnit] = useState('');
+  const [sourceType, setSourceType] = useState('全部来源');
+  const [region, setRegion] = useState('全部地区');
+  const [occurrenceYear, setOccurrenceYear] = useState('全部时间');
+  const [tags, setTags] = useState<string[]>([]);
+  const [subject, setSubject] = useState('');
   const [moreOpen, setMoreOpen] = useState(false);
-  const [issueDateStart, setIssueDateStart] = useState('');
-  const [issueDateEnd, setIssueDateEnd] = useState('');
-  const [handlingMethods, setHandlingMethods] = useState<string[]>([]);
-  const [policyBasis, setPolicyBasis] = useState('');
-  const [openMulti, setOpenMulti] = useState<'violation' | 'handling' | null>(null);
-  const advancedCount = Number(Boolean(issueDateStart || issueDateEnd)) + Number(handlingMethods.length > 0) + Number(Boolean(policyBasis.trim()));
+  const [caseNo, setCaseNo] = useState('');
+  const [entryOrg, setEntryOrg] = useState('');
+  const [sourceKeyword, setSourceKeyword] = useState('');
+  const [publishYear, setPublishYear] = useState('全部发布时间');
+  const [openMulti, setOpenMulti] = useState<'tag' | null>(null);
+  const advancedCount = Number(Boolean(caseNo.trim())) + Number(Boolean(entryOrg.trim())) + Number(Boolean(sourceKeyword.trim())) + Number(publishYear !== '全部发布时间');
+  const sourceSpecific = sourceType === '外部公开案例'
+    ? { label: '发布机构或来源网站', placeholder: '输入发布机构或网站名称' }
+    : sourceType === '上级下发'
+      ? { label: '下发文件', placeholder: '输入下发单位、文件名称或编号' }
+      : sourceType === '日常监督形成' || sourceType === '专项监督形成'
+        ? { label: '关联问题', placeholder: '输入问题编号或标题' }
+        : sourceType === '其他来源'
+          ? { label: '来源名称', placeholder: '输入来源名称' }
+          : null;
 
   const resetFilters = () => {
-    setYear('全部年度');
-    setDocumentType('全部类型');
-    setSupervisionDomain('全部领域');
-    setViolationTypes([]);
-    setDocumentNo('');
-    setRelatedUnit('');
-    setIssueDateStart('');
-    setIssueDateEnd('');
-    setHandlingMethods([]);
-    setPolicyBasis('');
+    setSourceType('全部来源');
+    setRegion('全部地区');
+    setOccurrenceYear('全部时间');
+    setTags([]);
+    setSubject('');
+    setCaseNo('');
+    setEntryOrg('');
+    setSourceKeyword('');
+    setPublishYear('全部发布时间');
     setMoreOpen(false);
     setOpenMulti(null);
     onNotice('筛选条件已重置');
@@ -360,20 +441,20 @@ function SearchFilters({ onNotice, onCollapse }: { onNotice: (message: string) =
   return (
     <aside className="hn-search-filters">
       <div className="hn-filter-head"><strong>筛选条件</strong><div><button type="button" onClick={resetFilters}>重置</button><button type="button" className="hn-filter-collapse" aria-label="收起筛选条件" title="收起筛选条件" onClick={onCollapse}><ChevronLeft size={15} /></button></div></div>
-      <label><span>年度</span><span className="hn-select-control"><select value={year} onChange={(event) => setYear(event.target.value)}><option>全部年度</option><option>2026年</option><option>2025年</option><option>2024年</option><option>2023年</option><option>2022年</option></select><ChevronDown size={14} /></span></label>
-      <label><span>文书类型</span><span className="hn-select-control"><select value={documentType} onChange={(event) => setDocumentType(event.target.value)}><option>全部类型</option><option>整改通知书</option><option>检查报告</option><option>行政处罚决定书</option><option>处理决定</option><option>检查通知书</option></select><ChevronDown size={14} /></span></label>
-      <label><span>监督领域</span><span className="hn-select-control"><select value={supervisionDomain} onChange={(event) => setSupervisionDomain(event.target.value)}><option>全部领域</option><option>预算管理</option><option>预算执行</option><option>债务</option><option>账户</option><option>专项资金</option><option>政府采购</option><option>第三方中介机构</option></select><ChevronDown size={14} /></span></label>
-      <MetadataMultiSelect label="违规类型" value={violationTypes} options={['资金使用不规范', '支付审核不严', '资料依据不完整', '预算执行不到位', '政府采购程序不规范', '资金长期闲置', '绩效目标不完整']} open={openMulti === 'violation'} onToggle={() => setOpenMulti((current) => current === 'violation' ? null : 'violation')} onChange={setViolationTypes} />
-      <label><span>文号</span><input value={documentNo} onChange={(event) => setDocumentNo(event.target.value)} placeholder="输入完整或部分文号" /></label>
-      <label><span>相关单位</span><input value={relatedUnit} onChange={(event) => setRelatedUnit(event.target.value)} placeholder="输入单位名称" /></label>
+      <label><span>来源类型</span><span className="hn-select-control"><select value={sourceType} onChange={(event) => { setSourceType(event.target.value); setSourceKeyword(''); setPublishYear('全部发布时间'); }}><option>全部来源</option><option>日常监督形成</option><option>专项监督形成</option><option>上级下发</option><option>外部公开案例</option><option>其他来源</option></select><ChevronDown size={14} /></span></label>
+      <label><span>所属地区</span><span className="hn-select-control"><select value={region} onChange={(event) => setRegion(event.target.value)}><option>全部地区</option><option>甘肃省</option><option>兰州市</option><option>张掖市</option><option>酒泉市</option><option>金昌市</option></select><ChevronDown size={14} /></span></label>
+      <label><span>发生时间</span><span className="hn-select-control"><select value={occurrenceYear} onChange={(event) => setOccurrenceYear(event.target.value)}><option>全部时间</option><option>2026年</option><option>2025年</option><option>2024年</option><option>2023年</option><option>2022年</option></select><ChevronDown size={14} /></span></label>
+      <MetadataMultiSelect label="案例标签" value={tags} options={['财政拨款', '事业单位', '预算管理', '专项债券', '资金支付', '工程进度', '资产处置', '非税收入', '政府采购', '合同履约', '付款审核']} open={openMulti === 'tag'} onToggle={() => setOpenMulti((current) => current === 'tag' ? null : 'tag')} onChange={setTags} />
+      <label><span>涉及主体</span><input value={subject} onChange={(event) => setSubject(event.target.value)} placeholder="输入单位或主体名称" /></label>
       <button type="button" className={`hn-more-filter-toggle ${moreOpen ? 'is-open' : ''}`} aria-expanded={moreOpen} onClick={() => { setMoreOpen((value) => !value); setOpenMulti(null); }}><span>更多筛选{advancedCount ? <em>{advancedCount}</em> : null}</span><ChevronDown size={14} /></button>
       {moreOpen ? <div className="hn-advanced-filters">
-        <div className="hn-filter-field"><span>发文日期</span><div className="hn-date-range"><input value={issueDateStart} onChange={(event) => setIssueDateStart(event.target.value)} placeholder="YYYY-MM-DD" inputMode="numeric" aria-label="发文开始日期" /><i>至</i><input value={issueDateEnd} onChange={(event) => setIssueDateEnd(event.target.value)} placeholder="YYYY-MM-DD" inputMode="numeric" aria-label="发文结束日期" /></div></div>
-        <MetadataMultiSelect label="处理方式" value={handlingMethods} options={['责令整改', '限期改正', '行政处罚', '追回资金', '通报处理', '移送处理']} open={openMulti === 'handling'} onToggle={() => setOpenMulti((current) => current === 'handling' ? null : 'handling')} onChange={setHandlingMethods} />
-        <label><span>政策依据</span><input value={policyBasis} onChange={(event) => setPolicyBasis(event.target.value)} placeholder="输入政策文件名称" /></label>
+        <label><span>案例编号</span><input value={caseNo} onChange={(event) => setCaseNo(event.target.value)} placeholder="输入完整或部分案例编号" /></label>
+        <label><span>录入机构</span><input value={entryOrg} onChange={(event) => setEntryOrg(event.target.value)} placeholder="输入录入机构名称" /></label>
+        {sourceSpecific ? <label><span>{sourceSpecific.label}</span><input value={sourceKeyword} onChange={(event) => setSourceKeyword(event.target.value)} placeholder={sourceSpecific.placeholder} /></label> : null}
+        {sourceType === '外部公开案例' ? <label><span>发布时间</span><span className="hn-select-control"><select value={publishYear} onChange={(event) => setPublishYear(event.target.value)}><option>全部发布时间</option><option>2026年</option><option>2025年</option><option>2024年</option><option>2023年</option><option>2022年</option></select><ChevronDown size={14} /></span></label> : null}
       </div> : null}
       <button type="button" className="ufsp-btn ufsp-btn-primary" onClick={() => onNotice('检索结果已按当前条件筛选')}>应用筛选</button>
-      <div className="hn-filter-help"><CircleAlert size={14} /><span>筛选条件来自知识库文书元数据，不等同于案例标签。</span></div>
+      <div className="hn-filter-help"><CircleAlert size={14} /><span>默认检索已入库一般案例；来源专属条件会随来源类型联动展示。</span></div>
     </aside>
   );
 }
@@ -402,7 +483,7 @@ function DeepAnalysisPanel({
   if (status === 'loading') {
     return (
       <section className="hn-inline-analysis is-loading" aria-live="polite" aria-label="深度分析生成中">
-        <div className="hn-analysis-loading-copy"><LoaderCircle size={17} /><div><strong>正在生成深度分析</strong><span>结合候选案例原文，对共同问题、关键差异和参考价值进行判断</span></div></div>
+        <div className="hn-analysis-loading-copy"><LoaderCircle size={17} /><div><strong>正在生成深度分析</strong><span>结合候选案例标准字段，对共同问题、关键差异和参考价值进行判断</span></div></div>
         <div className="hn-analysis-skeleton" aria-hidden="true"><i /><i /><i /></div>
       </section>
     );
@@ -411,7 +492,7 @@ function DeepAnalysisPanel({
   return (
     <section className="hn-inline-analysis" aria-live="polite">
       <div className="hn-inline-analysis-head">
-        <div><Sparkles size={15} /><strong>AI 深度分析</strong><span>基于本次检索与案例原文生成</span></div>
+        <div><Sparkles size={15} /><strong>AI 深度分析</strong><span>基于本次检索与案例信息生成</span></div>
         <button type="button" onClick={onRerun}><RotateCcw size={13} />重新分析</button>
       </div>
       <div className="hn-analysis-dimensions">
@@ -481,7 +562,7 @@ function SearchResultsPage({ query, onQueryChange, onSearch, onOpenDetail, onBac
       <div className={`hn-search-results-layout ${filtersOpen ? '' : 'is-filter-collapsed'}`}>
         {filtersOpen ? <SearchFilters onNotice={onNotice} onCollapse={() => setFiltersOpen(false)} /> : <button type="button" className="hn-filter-rail" aria-label="展开筛选条件" title="展开筛选条件" onClick={() => setFiltersOpen(true)}><SlidersHorizontal size={17} /><ChevronRight size={14} /></button>}
         <section className="hn-search-result-main">
-          <div className="hn-result-command"><button type="button" className="ufsp-form-back" onClick={onBack} aria-label="返回检索首页" title="返回检索首页"><ArrowLeft size={16} /></button><SearchBox compact value={query} onChange={onQueryChange} onSearch={rerunSearch} /><div className="hn-result-tools"><span className="hn-result-count"><strong>36</strong><span>份相关文书</span></span><i aria-hidden="true" /><label><span className="hn-select-control"><select aria-label="结果排序" value={sort} onChange={(event) => setSort(event.target.value)}><option>相关度优先</option><option>最新时间</option><option>最早时间</option></select><ChevronDown size={14} /></span></label></div></div>
+          <div className="hn-result-command"><button type="button" className="ufsp-form-back" onClick={onBack} aria-label="返回检索首页" title="返回检索首页"><ArrowLeft size={16} /></button><SearchBox compact value={query} onChange={onQueryChange} onSearch={rerunSearch} /><div className="hn-result-tools"><span className="hn-result-count"><strong>36</strong><span>条相关案例</span></span><i aria-hidden="true" /><label><span className="hn-select-control"><select aria-label="结果排序" value={sort} onChange={(event) => setSort(event.target.value)}><option>相关度优先</option><option>发生时间最新</option><option>发生时间最早</option></select><ChevronDown size={14} /></span></label></div></div>
           <div className="hn-result-ledger">
           <div className="hn-search-result-list">{SEARCH_RESULTS.map((item, index) => {
             const analysisStatus = analysisStatusById[item.id];
@@ -491,8 +572,9 @@ function SearchResultsPage({ query, onQueryChange, onSearch, onOpenDetail, onBac
               <div className="hn-result-rank"><strong>{index + 1}</strong><span>{item.score}%</span><em>相关度</em></div>
               <div className="hn-result-content">
                 <div className="hn-result-title-row"><button type="button" className="hn-result-title" onClick={() => onOpenDetail(item.id)}>{item.title}</button><div className="hn-result-actions"><button type="button" className={`hn-deep-analysis-trigger ${analysisExpanded ? 'is-active' : ''}`} disabled={analysisExpanded && analysisStatus === 'loading'} onClick={() => toggleDeepAnalysis(item.id)}>{analysisExpanded && analysisStatus === 'loading' ? <LoaderCircle size={13} /> : <Sparkles size={13} />}{analysisExpanded && analysisStatus === 'loading' ? '分析中' : analysisStatus === 'complete' ? analysisExpanded ? '收起分析' : '查看分析' : '深度分析'}</button><button type="button" className="hn-result-detail" onClick={() => onOpenDetail(item.id)}>查看详情</button></div></div>
-                <div className="hn-result-meta"><span>{item.code}</span><span>{item.type}</span><span>{item.date}</span><span>{item.unit}</span></div>
-                <p><b>命中片段：</b>{item.excerpt}</p>
+                <div className="hn-result-meta"><span>案例编号：{item.code}</span><span>来源类型：{item.sourceType}</span><span>所属地区：{item.region}</span><span>发生时间：{item.occurrenceTime}</span><span>涉及主体：{item.subjects.join('；')}</span></div>
+                <div className="hn-result-tags">{item.tags.map((tag) => <span key={tag}>{tag}</span>)}</div>
+                <p><b>{item.hits[0].field}命中：</b>{item.hits[0].text}</p>
                 <div className="hn-match-reasons"><b>检索依据</b>{item.reason.map((reason) => <span key={reason}><CheckCircle2 size={12} />{reason}</span>)}</div>
                 {analysisExpanded && analysisStatus ? <DeepAnalysisPanel itemId={item.id} status={analysisStatus} feedback={feedback} onRerun={() => runDeepAnalysis(item.id)} onFeedbackChange={(patch) => updateFeedback(item.id, patch)} onSubmit={() => { updateFeedback(item.id, { submitted: true }); onNotice('深度分析反馈已提交'); }} onNotice={onNotice} /> : null}
               </div>
@@ -507,16 +589,34 @@ function SearchResultsPage({ query, onQueryChange, onSearch, onOpenDetail, onBac
 
 function SearchDetailPage({ id, query, onBack, onNotice, onOpenDetail }: { id?: string; query: string; onBack: () => void; onNotice: (message: string) => void; onOpenDetail: (id: string) => void }) {
   const item = SEARCH_RESULTS.find((row) => row.id === id) || SEARCH_RESULTS[0];
-  const [section, setSection] = useState<'match' | 'document' | 'source'>('match');
+  const [section, setSection] = useState<'match' | 'detail' | 'source'>('match');
+  const sourceMaterialCount = item.attachments.length + (item.sourceUrl ? 1 : 0);
   return (
     <div className="case-workspace hn-search-detail-page">
-      <OperationHead title="案例详情" subtitle="" onBack={onBack} actions={<button type="button" className="ufsp-btn ufsp-btn-primary" onClick={() => onNotice('已模拟跳转至 OA 文书来源')}><ExternalLink size={14} />查看 OA 来源</button>} />
+      <OperationHead title="案例详情" subtitle="" onBack={onBack} actions={item.sourceUrl ? <button type="button" className="ufsp-btn ufsp-btn-primary" onClick={() => onNotice('已模拟打开外部公开案例原文')}><ExternalLink size={14} />查看原文</button> : null} />
       <div className="hn-operation-body hn-search-detail-body">
-        <section className="hn-search-detail-summary"><div className="hn-detail-score"><strong>{item.score}%</strong><span>检索相关度</span></div><div className="hn-detail-main-info"><h2>{item.title}</h2><p><span>{item.code}</span><span>{item.type}</span><span>{item.date}</span><span>{item.unit}</span></p></div><div className="hn-detail-query"><span>本次检索</span><strong>{query || '专项债券资金支付进度与建设进度不匹配'}</strong></div></section>
+        <section className="hn-search-detail-summary"><div className="hn-detail-score"><strong>{item.score}%</strong><span>检索相关度</span></div><div className="hn-detail-main-info"><h2>{item.title}</h2><p><span>{item.code}</span><span>{item.sourceType}</span><span>{item.region}</span><span>{item.occurrenceTime}</span><span>{item.subjects.join('；')}</span></p></div><div className="hn-detail-query"><span>本次检索</span><strong>{query || '转拨资金如何进行会计处理'}</strong></div></section>
         <div className="hn-search-detail-layout">
-          <aside className="hn-document-outline"><strong>内容定位</strong><button type="button" className={section === 'match' ? 'is-active' : ''} onClick={() => setSection('match')}><Search size={14} /><span>命中内容</span><em>3</em></button><button type="button" className={section === 'document' ? 'is-active' : ''} onClick={() => setSection('document')}><FileText size={14} /><span>文书正文</span></button><button type="button" className={section === 'source' ? 'is-active' : ''} onClick={() => setSection('source')}><PaperclipIcon /><span>源文件附件</span><em>2</em></button></aside>
+          <aside className="hn-document-outline"><strong>内容定位</strong><button type="button" className={section === 'match' ? 'is-active' : ''} onClick={() => setSection('match')}><Search size={14} /><span>命中内容</span><em>{item.hits.length}</em></button><button type="button" className={section === 'detail' ? 'is-active' : ''} onClick={() => setSection('detail')}><FileText size={14} /><span>案例详情</span></button><button type="button" className={section === 'source' ? 'is-active' : ''} onClick={() => setSection('source')}><PaperclipIcon /><span>来源材料</span>{sourceMaterialCount ? <em>{sourceMaterialCount}</em> : null}</button></aside>
           <main className="hn-search-document-view">
-            {section === 'match' ? <div className="hn-hit-passages"><button type="button" onClick={() => setSection('document')}><b>问题事实 · 第3段</b><p>检查发现，项目<mark>资金支付进度明显快于实际建设进度</mark>，部分资金支付缺少与工程进度相匹配的验收资料。</p></button><button type="button" onClick={() => setSection('document')}><b>处理意见 · 第6段</b><p>责令项目单位核实资金支付依据，按照实际工程进度规范拨付<mark>专项债券资金</mark>。</p></button><button type="button" onClick={() => setSection('document')}><b>整改要求 · 第8段</b><p>建立工程计量、监理确认、资金支付相互衔接的审核机制，防止发生<mark>超进度支付</mark>。</p></button></div> : section === 'document' ? <div className="hn-full-document"><span>湖南省财政厅</span><h2>财政监督检查整改通知书</h2><em>{item.code}</em><p>{item.unit}：</p><p>根据年度财政监督检查工作安排，我厅对你单位专项债券资金使用管理情况进行了检查。</p><p>检查发现，项目<mark>资金支付进度明显快于实际建设进度</mark>，部分资金支付缺少与工程进度相匹配的验收资料，存在超进度支付风险。</p><p>上述行为不符合专项债券资金管理有关要求。现责令你单位核实资金支付依据，按照实际工程进度规范拨付<mark>专项债券资金</mark>。</p><p>请建立工程计量、监理确认、资金支付相互衔接的审核机制，防止发生<mark>超进度支付</mark>，并按期报送整改情况。</p></div> : <div className="hn-source-files"><div><FileText size={19} /><span><strong>财政监督检查整改通知书.docx</strong><em>源文件 · 2.4 MB · 来自湖南 OA</em></span><button type="button" onClick={() => onNotice('已打开源文件预览')}><Eye size={14} />预览</button><button type="button" onClick={() => onNotice('已模拟下载源文件')}><Download size={14} />下载</button></div><div><FileText size={19} /><span><strong>监督检查工作底稿.pdf</strong><em>关联附件 · 4.8 MB · 来自湖南 OA</em></span><button type="button" onClick={() => onNotice('已打开关联附件预览')}><Eye size={14} />预览</button><button type="button" onClick={() => onNotice('已模拟下载关联附件')}><Download size={14} />下载</button></div><div className="hn-source-trace"><ExternalLink size={15} /><span><strong>来源位置</strong><em>湖南 OA / 财政监督检查 / 2025年度文书</em></span><button type="button" onClick={() => onNotice('已模拟跳转至 OA 来源记录')}>跳转来源</button></div></div>}
+            {section === 'match' ? <div className="hn-hit-passages">{item.hits.map((hit) => <button type="button" key={hit.field} onClick={() => setSection('detail')}><b>{hit.field}命中</b><p>{hit.text}</p></button>)}</div> : section === 'detail' ? <div className="hn-standard-case-detail">
+              <section><h3>案例信息</h3><div className="hn-case-info-grid">{[
+                ['案例编号', item.code],
+                ['入库状态', item.status],
+                ['来源类型', item.sourceType],
+                ['所属地区', item.region],
+                ['发生时间', item.occurrenceTime],
+                ['涉及主体', item.subjects.join('；')],
+                ['录入机构', item.entryOrg],
+                ['录入人', item.entryPerson],
+              ].map(([label, value]) => <div key={label}><span>{label}</span><strong>{value}</strong></div>)}</div></section>
+              <section><h3>案例内容</h3><div className="hn-case-copy"><span>案例描述</span><p>{item.description}</p></div><div className="hn-case-copy"><span>备注</span><p>{item.remark}</p></div></section>
+              <section><h3>案例标签</h3><div className="hn-case-tags">{item.tags.map((tag) => <span key={tag}>{tag}</span>)}</div></section>
+              <section><h3>典型案例关联</h3>{item.typicalAssociations.length ? <div className="hn-typical-links"><div className="hn-typical-links-head"><span>典型案例标题</span><span>审核状态</span><span>申请时间</span></div>{item.typicalAssociations.map((row) => <div key={row.title}><strong>{row.title}</strong><span>{row.status}</span><span>{row.appliedAt}</span></div>)}</div> : <div className="hn-detail-empty">暂无典型案例关联</div>}</section>
+            </div> : <div className="hn-standard-source-detail">
+              <section><h3>来源信息</h3><div className="hn-source-info-grid"><div><span>来源类型</span><strong>{item.sourceType}</strong></div>{item.sourceFields.map((field) => <div key={field.label}><span>{field.label}</span><strong>{field.value}</strong></div>)}{item.sourceUrl ? <div className="is-wide"><span>原文链接</span><button type="button" onClick={() => onNotice('已模拟打开外部公开案例原文')}>{item.sourceUrl}</button></div> : null}</div></section>
+              <section><h3>材料附件</h3>{item.attachments.length ? <div className="hn-source-files">{item.attachments.map((attachment) => <div key={attachment.name}><FileText size={19} /><span><strong>{attachment.name}</strong><em>{attachment.meta}</em></span><button type="button" onClick={() => onNotice(`已打开${attachment.name}预览`)}><Eye size={14} />预览</button><button type="button" onClick={() => onNotice(`已模拟下载${attachment.name}`)}><Download size={14} />下载</button></div>)}</div> : <div className="hn-detail-empty">暂无附件</div>}</section>
+            </div>}
           </main>
           <aside className="hn-detail-side-info"><section><div className="hn-section-caption"><div><Sparkles size={15} /><strong>匹配原因</strong></div></div><div className="hn-side-reasons">{item.reason.map((reason) => <span key={reason}><CheckCircle2 size={13} />{reason}</span>)}</div></section><section><div className="hn-section-caption"><div><Link2 size={15} /><strong>继续查看相似案例</strong></div></div><div className="hn-side-similar">{SEARCH_RESULTS.filter((row) => row.id !== item.id).slice(0, 3).map((row) => <button type="button" key={row.id} onClick={() => onOpenDetail(row.id)}><strong>{row.title}</strong><span>{row.code} · {row.score}%</span></button>)}</div></section></aside>
         </div>
@@ -845,33 +945,22 @@ const Component = forwardRef<AxureHandle, AxureProps>(function Component(props, 
   const config = props.config || {};
   const emitEvent = createEventEmitter(props.onEvent);
   const title = getConfigValue<string>(config, 'title', '财会监督系统');
-  const topicName = getConfigValue<string>(config, 'topic_name', '湖南案例库');
-  const [featureKey, setFeatureKey] = useState<FeatureKey>(initialFeature);
-  const [collapsed, setCollapsed] = useState(false);
+  const topicName = getConfigValue<string>(config, 'topic_name', '甘肃案例库');
+  const [featureKey] = useState<FeatureKey>('search');
   const [panel, setPanel] = useState<PanelState>(null);
   const [operation, setOperation] = useState<OperationState>(null);
   const [searchView, setSearchView] = useState<'home' | 'results' | 'detail'>('home');
   const [searchQuery, setSearchQuery] = useState('');
   const [searchResultId, setSearchResultId] = useState('S01');
   const [notice, setNotice] = useState('');
-  const activeFeature = FEATURES.find((item) => item.key === featureKey) || FEATURES[0];
+  const activeFeature = { key: 'case_search', name: '案例检索' } as const;
 
   const showNotice = (message: string) => {
     setNotice(message);
     window.setTimeout(() => setNotice(''), 2200);
   };
 
-  const switchFeature = (key: FeatureKey) => {
-    setFeatureKey(key);
-    setOperation(null);
-    setPanel(null);
-    if (key === 'search') setSearchView('home');
-    const href = `/prototypes/hunan-case-library?feature=${key}`;
-    window.history.replaceState({}, '', href);
-    emitEvent('onNavigate', href);
-  };
-
-  const onTopNavigate = (href: string) => {
+  const onNavigate = (href: string) => {
     emitEvent('onNavigate', href);
     window.location.href = href;
   };
@@ -891,22 +980,15 @@ const Component = forwardRef<AxureHandle, AxureProps>(function Component(props, 
   }), [activeFeature]);
 
   return (
-    <div className="case-library-page hunan-case-library">
-      <TopBar title={title} onNavigate={onTopNavigate} />
+    <div className="case-library-page gansu-case-search">
+      <TopBar title={title} onNavigate={onNavigate} />
       <main className="case-layout">
         <div className="case-frame">
-          <aside className={`case-sidebar ${collapsed ? 'is-collapsed' : ''}`} style={{ width: collapsed ? 64 : 272 }}>
-            <div className="case-sidebar-head" title={topicName}>
-              <div className="case-sidebar-brand"><span className="case-sidebar-logo"><Database size={20} /></span><div className="case-sidebar-title"><span>案例库</span><em>湖南演示</em></div></div>
-              <button type="button" className="case-sidebar-trigger" aria-label={collapsed ? '展开案例库菜单' : '收起案例库菜单'} onClick={() => setCollapsed((value) => !value)}>{collapsed ? <ChevronRight size={16} /> : <ChevronLeft size={16} />}</button>
-            </div>
-            <nav className="case-nav" aria-label="湖南案例库功能菜单">
-              {FEATURES.map((item) => {
-                const active = item.key === activeFeature.key;
-                return <button type="button" key={item.key} className={`case-nav-item ${active ? 'is-active' : ''}`} title={collapsed ? item.name : item.desc} onClick={() => switchFeature(item.key)}><FeatureMark Icon={item.Icon} active={active} />{collapsed ? null : <span>{item.name}</span>}</button>;
-              })}
-            </nav>
-          </aside>
+          <CaseLibraryFeatureMenu
+            activeKey="case_search"
+            topicName={topicName}
+            onNavigate={onNavigate}
+          />
           <section className="case-content">
             {featureKey === 'search' ? searchView === 'home' ? <SearchHome query={searchQuery} onQueryChange={setSearchQuery} onSearch={() => setSearchView('results')} onNotice={showNotice} /> : searchView === 'results' ? <SearchResultsPage query={searchQuery} onQueryChange={setSearchQuery} onSearch={() => setSearchView('results')} onBack={() => setSearchView('home')} onOpenDetail={(id) => { setSearchResultId(id); setSearchView('detail'); }} onNotice={showNotice} /> : <SearchDetailPage id={searchResultId} query={searchQuery} onBack={() => setSearchView('results')} onOpenDetail={(id) => setSearchResultId(id)} onNotice={showNotice} /> : operation?.kind === 'entry-confirm' ? <EntryConfirmPage id={operation.id} onBack={() => setOperation(null)} onNotice={showNotice} /> : operation?.kind === 'archive-detail' ? <ArchiveDetailPage id={operation.id} onBack={() => setOperation(null)} onNotice={showNotice} /> : operation?.kind === 'analysis-detail' ? <AnalysisDetailPage id={operation.id} onBack={() => setOperation(null)} onNotice={showNotice} /> : featureKey === 'entry' ? <EntryPage onPanel={setPanel} onOperation={setOperation} onNotice={showNotice} /> : featureKey === 'archive' ? <ArchivePage onOperation={setOperation} onNotice={showNotice} /> : featureKey === 'analysis' ? <AnalysisPage onOperation={setOperation} onNotice={showNotice} /> : <TypicalPage onPanel={setPanel} onNotice={showNotice} />}
           </section>

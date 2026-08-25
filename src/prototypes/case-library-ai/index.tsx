@@ -2,6 +2,8 @@
  * @name 案例库（AI改造）
  *
  * 参考资料：
+ * - /src/components/case-library-feature-menu/index.tsx
+ * - /src/components/case-library-feature-menu/spec.md
  * - /src/prototypes/problem-library-function-list/index.tsx
  * - /src/prototypes/problem-library-function-list/spec.md
  */
@@ -17,7 +19,6 @@ import searchIconSvg from '../problem-library-function-list/icons/search.svg?raw
 import React, { forwardRef, useEffect, useImperativeHandle, useMemo, useState } from 'react';
 import {
   ArrowLeft,
-  BookOpenCheck,
   Check,
   ChevronDown,
   ChevronLeft,
@@ -27,35 +28,18 @@ import {
   History,
   Pencil,
   Search,
-  ScanSearch,
   Tag,
-  Tags,
   UploadCloud,
   X,
-  type LucideIcon,
 } from 'lucide-react';
 import TopBar from '../../common/components/TopBar';
+import CaseLibraryFeatureMenu, {
+  CASE_LIBRARY_FLAT_FEATURES,
+  findCaseLibraryFeatureGroup,
+  type CaseLibraryFeatureNode,
+} from '../../components/case-library-feature-menu';
 import type { AxureHandle, AxureProps, ConfigItem, EventItem, KeyDesc } from '../../common/axure-types';
 import { createEventEmitter, getConfigValue } from '../../common/axure-types';
-
-type FeatureNode = {
-  key: string;
-  name: string;
-  desc: string;
-  Icon: LucideIcon;
-};
-
-type FeatureGroup = {
-  type: 'group';
-  name: string;
-  desc: string;
-  Icon: LucideIcon;
-  children: FeatureNode[];
-};
-
-type FeatureStandalone = FeatureNode & {
-  type: 'item';
-};
 
 type FeatureIconProps = {
   size?: number;
@@ -307,23 +291,6 @@ const ISSUE_SOURCE_OPTIONS: IssueSourceOption[] = [
     status: '已销号',
     tags: '暂付款、清理压降、责任分解',
   },
-];
-
-const FEATURES: Array<FeatureGroup | FeatureStandalone> = [
-  { type: 'item', key: 'general_case_management', name: '一般案例管理', desc: '围绕一般案例的治理、确认、入库与停用流转；待入库、已入库、不入库、已停用作为页面内部状态维度。', Icon: Files },
-  { type: 'item', key: 'common_insight', name: '案例聚类分析', desc: '基于已入库一般案例识别同类问题、共性规律和高频风险，支撑回头看、举一反三。', Icon: ScanSearch },
-  {
-    type: 'group',
-    name: '典型案例管理',
-    desc: '沉淀可复用、可学习、可推广的典型案例，按申请和审核分开办理。',
-    Icon: BookOpenCheck,
-    children: [
-      { key: 'typical_case_application', name: '申请', desc: '面向填报单位维护典型案例申请，状态收口为待提交、被退回、已发布和全部。', Icon: Pencil },
-      { key: 'typical_case_review', name: '审核', desc: '面向审核人员处理提交后的典型案例，完成审核通过、退回和发布查看。', Icon: Check },
-    ],
-  },
-  { type: 'item', key: 'case_collection', name: '案例采集管理', desc: '用于后续承接案例采集、导入和来源归集。', Icon: UploadCloud },
-  { type: 'item', key: 'case_tag', name: '案例标签管理', desc: '用于后续维护案例分类、主题标签和 AI 标注口径。', Icon: Tags },
 ];
 
 const CASE_ROWS: CaseRow[] = [
@@ -1522,26 +1489,7 @@ function useQuery() {
   return q;
 }
 
-function flattenFeatures() {
-  return FEATURES.flatMap((item) => (item.type === 'group' ? item.children : [item]));
-}
-
-function FeatureIconMark(props: { Icon: FeatureNode['Icon']; active?: boolean }) {
-  const Icon = props.Icon;
-  return (
-    <span className={`case-nav-icon ${props.active ? 'is-active' : ''}`} aria-hidden="true">
-      <Icon size={18} />
-    </span>
-  );
-}
-
-function findFeatureGroup(featureKey: string) {
-  return FEATURES.find((item) => item.type === 'group' && item.children.some((child) => child.key === featureKey)) as
-    | FeatureGroup
-    | undefined;
-}
-
-function CurrentFeatureEmpty(props: { feature: FeatureNode; groupName?: string }) {
+function CurrentFeatureEmpty(props: { feature: CaseLibraryFeatureNode; groupName?: string }) {
   return (
     <div className="case-workspace">
       <div className="case-page-head">
@@ -3975,11 +3923,9 @@ const Component = forwardRef<AxureHandle, AxureProps>(function Component(innerPr
   const topicName = getConfigValue<string>(configSource, 'topic_name', '案例库（AI改造）');
   const rawFeatureKey = String(query.feature || 'general_case_management');
   const featureKey = rawFeatureKey === 'typical_case_management' ? 'typical_case_application' : rawFeatureKey;
-  const flatFeatures = useMemo(() => flattenFeatures(), []);
+  const flatFeatures = CASE_LIBRARY_FLAT_FEATURES;
   const activeFeature = flatFeatures.find((item) => item.key === featureKey) || flatFeatures[0];
-  const activeGroup = findFeatureGroup(activeFeature.key);
-  const [collapsed, setCollapsed] = useState(false);
-  const [expandedGroups, setExpandedGroups] = useState<string[]>(['典型案例管理']);
+  const activeGroup = findCaseLibraryFeatureGroup(activeFeature.key);
 
   useImperativeHandle(
     ref,
@@ -4003,8 +3949,6 @@ const Component = forwardRef<AxureHandle, AxureProps>(function Component(innerPr
     [activeFeature],
   );
 
-  const featureHref = (nextFeatureKey: string) => `/prototypes/case-library-ai?feature=${encodeURIComponent(nextFeatureKey)}`;
-
   const onNavigate = (href: string) => {
     const correctedHref = href.startsWith('/pages/') ? href.replace('/pages/', '/prototypes/') : href;
     emitEvent('onNavigate', correctedHref);
@@ -4015,113 +3959,17 @@ const Component = forwardRef<AxureHandle, AxureProps>(function Component(innerPr
     }
   };
 
-  const toggleGroup = (name: string) => {
-    setExpandedGroups((prev) => (prev.includes(name) ? prev.filter((item) => item !== name) : [...prev, name]));
-  };
-
   return (
     <div className="case-library-page">
       <TopBar title={title} onNavigate={onNavigate} />
 
       <main className="case-layout">
         <div className="case-frame">
-          <aside className={`case-sidebar ${collapsed ? 'is-collapsed' : ''}`} style={{ width: collapsed ? 64 : 272 }}>
-            <div className="case-sidebar-head" title={topicName}>
-              <div className="case-sidebar-brand">
-                <span className="case-sidebar-logo" aria-hidden="true">
-                  <Database size={20} />
-                </span>
-                <div className="case-sidebar-title">
-                  <span>案例库</span>
-                  <em>AI改造</em>
-                </div>
-              </div>
-              <button
-                type="button"
-                className="case-sidebar-trigger"
-                aria-label={collapsed ? '展开案例库菜单' : '收起案例库菜单'}
-                onClick={() => setCollapsed((prev) => !prev)}
-              >
-                {collapsed ? <ChevronRight size={16} /> : <ChevronLeft size={16} />}
-              </button>
-            </div>
-
-            <nav className="case-nav" aria-label="案例库功能菜单">
-              {collapsed
-                ? flatFeatures.map((item) => {
-                    const active = item.key === activeFeature.key;
-                    return (
-                      <button
-                        key={item.key}
-                        type="button"
-                        className={`case-nav-item ${active ? 'is-active' : ''}`}
-                        title={item.name}
-                        onClick={() => onNavigate(featureHref(item.key))}
-                      >
-                        <FeatureIconMark Icon={item.Icon} active={active} />
-                      </button>
-                    );
-                  })
-                : FEATURES.map((item) => {
-                    if (item.type === 'group') {
-                      const expanded = expandedGroups.includes(item.name);
-                      const groupActive = item.children.some((child) => child.key === activeFeature.key);
-                      return (
-                        <div className="case-nav-group" key={item.name}>
-                          <button
-                            type="button"
-                            className={[
-                              'case-nav-group-title',
-                              groupActive && !expanded ? 'is-active' : '',
-                              groupActive && expanded ? 'is-ancestor' : '',
-                            ]
-                              .filter(Boolean)
-                              .join(' ')}
-                            onClick={() => toggleGroup(item.name)}
-                          >
-                            <span className="case-group-left">
-                              <FeatureIconMark Icon={item.Icon} active={groupActive && !expanded} />
-                              <span>{item.name}</span>
-                            </span>
-                            <ChevronRight size={14} className={expanded ? 'is-expanded' : ''} />
-                          </button>
-                          {expanded ? (
-                            <div className="case-nav-children">
-                              {item.children.map((child) => {
-                                const active = child.key === activeFeature.key;
-                                return (
-                                  <button
-                                    key={child.key}
-                                    type="button"
-                                    className={`case-nav-item case-nav-child ${active ? 'is-active' : ''}`}
-                                    onClick={() => onNavigate(featureHref(child.key))}
-                                  >
-                                    <FeatureIconMark Icon={child.Icon} active={active} />
-                                    <span>{child.name}</span>
-                                  </button>
-                                );
-                              })}
-                            </div>
-                          ) : null}
-                        </div>
-                      );
-                    }
-
-                    const active = item.key === activeFeature.key;
-                    return (
-                      <button
-                        key={item.key}
-                        type="button"
-                        className={`case-nav-item ${active ? 'is-active' : ''}`}
-                        onClick={() => onNavigate(featureHref(item.key))}
-                      >
-                        <FeatureIconMark Icon={item.Icon} active={active} />
-                        <span>{item.name}</span>
-                      </button>
-                    );
-                  })}
-            </nav>
-          </aside>
+          <CaseLibraryFeatureMenu
+            activeKey={activeFeature.key}
+            topicName={topicName}
+            onNavigate={onNavigate}
+          />
 
           <section className="case-content">
             {activeFeature.key === 'general_case_management' ? (

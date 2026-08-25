@@ -1,6 +1,6 @@
 {
   "version": 1,
-  "updatedAt": "2026-08-13T02:13:01.323Z",
+  "updatedAt": "2026-08-25T01:10:02.274Z",
   "prototypes": [
     {
       "id": "folder-1786081161976-1jrynr",
@@ -16,7 +16,7 @@
         {
           "id": "item-prototypes-hunan-problem-library",
           "kind": "item",
-          "title": "湖南问题库",
+          "title": "问题库",
           "itemKey": "prototypes/hunan-problem-library"
         }
       ]
@@ -123,13 +123,19 @@
         {
           "id": "folder-1783315814822-2i34yr",
           "kind": "folder",
-          "title": "案例库（AI改造）",
+          "title": "案例库（AI改造）（甘肃）",
           "children": [
             {
               "id": "item-prototypes-case-library-ai",
               "kind": "item",
               "title": "案例库（AI改造）",
               "itemKey": "prototypes/case-library-ai"
+            },
+            {
+              "id": "item-prototypes-gansu-case-search",
+              "kind": "item",
+              "title": "案例检索",
+              "itemKey": "prototypes/gansu-case-search"
             },
             {
               "id": "item-prototypes-typical-case-application",

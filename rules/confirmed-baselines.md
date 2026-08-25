@@ -25,7 +25,7 @@
 | 基线对象 | 适用范围 | 来源文件 | 冻结项 | 备注 |
 | --- | --- | --- | --- | --- |
 | 财会监督顶部导航 | 全项目原型页面 | `src/common/components/TopBar.tsx` | 64px 顶栏、深蓝渐变、全局导航与用户区结构 | 新页面不得重新实现顶部系统导航 |
-| 列表页功能菜单 | 问题库、案例库、考评库、提示词管理等业务列表页 | `src/prototypes/problem-library-function-list/style.css`、`src/prototypes/case-library-ai/style.css`、`src/docs/业务页面设计规范.md` | 44px 导航行、30px 图标槽、4px 圆角、低饱和蓝灰选中态、标题区 logo 只作身份标识 | 不使用亮蓝、粗状态线、渐变行面或深蓝实心图标底 |
+| 列表页功能菜单 | 问题库、案例库、考评库、提示词管理等业务列表页 | `src/components/case-library-feature-menu`、`src/prototypes/problem-library-function-list/style.css`、`src/prototypes/case-library-ai/style.css`、`src/docs/业务页面设计规范.md` | 44px 导航行、30px 图标槽、4px 圆角、低饱和蓝灰选中态、标题区 logo 只作身份标识；甘肃案例库页面共用同一菜单组件和配置 | 不使用亮蓝、粗状态线、渐变行面或深蓝实心图标底，不在业务页面内复制甘肃案例库菜单清单 |
 | 业务列表页三段式结构 | 有系统菜单、业务树/目录、列表工作区的页面 | `src/prototypes/problem-library-function-list`、`src/prototypes/case-library-ai` | 系统菜单 + 业务树/目录 + 表格工作区；页签 48px、工具栏 56px、控件 32px、表格行 32px | 首页/工作台不得直接套此结构，业务列表页应优先套此结构 |
 | 标准查询工具栏 | 业务列表页右侧工具区 | `src/prototypes/case-library-ai/spec.md`、`src/prototypes/problem-library-function-list/style.css` | 新增/导入/导出等左侧动作，右侧搜索框、查询、刷新、筛选、查询方案、列设置；图标 14px、控件 32px | 不新增无语义危险按钮，不把工具栏做成大标题块 |
 | 标准业务表格 | 业务列表、附件表、规则表 | `src/docs/业务页面设计规范.md`、`src/prototypes/problem-library-function-list/style.css`、`src/prototypes/case-library-ai/style.css` | 表头 `#6A8DC4`、白色表头文字、32px 表头/行高、浅灰网格、4px 表头圆角、行 hover 浅灰 | 不使用大字号、厚边框、卡片式表格或过高行距 |
