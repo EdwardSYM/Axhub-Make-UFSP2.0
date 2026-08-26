@@ -14,7 +14,9 @@ import {
   ChevronLeft,
   ChevronRight,
   Database,
+  FileSearch,
   Files,
+  Lightbulb,
   Pencil,
   ScanSearch,
   Search,
@@ -25,6 +27,7 @@ import {
 
 export type CaseLibraryFeatureKey =
   | 'case_search'
+  | 'feedback_suggestion_search'
   | 'general_case_management'
   | 'common_insight'
   | 'typical_case_application'
@@ -52,7 +55,16 @@ export type CaseLibraryFeatureStandalone = CaseLibraryFeatureNode & {
 };
 
 export const CASE_LIBRARY_FEATURES: Array<CaseLibraryFeatureGroup | CaseLibraryFeatureStandalone> = [
-  { type: 'item', key: 'case_search', name: '案例检索', desc: '通过关键词、自然语言和相似案例定位案例知识内容。', Icon: Search },
+  {
+    type: 'group',
+    name: '智能检索',
+    desc: '统一承载案例和反哺建议的智能检索入口。',
+    Icon: Search,
+    children: [
+      { key: 'case_search', name: '案例智能检索', desc: '通过关键词、自然语言和相似案例定位案例知识内容。', Icon: FileSearch },
+      { key: 'feedback_suggestion_search', name: '反哺建议检索', desc: '检索由典型案例智能提炼形成的政策优化、问题整改和规则设置建议。', Icon: Lightbulb },
+    ],
+  },
   { type: 'item', key: 'general_case_management', name: '一般案例管理', desc: '围绕一般案例的治理、确认、入库与停用流转；待入库、已入库、不入库、已停用作为页面内部状态维度。', Icon: Files },
   { type: 'item', key: 'common_insight', name: '案例聚类分析', desc: '基于已入库一般案例识别同类问题、共性规律和高频风险，支撑回头看、举一反三。', Icon: ScanSearch },
   {
@@ -81,6 +93,7 @@ export function findCaseLibraryFeatureGroup(featureKey: string) {
 
 export function getCaseLibraryFeatureHref(featureKey: CaseLibraryFeatureKey) {
   if (featureKey === 'case_search') return '/prototypes/gansu-case-search';
+  if (featureKey === 'feedback_suggestion_search') return '/prototypes/gansu-feedback-suggestion-search';
   return `/prototypes/case-library-ai?feature=${encodeURIComponent(featureKey)}`;
 }
 
@@ -108,7 +121,7 @@ export default function CaseLibraryFeatureMenu({
   onNavigate,
 }: CaseLibraryFeatureMenuProps) {
   const [collapsed, setCollapsed] = useState(false);
-  const [expandedGroups, setExpandedGroups] = useState<string[]>(['典型案例管理']);
+  const [expandedGroups, setExpandedGroups] = useState<string[]>(['智能检索', '典型案例管理']);
 
   const toggleGroup = (name: string) => {
     setExpandedGroups((current) =>

@@ -1,5 +1,5 @@
 /**
- * @name 案例检索（甘肃）
+ * @name 案例智能检索（甘肃）
  *
  * 参考资料：
  * - /rules/ufsp-page-governance.md
@@ -60,6 +60,8 @@ type PanelState = null | { title: string; kind: 'entry' | 'archive' | 'typical';
 type OperationState = null | { kind: 'entry-confirm' | 'archive-detail' | 'analysis-detail'; id?: string };
 type AnalysisStatus = 'loading' | 'complete';
 type AnalysisFeedback = { vote?: 'up' | 'down'; reasons: string[]; note: string; submitted: boolean };
+type SearchMode = 'case' | 'feedback';
+type FeedbackSearchCategory = 'policy' | 'rule' | 'issue';
 
 type SearchResult = {
   id: string;
@@ -82,6 +84,27 @@ type SearchResult = {
   sourceUrl?: string;
   attachments: Array<{ name: string; meta: string }>;
   typicalAssociations: Array<{ title: string; status: string; appliedAt: string }>;
+};
+
+type FeedbackSuggestionResult = {
+  id: string;
+  code: string;
+  title: string;
+  category: '政策优化' | '问题整改' | '规则设置';
+  status: '待研判' | '已采纳' | '部分采纳';
+  scope: string;
+  generatedAt: string;
+  generatedBy: string;
+  summary: string;
+  content: string;
+  expectedEffect: string;
+  applicableConditions: string;
+  tags: string[];
+  score: number;
+  reason: string[];
+  hits: Array<{ field: string; text: string }>;
+  evidence: string[];
+  typicalSources: Array<{ title: string; type: string; publishedAt: string }>;
 };
 
 const SEARCH_RESULTS: SearchResult[] = [
@@ -205,6 +228,90 @@ const SEARCH_RESULTS: SearchResult[] = [
   },
 ];
 
+const FEEDBACK_SUGGESTION_RESULTS: FeedbackSuggestionResult[] = [
+  {
+    id: 'F01',
+    code: 'FB20260801086',
+    title: '完善非同级财政拨款转拨及收入确认政策口径',
+    category: '政策优化',
+    status: '待研判',
+    scope: '行政事业单位财政资金核算',
+    generatedAt: '2026-08-21 10:18',
+    generatedBy: '典型案例智能提炼',
+    summary: '多个典型案例反映，非同级财政拨款在转拨、留用和收入确认环节存在口径理解不一致，建议补充统一的政策解释和示例。',
+    content: '建议在相关政策解释或业务指引中，明确转拨资金与本单位留用资金的核算边界，分别说明行政单位、事业单位的收入确认方式，并补充跨层级财政资金转拨的典型会计处理示例。',
+    expectedEffect: '减少不同单位对非同级财政拨款核算口径的理解偏差，提高转拨资金账务处理的一致性。',
+    applicableConditions: '适用于行政事业单位取得非本级财政部门拨款并发生转拨、留用或收入确认的业务场景。',
+    tags: ['财政拨款', '政策口径', '会计处理'],
+    score: 96,
+    reason: ['建议标题命中“财政拨款政策口径”', '提炼依据包含转拨资金典型案例', '适用范围与检索事项一致'],
+    hits: [
+      { field: '建议标题', text: '完善非同级财政拨款转拨及收入确认政策口径' },
+      { field: '建议内容', text: '明确转拨资金与本单位留用资金的核算边界，并补充跨层级财政资金转拨的典型会计处理示例。' },
+      { field: '提炼依据', text: '多个典型案例反映非同级财政拨款在转拨、留用和收入确认环节存在口径理解不一致。' },
+    ],
+    evidence: ['典型案例中反复出现转拨资金与留用资金核算边界不清', '行政单位与事业单位收入确认口径存在差异', '现有政策缺少跨层级财政资金转拨的组合示例'],
+    typicalSources: [
+      { title: '转拨资金会计处理规范应用案例', type: '共性问题案例', publishedAt: '2026-08-18' },
+      { title: '非同级财政拨款收入确认示范案例', type: '整改成效案例', publishedAt: '2026-08-12' },
+    ],
+  },
+  {
+    id: 'F02',
+    code: 'FB20260801072',
+    title: '建立专项债券资金支付与工程进度联动整改机制',
+    category: '问题整改',
+    status: '已采纳',
+    scope: '专项债券项目单位',
+    generatedAt: '2026-08-19 16:42',
+    generatedBy: '典型案例智能提炼',
+    summary: '典型案例显示，专项债券项目容易出现资金支付快于工程进度、验收依据不完整等问题，需要形成可复用的整改闭环。',
+    content: '建议建立工程计量、监理确认、资金支付三方联动的整改机制。支付申请必须关联当期工程量、监理确认记录和合同节点，整改期间按月复核支付比例，对异常偏差形成原因说明和复核记录。',
+    expectedEffect: '推动项目资金支付与实际建设进度同步，提升整改措施的可执行性和闭环程度。',
+    applicableConditions: '适用于专项债券项目建设进度、合同履约和资金支付存在偏差的整改场景。',
+    tags: ['专项债券', '整改闭环', '工程进度'],
+    score: 92,
+    reason: ['建议内容命中资金支付与工程进度', '来源典型案例具有同类整改经验', '整改机制可直接复用'],
+    hits: [
+      { field: '建议内容', text: '建立工程计量、监理确认、资金支付三方联动的整改机制。' },
+      { field: '建议标签', text: '专项债券、整改闭环、工程进度' },
+      { field: '来源典型案例', text: '专项债券项目资金支付与工程进度不匹配整改案例。' },
+    ],
+    evidence: ['多个典型案例出现资金支付进度快于工程进度', '有效整改措施均包含工程计量与监理确认', '按月复核支付比例有助于及时发现偏差'],
+    typicalSources: [
+      { title: '专项债券项目资金支付与工程进度不匹配整改案例', type: '整改成效案例', publishedAt: '2026-08-15' },
+      { title: '专项债券项目建设进度动态核验案例', type: '共性问题案例', publishedAt: '2026-08-08' },
+    ],
+  },
+  {
+    id: 'F03',
+    code: 'FB20260801051',
+    title: '设置政府采购履约验收与付款审核前置校验规则',
+    category: '规则设置',
+    status: '部分采纳',
+    scope: '政府采购付款审核',
+    generatedAt: '2026-08-16 09:35',
+    generatedBy: '典型案例智能提炼',
+    summary: '典型案例集中反映采购合同、验收记录和付款材料未形成对应关系，建议将关键材料完整性转化为系统前置校验规则。',
+    content: '建议设置付款审核前置规则：付款申请必须关联采购合同、履约验收记录和发票凭证；验收日期、合同节点和付款比例不一致时自动提示；关键材料缺失时禁止进入付款审核环节。',
+    expectedEffect: '把典型案例中的有效管理措施转化为可执行规则，降低履约资料不完整情况下的付款风险。',
+    applicableConditions: '适用于政府采购合同履约、验收和付款审核相关业务系统或人工审核清单。',
+    tags: ['政府采购', '前置校验', '付款审核'],
+    score: 87,
+    reason: ['命中“规则设置”和付款审核', '建议来源包含履约闭环典型案例', '可转化为系统校验条件'],
+    hits: [
+      { field: '建议标题', text: '设置政府采购履约验收与付款审核前置校验规则' },
+      { field: '建议内容', text: '关键材料缺失时禁止进入付款审核环节。' },
+      { field: '提炼依据', text: '采购合同、验收记录和付款材料未形成稳定对应关系。' },
+    ],
+    evidence: ['履约验收材料缺失是相关典型案例的高频问题', '合同节点与付款比例不一致时风险集中暴露', '材料清单和前置校验是已验证的有效措施'],
+    typicalSources: [
+      { title: '政府采购合同履约资料闭环管理案例', type: '整改成效案例', publishedAt: '2026-08-10' },
+      { title: '采购项目付款审核把关不严典型案例', type: '共性问题案例', publishedAt: '2026-07-29' },
+    ],
+  },
+];
+
 const DEEP_ANALYSIS: Record<string, {
   similarity: string;
   commonIssues: string[];
@@ -244,6 +351,30 @@ const DEEP_ANALYSIS: Record<string, {
     referenceLevel: '中等',
     referenceAdvice: '可参考合同、验收、付款材料清单及闭环档案机制。',
     citations: ['案例描述', '案例标签', '关联问题'],
+  },
+  F01: {
+    similarity: '检索内容指向非同级财政拨款政策口径，与该建议关注的转拨、留用和收入确认边界高度一致。',
+    commonIssues: ['多个典型案例重复出现核算口径差异', '现有政策解释缺少组合业务示例'],
+    differences: ['建议仍需结合现行制度条款研判', '不同单位性质对应的核算科目存在差异'],
+    referenceLevel: '成熟度较高',
+    referenceAdvice: '可作为补充政策解释和业务指引的候选建议，提交业务处室进一步研判。',
+    citations: ['建议内容', '提炼依据', '来源典型案例'],
+  },
+  F02: {
+    similarity: '建议直接覆盖专项债券资金支付与工程进度不匹配问题，整改机制与检索事项高度相关。',
+    commonIssues: ['支付进度快于工程进度', '工程计量和监理确认材料不完整'],
+    differences: ['具体复核周期需结合项目管理要求', '异常偏差阈值需由业务部门确定'],
+    referenceLevel: '成熟度较高',
+    referenceAdvice: '可直接用于整改方案框架，并结合具体项目补充责任人、时限和复核标准。',
+    citations: ['建议内容', '预期效果', '来源典型案例'],
+  },
+  F03: {
+    similarity: '建议将采购履约案例中的有效措施转化为付款审核前置校验规则，与规则设置类检索意图一致。',
+    commonIssues: ['合同、验收和付款材料未形成对应关系', '关键材料缺失时仍进入付款审核'],
+    differences: ['系统阻断条件需结合业务权限配置', '不同采购方式的材料要求可能不同'],
+    referenceLevel: '成熟度中等',
+    referenceAdvice: '适合进入规则配置评估，先明确适用范围和阻断条件，再形成系统规则。',
+    citations: ['建议内容', '适用条件', '提炼依据'],
   },
 };
 
@@ -352,32 +483,54 @@ function Catalog({ mode }: { mode: 'entry' | 'archive' }) {
   );
 }
 
-function SearchBox({ value, onChange, onSearch, compact = false }: { value: string; onChange: (value: string) => void; onSearch: () => void; compact?: boolean }) {
+function SearchBox({ value, onChange, onSearch, mode, compact = false, feedbackCategory, onFeedbackCategoryChange }: { value: string; onChange: (value: string) => void; onSearch: () => void; mode: SearchMode; compact?: boolean; feedbackCategory?: FeedbackSearchCategory; onFeedbackCategoryChange?: (category: FeedbackSearchCategory) => void }) {
+  const feedbackMode = mode === 'feedback';
+  const [categoryOpen, setCategoryOpen] = useState(false);
+  const categoryOptions: Array<{ value: FeedbackSearchCategory; label: string }> = [
+    { value: 'policy', label: '政策建议' },
+    { value: 'rule', label: '规则建议' },
+    { value: 'issue', label: '问题整改' },
+  ];
+  const categoryLabel = categoryOptions.find((item) => item.value === feedbackCategory)?.label || '政策建议';
   return (
-    <div className={`hn-case-search-box ${compact ? 'is-compact' : ''}`}>
+    <div className={`hn-case-search-box ${compact ? 'is-compact' : ''} ${feedbackMode && !compact ? 'has-feedback-select' : ''}`}>
+      {feedbackMode && !compact ? <div className="hn-feedback-search-select" onBlur={(event) => { if (!event.currentTarget.contains(event.relatedTarget as Node | null)) setCategoryOpen(false); }}>
+        <button type="button" className="hn-feedback-search-trigger" aria-label="选择反哺建议类型" aria-haspopup="listbox" aria-expanded={categoryOpen} onClick={() => setCategoryOpen((open) => !open)}><span>{categoryLabel}</span><ChevronDown size={14} /></button>
+        {categoryOpen ? <div className="hn-feedback-search-menu" role="listbox" aria-label="反哺建议类型">{categoryOptions.map((item) => <button type="button" role="option" aria-selected={feedbackCategory === item.value} key={item.value} className={feedbackCategory === item.value ? 'is-active' : ''} onClick={() => { onFeedbackCategoryChange?.(item.value); setCategoryOpen(false); }}>{item.label}{feedbackCategory === item.value ? <CheckCircle2 size={14} /> : null}</button>)}</div> : null}
+      </div> : null}
       <Search size={compact ? 17 : 20} />
-      <input value={value} onChange={(event) => onChange(event.target.value)} onKeyDown={(event) => { if (event.key === 'Enter') onSearch(); }} placeholder="请输入案例编号、标题、涉及主体、标签，或描述需要查找的问题" aria-label="案例检索内容" />
+      <input value={value} onChange={(event) => onChange(event.target.value)} onKeyDown={(event) => { if (event.key === 'Enter') onSearch(); }} placeholder={feedbackMode ? '请输入建议标题、典型案例、政策、整改或规则关键词' : '请输入案例编号、标题、涉及主体、标签，或描述需要查找的问题'} aria-label={feedbackMode ? '反哺建议检索内容' : '案例检索内容'} />
       <button type="button" onClick={onSearch}>检索</button>
     </div>
   );
 }
 
-function SearchHome({ query, onQueryChange, onSearch, onNotice }: { query: string; onQueryChange: (value: string) => void; onSearch: () => void; onNotice: (message: string) => void }) {
-  const examples = ['非同级财政拨款如何确认收入', '专项债券资金支付与工程进度不匹配', '政府采购履约验收资料缺失', '事业单位资产处置收益未及时上缴'];
+function SearchHome({ query, onQueryChange, onSearch, onNotice, mode, feedbackCategory, onFeedbackCategoryChange }: { query: string; onQueryChange: (value: string) => void; onSearch: () => void; onNotice: (message: string) => void; mode: SearchMode; feedbackCategory: FeedbackSearchCategory; onFeedbackCategoryChange: (category: FeedbackSearchCategory) => void }) {
+  const feedbackMode = mode === 'feedback';
+  const examples = feedbackMode
+    ? feedbackCategory === 'policy'
+      ? ['完善财政拨款政策口径', '从典型案例提炼资产管理政策建议']
+      : feedbackCategory === 'rule'
+        ? ['政府采购付款前置校验规则', '设置资产处置收益上缴校验规则']
+        : ['专项债券项目如何形成整改闭环', '采购履约资料缺失如何整改']
+    : ['非同级财政拨款如何确认收入', '专项债券资金支付与工程进度不匹配', '政府采购履约验收资料缺失', '事业单位资产处置收益未及时上缴'];
+  const recentSearches = feedbackMode
+    ? ['财政拨款政策优化', '专项债券整改机制', '采购付款校验规则', '资产处置收益管理建议']
+    : ['转拨资金会计处理', 'GC202608015220', '采购合同履约验收资料', '事业单位资产处置收益'];
   const [helpOpen, setHelpOpen] = useState(false);
   return (
     <div className="case-workspace hn-search-home">
       <div className="hn-search-hero">
-        <div className="hn-search-heading"><strong>案例智能检索</strong></div>
-        <SearchBox value={query} onChange={onQueryChange} onSearch={onSearch} />
+        <div className="hn-search-heading"><strong>{feedbackMode ? '反哺建议检索' : '案例智能检索'}</strong></div>
+        <SearchBox value={query} onChange={onQueryChange} onSearch={onSearch} mode={mode} feedbackCategory={feedbackCategory} onFeedbackCategoryChange={onFeedbackCategoryChange} />
         <div className="hn-search-assist">
           <div className="hn-search-examples"><b><Sparkles size={13} />试试这样搜</b><div>{examples.map((item) => <button type="button" key={item} onClick={() => { onQueryChange(item); window.setTimeout(onSearch, 0); }}>{item}</button>)}</div></div>
-          <div className={`hn-search-help ${helpOpen ? 'is-open' : ''}`}><button type="button" aria-label="检索说明" title="检索说明" aria-expanded={helpOpen} onClick={() => setHelpOpen((value) => !value)}><Info size={15} /></button>{helpOpen ? <p><CircleAlert size={14} /><span>支持案例编号、标题、描述、涉及主体和标签等字段检索，也支持使用自然语言描述事项；结果来自已入库一般案例。</span></p> : null}</div>
+          <div className={`hn-search-help ${helpOpen ? 'is-open' : ''}`}><button type="button" aria-label="检索说明" title="检索说明" aria-expanded={helpOpen} onClick={() => setHelpOpen((value) => !value)}><Info size={15} /></button>{helpOpen ? <p><CircleAlert size={14} /><span>{feedbackMode ? '支持按建议标题、内容、类型、标签和来源典型案例检索；建议由典型案例智能提炼形成。' : '支持案例编号、标题、描述、涉及主体和标签等字段检索，也支持使用自然语言描述事项；结果来自已入库一般案例。'}</span></p> : null}</div>
         </div>
       </div>
       <div className="hn-search-home-grid">
-        <section><div className="hn-search-block-title"><History size={16} /><strong>最近检索</strong><button type="button" onClick={() => onNotice('已清空最近检索演示记录')}>清空</button></div><div className="hn-recent-searches">{['转拨资金会计处理', 'GC202608015220', '采购合同履约验收资料', '事业单位资产处置收益'].map((item) => <button type="button" key={item} onClick={() => { onQueryChange(item); window.setTimeout(onSearch, 0); }}><Search size={14} /><span>{item}</span><em>再次检索</em></button>)}</div></section>
-        <section><div className="hn-search-block-title"><SlidersHorizontal size={16} /><strong>可检索范围</strong><span>已入库案例</span></div><div className="hn-search-scope"><div><strong>12,680</strong><span>一般案例</span></div><div><strong>2021—2026</strong><span>发生时间范围</span></div><div><strong>5 类</strong><span>来源类型</span></div><p>覆盖日常监督形成、专项监督形成、上级下发、外部公开案例和其他来源。</p></div></section>
+        <section><div className="hn-search-block-title"><History size={16} /><strong>最近检索</strong><button type="button" onClick={() => onNotice('已清空最近检索演示记录')}>清空</button></div><div className="hn-recent-searches">{recentSearches.map((item) => <button type="button" key={item} onClick={() => { onQueryChange(item); window.setTimeout(onSearch, 0); }}><Search size={14} /><span>{item}</span><em>再次检索</em></button>)}</div></section>
+        <section><div className="hn-search-block-title"><SlidersHorizontal size={16} /><strong>可检索范围</strong><span>{feedbackMode ? '典型案例智能提炼' : '已入库案例'}</span></div>{feedbackMode ? <div className="hn-search-scope"><div><strong>326</strong><span>反哺建议</span></div><div><strong>184</strong><span>来源典型案例</span></div><div><strong>3 类</strong><span>反哺方向</span></div><p>基于典型案例智能提炼，覆盖政策优化、问题整改和规则设置三类反哺建议。</p></div> : <div className="hn-search-scope"><div><strong>12,680</strong><span>一般案例</span></div><div><strong>2021—2026</strong><span>发生时间范围</span></div><div><strong>5 类</strong><span>来源类型</span></div><p>覆盖日常监督形成、专项监督形成、上级下发、外部公开案例和其他来源。</p></div>}</section>
       </div>
     </div>
   );
@@ -459,8 +612,55 @@ function SearchFilters({ onNotice, onCollapse }: { onNotice: (message: string) =
   );
 }
 
+function FeedbackSuggestionFilters({ onNotice, onCollapse, category, onCategoryChange }: { onNotice: (message: string) => void; onCollapse: () => void; category: FeedbackSearchCategory; onCategoryChange: (category: FeedbackSearchCategory) => void }) {
+  const [scope, setScope] = useState('全部范围');
+  const [generatedYear, setGeneratedYear] = useState('全部时间');
+  const [status, setStatus] = useState('全部状态');
+  const [tags, setTags] = useState<string[]>([]);
+  const [moreOpen, setMoreOpen] = useState(false);
+  const [code, setCode] = useState('');
+  const [typicalCase, setTypicalCase] = useState('');
+  const [generatedBy, setGeneratedBy] = useState('');
+  const [openMulti, setOpenMulti] = useState<'tag' | null>(null);
+  const advancedCount = Number(Boolean(code.trim())) + Number(Boolean(typicalCase.trim())) + Number(Boolean(generatedBy.trim()));
+
+  const resetFilters = () => {
+    onCategoryChange('policy');
+    setScope('全部范围');
+    setGeneratedYear('全部时间');
+    setStatus('全部状态');
+    setTags([]);
+    setCode('');
+    setTypicalCase('');
+    setGeneratedBy('');
+    setMoreOpen(false);
+    setOpenMulti(null);
+    onNotice('筛选条件已重置');
+  };
+
+  return (
+    <aside className="hn-search-filters">
+      <div className="hn-filter-head"><strong>筛选条件</strong><div><button type="button" onClick={resetFilters}>重置</button><button type="button" className="hn-filter-collapse" aria-label="收起筛选条件" title="收起筛选条件" onClick={onCollapse}><ChevronLeft size={15} /></button></div></div>
+      <label><span>建议类型</span><span className="hn-select-control"><select value={category} onChange={(event) => onCategoryChange(event.target.value as FeedbackSearchCategory)}><option value="policy">政策</option><option value="rule">规则</option><option value="issue">问题整改</option></select><ChevronDown size={14} /></span></label>
+      <label><span>适用范围</span><span className="hn-select-control"><select value={scope} onChange={(event) => setScope(event.target.value)}><option>全部范围</option><option>财政资金核算</option><option>专项债券项目</option><option>政府采购管理</option><option>行政事业资产管理</option></select><ChevronDown size={14} /></span></label>
+      <label><span>提炼时间</span><span className="hn-select-control"><select value={generatedYear} onChange={(event) => setGeneratedYear(event.target.value)}><option>全部时间</option><option>2026年</option><option>2025年</option><option>2024年</option></select><ChevronDown size={14} /></span></label>
+      <label><span>采纳状态</span><span className="hn-select-control"><select value={status} onChange={(event) => setStatus(event.target.value)}><option>全部状态</option><option>待研判</option><option>已采纳</option><option>部分采纳</option></select><ChevronDown size={14} /></span></label>
+      <MetadataMultiSelect label="建议标签" value={tags} options={['政策口径', '财政拨款', '问题整改', '整改闭环', '专项债券', '规则设置', '前置校验', '政府采购', '资产管理']} open={openMulti === 'tag'} onToggle={() => setOpenMulti((current) => current === 'tag' ? null : 'tag')} onChange={setTags} />
+      <button type="button" className={`hn-more-filter-toggle ${moreOpen ? 'is-open' : ''}`} aria-expanded={moreOpen} onClick={() => { setMoreOpen((value) => !value); setOpenMulti(null); }}><span>更多筛选{advancedCount ? <em>{advancedCount}</em> : null}</span><ChevronDown size={14} /></button>
+      {moreOpen ? <div className="hn-advanced-filters">
+        <label><span>建议编号</span><input value={code} onChange={(event) => setCode(event.target.value)} placeholder="输入完整或部分建议编号" /></label>
+        <label><span>来源典型案例</span><input value={typicalCase} onChange={(event) => setTypicalCase(event.target.value)} placeholder="输入典型案例标题" /></label>
+        <label><span>提炼方式</span><input value={generatedBy} onChange={(event) => setGeneratedBy(event.target.value)} placeholder="输入提炼方式" /></label>
+      </div> : null}
+      <button type="button" className="ufsp-btn ufsp-btn-primary" onClick={() => onNotice('反哺建议已按当前条件筛选')}>应用筛选</button>
+      <div className="hn-filter-help"><CircleAlert size={14} /><span>检索范围为典型案例智能提炼形成的反哺建议。</span></div>
+    </aside>
+  );
+}
+
 function DeepAnalysisPanel({
   itemId,
+  mode,
   status,
   feedback,
   onRerun,
@@ -469,6 +669,7 @@ function DeepAnalysisPanel({
   onNotice,
 }: {
   itemId: string;
+  mode: SearchMode;
   status: AnalysisStatus;
   feedback: AnalysisFeedback;
   onRerun: () => void;
@@ -477,13 +678,16 @@ function DeepAnalysisPanel({
   onNotice: (message: string) => void;
 }) {
   const analysis = DEEP_ANALYSIS[itemId];
-  const negativeReasons = ['相似原因不准确', '共同问题有遗漏', '差异判断不合理', '参考建议不可用'];
+  const feedbackMode = mode === 'feedback';
+  const negativeReasons = feedbackMode
+    ? ['匹配原因不准确', '提炼依据有遗漏', '适用边界不合理', '建议不可执行']
+    : ['相似原因不准确', '共同问题有遗漏', '差异判断不合理', '参考建议不可用'];
   const canSubmit = feedback.vote === 'up' || (feedback.vote === 'down' && (feedback.reasons.length > 0 || feedback.note.trim().length > 0));
 
   if (status === 'loading') {
     return (
-      <section className="hn-inline-analysis is-loading" aria-live="polite" aria-label="深度分析生成中">
-        <div className="hn-analysis-loading-copy"><LoaderCircle size={17} /><div><strong>正在生成深度分析</strong><span>结合候选案例标准字段，对共同问题、关键差异和参考价值进行判断</span></div></div>
+      <section className="hn-inline-analysis is-loading" aria-live="polite" aria-label={feedbackMode ? '建议解读生成中' : '深度分析生成中'}>
+        <div className="hn-analysis-loading-copy"><LoaderCircle size={17} /><div><strong>{feedbackMode ? '正在生成建议解读' : '正在生成深度分析'}</strong><span>{feedbackMode ? '结合建议内容、提炼依据和来源典型案例，判断适用性与成熟度' : '结合候选案例标准字段，对共同问题、关键差异和参考价值进行判断'}</span></div></div>
         <div className="hn-analysis-skeleton" aria-hidden="true"><i /><i /><i /></div>
       </section>
     );
@@ -492,21 +696,21 @@ function DeepAnalysisPanel({
   return (
     <section className="hn-inline-analysis" aria-live="polite">
       <div className="hn-inline-analysis-head">
-        <div><Sparkles size={15} /><strong>AI 深度分析</strong><span>基于本次检索与案例信息生成</span></div>
-        <button type="button" onClick={onRerun}><RotateCcw size={13} />重新分析</button>
+        <div><Sparkles size={15} /><strong>{feedbackMode ? 'AI 建议解读' : 'AI 深度分析'}</strong><span>{feedbackMode ? '基于本次检索与反哺建议生成' : '基于本次检索与案例信息生成'}</span></div>
+        <button type="button" onClick={onRerun}><RotateCcw size={13} />{feedbackMode ? '重新解读' : '重新分析'}</button>
       </div>
       <div className="hn-analysis-dimensions">
-        <div><span>为什么相似</span><p>{analysis.similarity}</p></div>
-        <div><span>共同问题</span><ul>{analysis.commonIssues.map((issue) => <li key={issue}>{issue}</li>)}</ul></div>
-        <div><span>关键差异</span><ul>{analysis.differences.map((difference) => <li key={difference}>{difference}</li>)}</ul></div>
+        <div><span>{feedbackMode ? '为什么匹配' : '为什么相似'}</span><p>{analysis.similarity}</p></div>
+        <div><span>{feedbackMode ? '提炼共性' : '共同问题'}</span><ul>{analysis.commonIssues.map((issue) => <li key={issue}>{issue}</li>)}</ul></div>
+        <div><span>{feedbackMode ? '适用边界' : '关键差异'}</span><ul>{analysis.differences.map((difference) => <li key={difference}>{difference}</li>)}</ul></div>
       </div>
       <div className="hn-reference-verdict">
-        <div><span>是否值得参考</span><strong>{analysis.referenceLevel}</strong></div>
+        <div><span>{feedbackMode ? '建议成熟度' : '是否值得参考'}</span><strong>{analysis.referenceLevel}</strong></div>
         <p>{analysis.referenceAdvice}</p>
       </div>
       <div className="hn-analysis-citations"><span>分析依据</span>{analysis.citations.map((citation) => <button type="button" key={citation} onClick={() => onNotice(`已定位至${citation}`)}>{citation}</button>)}</div>
       <div className="hn-analysis-feedback">
-        <div className="hn-feedback-question"><span>这份分析有帮助吗？</span><div><button type="button" className={feedback.vote === 'up' ? 'is-active' : ''} aria-label="分析有帮助" aria-pressed={feedback.vote === 'up'} onClick={() => onFeedbackChange({ vote: 'up', reasons: [], submitted: false })}><ThumbsUp size={14} /></button><button type="button" className={feedback.vote === 'down' ? 'is-active' : ''} aria-label="分析没有帮助" aria-pressed={feedback.vote === 'down'} onClick={() => onFeedbackChange({ vote: 'down', submitted: false })}><ThumbsDown size={14} /></button></div></div>
+        <div className="hn-feedback-question"><span>{feedbackMode ? '这份建议解读有帮助吗？' : '这份分析有帮助吗？'}</span><div><button type="button" className={feedback.vote === 'up' ? 'is-active' : ''} aria-label={feedbackMode ? '建议解读有帮助' : '分析有帮助'} aria-pressed={feedback.vote === 'up'} onClick={() => onFeedbackChange({ vote: 'up', reasons: [], submitted: false })}><ThumbsUp size={14} /></button><button type="button" className={feedback.vote === 'down' ? 'is-active' : ''} aria-label={feedbackMode ? '建议解读没有帮助' : '分析没有帮助'} aria-pressed={feedback.vote === 'down'} onClick={() => onFeedbackChange({ vote: 'down', submitted: false })}><ThumbsDown size={14} /></button></div></div>
         {feedback.vote ? <div className="hn-feedback-form">
           {feedback.vote === 'down' ? <div className="hn-feedback-reasons">{negativeReasons.map((reason) => { const active = feedback.reasons.includes(reason); return <button type="button" key={reason} className={active ? 'is-active' : ''} aria-pressed={active} onClick={() => onFeedbackChange({ reasons: active ? feedback.reasons.filter((item) => item !== reason) : [...feedback.reasons, reason], submitted: false })}>{reason}</button>; })}</div> : null}
           <textarea value={feedback.note} maxLength={200} placeholder={feedback.vote === 'up' ? '可补充哪些内容对你最有帮助（选填）' : '请补充需要修正的内容（选填）'} onChange={(event) => onFeedbackChange({ note: event.target.value, submitted: false })} />
@@ -517,7 +721,8 @@ function DeepAnalysisPanel({
   );
 }
 
-function SearchResultsPage({ query, onQueryChange, onSearch, onOpenDetail, onBack, onNotice }: { query: string; onQueryChange: (value: string) => void; onSearch: () => void; onOpenDetail: (id: string) => void; onBack: () => void; onNotice: (message: string) => void }) {
+function SearchResultsPage({ query, onQueryChange, onSearch, onOpenDetail, onBack, onNotice, mode, feedbackCategory, onFeedbackCategoryChange }: { query: string; onQueryChange: (value: string) => void; onSearch: () => void; onOpenDetail: (id: string) => void; onBack: () => void; onNotice: (message: string) => void; mode: SearchMode; feedbackCategory: FeedbackSearchCategory; onFeedbackCategoryChange: (category: FeedbackSearchCategory) => void }) {
+  const feedbackMode = mode === 'feedback';
   const [sort, setSort] = useState('相关度优先');
   const [filtersOpen, setFiltersOpen] = useState(true);
   const [expandedAnalysisId, setExpandedAnalysisId] = useState<string | null>(null);
@@ -557,26 +762,55 @@ function SearchResultsPage({ query, onQueryChange, onSearch, onOpenDetail, onBac
     onSearch();
   };
 
+  const selectedFeedbackCategory: FeedbackSuggestionResult['category'] = feedbackCategory === 'policy'
+    ? '政策优化'
+    : feedbackCategory === 'rule'
+      ? '规则设置'
+      : '问题整改';
+  const filteredFeedbackResults = FEEDBACK_SUGGESTION_RESULTS.filter((item) => item.category === selectedFeedbackCategory);
+  const feedbackTotalMap: Record<FeedbackSearchCategory, number> = { policy: 102, rule: 96, issue: 128 };
+  const displayResults = feedbackMode
+    ? filteredFeedbackResults.map((item) => ({
+      id: item.id,
+      code: item.code,
+      title: item.title,
+      score: item.score,
+      tags: item.tags,
+      reason: item.reason,
+      hits: item.hits,
+      meta: [`建议编号：${item.code}`, `建议类型：${item.category}`, `适用范围：${item.scope}`, `提炼时间：${item.generatedAt}`, `采纳状态：${item.status}`, `来源典型案例：${item.typicalSources.length}个`],
+    }))
+    : SEARCH_RESULTS.map((item) => ({
+      id: item.id,
+      code: item.code,
+      title: item.title,
+      score: item.score,
+      tags: item.tags,
+      reason: item.reason,
+      hits: item.hits,
+      meta: [`案例编号：${item.code}`, `来源类型：${item.sourceType}`, `所属地区：${item.region}`, `发生时间：${item.occurrenceTime}`, `涉及主体：${item.subjects.join('；')}`],
+    }));
+
   return (
     <div className="case-workspace hn-search-results-page">
       <div className={`hn-search-results-layout ${filtersOpen ? '' : 'is-filter-collapsed'}`}>
-        {filtersOpen ? <SearchFilters onNotice={onNotice} onCollapse={() => setFiltersOpen(false)} /> : <button type="button" className="hn-filter-rail" aria-label="展开筛选条件" title="展开筛选条件" onClick={() => setFiltersOpen(true)}><SlidersHorizontal size={17} /><ChevronRight size={14} /></button>}
+        {filtersOpen ? feedbackMode ? <FeedbackSuggestionFilters onNotice={onNotice} onCollapse={() => setFiltersOpen(false)} category={feedbackCategory} onCategoryChange={onFeedbackCategoryChange} /> : <SearchFilters onNotice={onNotice} onCollapse={() => setFiltersOpen(false)} /> : <button type="button" className="hn-filter-rail" aria-label="展开筛选条件" title="展开筛选条件" onClick={() => setFiltersOpen(true)}><SlidersHorizontal size={17} /><ChevronRight size={14} /></button>}
         <section className="hn-search-result-main">
-          <div className="hn-result-command"><button type="button" className="ufsp-form-back" onClick={onBack} aria-label="返回检索首页" title="返回检索首页"><ArrowLeft size={16} /></button><SearchBox compact value={query} onChange={onQueryChange} onSearch={rerunSearch} /><div className="hn-result-tools"><span className="hn-result-count"><strong>36</strong><span>条相关案例</span></span><i aria-hidden="true" /><label><span className="hn-select-control"><select aria-label="结果排序" value={sort} onChange={(event) => setSort(event.target.value)}><option>相关度优先</option><option>发生时间最新</option><option>发生时间最早</option></select><ChevronDown size={14} /></span></label></div></div>
+          <div className="hn-result-command"><button type="button" className="ufsp-form-back" onClick={onBack} aria-label="返回检索首页" title="返回检索首页"><ArrowLeft size={16} /></button><SearchBox compact value={query} onChange={onQueryChange} onSearch={rerunSearch} mode={mode} /><div className="hn-result-tools"><span className="hn-result-count"><strong>{feedbackMode ? feedbackTotalMap[feedbackCategory] : '36'}</strong><span>{feedbackMode ? '条反哺建议' : '条相关案例'}</span></span><i aria-hidden="true" /><label><span className="hn-select-control"><select aria-label="结果排序" value={sort} onChange={(event) => setSort(event.target.value)}><option>相关度优先</option><option>{feedbackMode ? '提炼时间最新' : '发生时间最新'}</option><option>{feedbackMode ? '提炼时间最早' : '发生时间最早'}</option></select><ChevronDown size={14} /></span></label></div></div>
           <div className="hn-result-ledger">
-          <div className="hn-search-result-list">{SEARCH_RESULTS.map((item, index) => {
+          <div className="hn-search-result-list">{displayResults.map((item, index) => {
             const analysisStatus = analysisStatusById[item.id];
             const analysisExpanded = expandedAnalysisId === item.id;
             const feedback = feedbackById[item.id] || { reasons: [], note: '', submitted: false };
             return <article key={item.id} className={analysisExpanded ? 'is-analysis-expanded' : ''}>
               <div className="hn-result-rank"><strong>{index + 1}</strong><span>{item.score}%</span><em>相关度</em></div>
               <div className="hn-result-content">
-                <div className="hn-result-title-row"><button type="button" className="hn-result-title" onClick={() => onOpenDetail(item.id)}>{item.title}</button><div className="hn-result-actions"><button type="button" className={`hn-deep-analysis-trigger ${analysisExpanded ? 'is-active' : ''}`} disabled={analysisExpanded && analysisStatus === 'loading'} onClick={() => toggleDeepAnalysis(item.id)}>{analysisExpanded && analysisStatus === 'loading' ? <LoaderCircle size={13} /> : <Sparkles size={13} />}{analysisExpanded && analysisStatus === 'loading' ? '分析中' : analysisStatus === 'complete' ? analysisExpanded ? '收起分析' : '查看分析' : '深度分析'}</button><button type="button" className="hn-result-detail" onClick={() => onOpenDetail(item.id)}>查看详情</button></div></div>
-                <div className="hn-result-meta"><span>案例编号：{item.code}</span><span>来源类型：{item.sourceType}</span><span>所属地区：{item.region}</span><span>发生时间：{item.occurrenceTime}</span><span>涉及主体：{item.subjects.join('；')}</span></div>
+                <div className="hn-result-title-row"><button type="button" className="hn-result-title" onClick={() => onOpenDetail(item.id)}>{item.title}</button><div className="hn-result-actions"><button type="button" className={`hn-deep-analysis-trigger ${analysisExpanded ? 'is-active' : ''}`} disabled={analysisExpanded && analysisStatus === 'loading'} onClick={() => toggleDeepAnalysis(item.id)}>{analysisExpanded && analysisStatus === 'loading' ? <LoaderCircle size={13} /> : <Sparkles size={13} />}{analysisExpanded && analysisStatus === 'loading' ? (feedbackMode ? '解读中' : '分析中') : analysisStatus === 'complete' ? analysisExpanded ? (feedbackMode ? '收起解读' : '收起分析') : (feedbackMode ? '查看解读' : '查看分析') : (feedbackMode ? '建议解读' : '深度分析')}</button><button type="button" className="hn-result-detail" onClick={() => onOpenDetail(item.id)}>查看详情</button></div></div>
+                <div className="hn-result-meta">{item.meta.map((meta) => <span key={meta}>{meta}</span>)}</div>
                 <div className="hn-result-tags">{item.tags.map((tag) => <span key={tag}>{tag}</span>)}</div>
                 <p><b>{item.hits[0].field}命中：</b>{item.hits[0].text}</p>
                 <div className="hn-match-reasons"><b>检索依据</b>{item.reason.map((reason) => <span key={reason}><CheckCircle2 size={12} />{reason}</span>)}</div>
-                {analysisExpanded && analysisStatus ? <DeepAnalysisPanel itemId={item.id} status={analysisStatus} feedback={feedback} onRerun={() => runDeepAnalysis(item.id)} onFeedbackChange={(patch) => updateFeedback(item.id, patch)} onSubmit={() => { updateFeedback(item.id, { submitted: true }); onNotice('深度分析反馈已提交'); }} onNotice={onNotice} /> : null}
+                {analysisExpanded && analysisStatus ? <DeepAnalysisPanel itemId={item.id} mode={mode} status={analysisStatus} feedback={feedback} onRerun={() => runDeepAnalysis(item.id)} onFeedbackChange={(patch) => updateFeedback(item.id, patch)} onSubmit={() => { updateFeedback(item.id, { submitted: true }); onNotice(feedbackMode ? '建议解读反馈已提交' : '深度分析反馈已提交'); }} onNotice={onNotice} /> : null}
               </div>
             </article>;
           })}</div>
@@ -587,7 +821,47 @@ function SearchResultsPage({ query, onQueryChange, onSearch, onOpenDetail, onBac
   );
 }
 
-function SearchDetailPage({ id, query, onBack, onNotice, onOpenDetail }: { id?: string; query: string; onBack: () => void; onNotice: (message: string) => void; onOpenDetail: (id: string) => void }) {
+function FeedbackSuggestionDetailPage({ id, query, onBack, onOpenDetail }: { id?: string; query: string; onBack: () => void; onOpenDetail: (id: string) => void }) {
+  const item = FEEDBACK_SUGGESTION_RESULTS.find((row) => row.id === id) || FEEDBACK_SUGGESTION_RESULTS[0];
+  const [section, setSection] = useState<'match' | 'detail' | 'source'>('match');
+  return (
+    <div className="case-workspace hn-search-detail-page">
+      <OperationHead title="反哺建议详情" subtitle="" onBack={onBack} actions={null} />
+      <div className="hn-operation-body hn-search-detail-body">
+        <section className="hn-search-detail-summary"><div className="hn-detail-score"><strong>{item.score}%</strong><span>检索相关度</span></div><div className="hn-detail-main-info"><h2>{item.title}</h2><p><span>{item.code}</span><span>{item.category}</span><span>{item.scope}</span><span>{item.generatedAt}</span><span>{item.status}</span></p></div><div className="hn-detail-query"><span>本次检索</span><strong>{query || '完善财政拨款政策口径'}</strong></div></section>
+        <div className="hn-search-detail-layout">
+          <aside className="hn-document-outline"><strong>内容定位</strong><button type="button" className={section === 'match' ? 'is-active' : ''} onClick={() => setSection('match')}><Search size={14} /><span>命中内容</span><em>{item.hits.length}</em></button><button type="button" className={section === 'detail' ? 'is-active' : ''} onClick={() => setSection('detail')}><FileText size={14} /><span>建议详情</span></button><button type="button" className={section === 'source' ? 'is-active' : ''} onClick={() => setSection('source')}><PaperclipIcon /><span>提炼依据</span><em>{item.typicalSources.length}</em></button></aside>
+          <main className="hn-search-document-view">
+            {section === 'match' ? <div className="hn-hit-passages">{item.hits.map((hit) => <button type="button" key={hit.field} onClick={() => setSection('detail')}><b>{hit.field}命中</b><p>{hit.text}</p></button>)}</div> : section === 'detail' ? <div className="hn-standard-case-detail">
+              <section><h3>建议信息</h3><div className="hn-case-info-grid">{[
+                ['建议编号', item.code],
+                ['建议类型', item.category],
+                ['采纳状态', item.status],
+                ['适用范围', item.scope],
+                ['提炼时间', item.generatedAt],
+                ['提炼方式', item.generatedBy],
+                ['来源典型案例', `${item.typicalSources.length}个`],
+              ].map(([label, value]) => <div key={label}><span>{label}</span><strong>{value}</strong></div>)}</div></section>
+              <section><h3>反哺建议</h3><div className="hn-case-copy"><span>建议概述</span><p>{item.summary}</p></div><div className="hn-case-copy"><span>建议内容</span><p>{item.content}</p></div><div className="hn-case-copy"><span>预期效果</span><p>{item.expectedEffect}</p></div><div className="hn-case-copy"><span>适用条件</span><p>{item.applicableConditions}</p></div></section>
+              <section><h3>建议标签</h3><div className="hn-case-tags">{item.tags.map((tag) => <span key={tag}>{tag}</span>)}</div></section>
+            </div> : <div className="hn-standard-source-detail">
+              <section><h3>智能提炼依据</h3><div className="hn-case-copy"><span>共性特征</span><p>{item.evidence.join('；')}</p></div></section>
+              <section><h3>来源典型案例</h3><div className="hn-typical-links"><div className="hn-typical-links-head"><span>典型案例标题</span><span>案例类型</span><span>发布时间</span></div>{item.typicalSources.map((row) => <div key={row.title}><strong>{row.title}</strong><span>{row.type}</span><span>{row.publishedAt}</span></div>)}</div></section>
+            </div>}
+          </main>
+          <aside className="hn-detail-side-info"><section><div className="hn-section-caption"><div><Sparkles size={15} /><strong>匹配原因</strong></div></div><div className="hn-side-reasons">{item.reason.map((reason) => <span key={reason}><CheckCircle2 size={13} />{reason}</span>)}</div></section><section><div className="hn-section-caption"><div><Link2 size={15} /><strong>继续查看相似建议</strong></div></div><div className="hn-side-similar">{FEEDBACK_SUGGESTION_RESULTS.filter((row) => row.id !== item.id).map((row) => <button type="button" key={row.id} onClick={() => onOpenDetail(row.id)}><strong>{row.title}</strong><span>{row.code} · {row.score}%</span></button>)}</div></section></aside>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function SearchDetailPage(props: { id?: string; query: string; onBack: () => void; onNotice: (message: string) => void; onOpenDetail: (id: string) => void; mode: SearchMode }) {
+  if (props.mode === 'feedback') return <FeedbackSuggestionDetailPage id={props.id} query={props.query} onBack={props.onBack} onOpenDetail={props.onOpenDetail} />;
+  return <CaseSearchDetailPage id={props.id} query={props.query} onBack={props.onBack} onNotice={props.onNotice} onOpenDetail={props.onOpenDetail} />;
+}
+
+function CaseSearchDetailPage({ id, query, onBack, onNotice, onOpenDetail }: { id?: string; query: string; onBack: () => void; onNotice: (message: string) => void; onOpenDetail: (id: string) => void }) {
   const item = SEARCH_RESULTS.find((row) => row.id === id) || SEARCH_RESULTS[0];
   const [section, setSection] = useState<'match' | 'detail' | 'source'>('match');
   const sourceMaterialCount = item.attachments.length + (item.sourceUrl ? 1 : 0);
@@ -946,14 +1220,19 @@ const Component = forwardRef<AxureHandle, AxureProps>(function Component(props, 
   const emitEvent = createEventEmitter(props.onEvent);
   const title = getConfigValue<string>(config, 'title', '财会监督系统');
   const topicName = getConfigValue<string>(config, 'topic_name', '甘肃案例库');
+  const isFeedbackSuggestionSearch = window.location.pathname.includes('/gansu-feedback-suggestion-search');
+  const searchMode: SearchMode = isFeedbackSuggestionSearch ? 'feedback' : 'case';
   const [featureKey] = useState<FeatureKey>('search');
   const [panel, setPanel] = useState<PanelState>(null);
   const [operation, setOperation] = useState<OperationState>(null);
   const [searchView, setSearchView] = useState<'home' | 'results' | 'detail'>('home');
   const [searchQuery, setSearchQuery] = useState('');
-  const [searchResultId, setSearchResultId] = useState('S01');
+  const [searchResultId, setSearchResultId] = useState(isFeedbackSuggestionSearch ? 'F01' : 'S01');
+  const [feedbackCategory, setFeedbackCategory] = useState<FeedbackSearchCategory>('policy');
   const [notice, setNotice] = useState('');
-  const activeFeature = { key: 'case_search', name: '案例检索' } as const;
+  const activeFeature = isFeedbackSuggestionSearch
+    ? { key: 'feedback_suggestion_search', name: '反哺建议检索' } as const
+    : { key: 'case_search', name: '案例智能检索' } as const;
 
   const showNotice = (message: string) => {
     setNotice(message);
@@ -985,12 +1264,12 @@ const Component = forwardRef<AxureHandle, AxureProps>(function Component(props, 
       <main className="case-layout">
         <div className="case-frame">
           <CaseLibraryFeatureMenu
-            activeKey="case_search"
+            activeKey={activeFeature.key}
             topicName={topicName}
             onNavigate={onNavigate}
           />
           <section className="case-content">
-            {featureKey === 'search' ? searchView === 'home' ? <SearchHome query={searchQuery} onQueryChange={setSearchQuery} onSearch={() => setSearchView('results')} onNotice={showNotice} /> : searchView === 'results' ? <SearchResultsPage query={searchQuery} onQueryChange={setSearchQuery} onSearch={() => setSearchView('results')} onBack={() => setSearchView('home')} onOpenDetail={(id) => { setSearchResultId(id); setSearchView('detail'); }} onNotice={showNotice} /> : <SearchDetailPage id={searchResultId} query={searchQuery} onBack={() => setSearchView('results')} onOpenDetail={(id) => setSearchResultId(id)} onNotice={showNotice} /> : operation?.kind === 'entry-confirm' ? <EntryConfirmPage id={operation.id} onBack={() => setOperation(null)} onNotice={showNotice} /> : operation?.kind === 'archive-detail' ? <ArchiveDetailPage id={operation.id} onBack={() => setOperation(null)} onNotice={showNotice} /> : operation?.kind === 'analysis-detail' ? <AnalysisDetailPage id={operation.id} onBack={() => setOperation(null)} onNotice={showNotice} /> : featureKey === 'entry' ? <EntryPage onPanel={setPanel} onOperation={setOperation} onNotice={showNotice} /> : featureKey === 'archive' ? <ArchivePage onOperation={setOperation} onNotice={showNotice} /> : featureKey === 'analysis' ? <AnalysisPage onOperation={setOperation} onNotice={showNotice} /> : <TypicalPage onPanel={setPanel} onNotice={showNotice} />}
+            {featureKey === 'search' ? searchView === 'home' ? <SearchHome query={searchQuery} onQueryChange={setSearchQuery} onSearch={() => setSearchView('results')} onNotice={showNotice} mode={searchMode} feedbackCategory={feedbackCategory} onFeedbackCategoryChange={setFeedbackCategory} /> : searchView === 'results' ? <SearchResultsPage query={searchQuery} onQueryChange={setSearchQuery} onSearch={() => setSearchView('results')} onBack={() => setSearchView('home')} onOpenDetail={(id) => { setSearchResultId(id); setSearchView('detail'); }} onNotice={showNotice} mode={searchMode} feedbackCategory={feedbackCategory} onFeedbackCategoryChange={setFeedbackCategory} /> : <SearchDetailPage id={searchResultId} query={searchQuery} onBack={() => setSearchView('results')} onOpenDetail={(id) => setSearchResultId(id)} onNotice={showNotice} mode={searchMode} /> : operation?.kind === 'entry-confirm' ? <EntryConfirmPage id={operation.id} onBack={() => setOperation(null)} onNotice={showNotice} /> : operation?.kind === 'archive-detail' ? <ArchiveDetailPage id={operation.id} onBack={() => setOperation(null)} onNotice={showNotice} /> : operation?.kind === 'analysis-detail' ? <AnalysisDetailPage id={operation.id} onBack={() => setOperation(null)} onNotice={showNotice} /> : featureKey === 'entry' ? <EntryPage onPanel={setPanel} onOperation={setOperation} onNotice={showNotice} /> : featureKey === 'archive' ? <ArchivePage onOperation={setOperation} onNotice={showNotice} /> : featureKey === 'analysis' ? <AnalysisPage onOperation={setOperation} onNotice={showNotice} /> : <TypicalPage onPanel={setPanel} onNotice={showNotice} />}
           </section>
         </div>
       </main>

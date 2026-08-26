@@ -1,6 +1,6 @@
 {
   "version": 1,
-  "updatedAt": "2026-08-25T01:10:02.274Z",
+  "updatedAt": "2026-08-25T08:43:49.102Z",
   "prototypes": [
     {
       "id": "folder-1786081161976-1jrynr",
@@ -134,8 +134,14 @@
             {
               "id": "item-prototypes-gansu-case-search",
               "kind": "item",
-              "title": "案例检索",
+              "title": "案例智能检索",
               "itemKey": "prototypes/gansu-case-search"
+            },
+            {
+              "id": "item-prototypes-gansu-feedback-suggestion-search",
+              "kind": "item",
+              "title": "反哺建议检索",
+              "itemKey": "prototypes/gansu-feedback-suggestion-search"
             },
             {
               "id": "item-prototypes-typical-case-application",
@@ -218,6 +224,12 @@
     }
   ],
   "components": [
+    {
+      "id": "item-components-case-library-feature-menu",
+      "kind": "item",
+      "title": "case library feature menu",
+      "itemKey": "components/case-library-feature-menu"
+    },
     {
       "id": "item-components-ref-line-chart",
       "kind": "item",
