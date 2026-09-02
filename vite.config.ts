@@ -16,6 +16,7 @@ import { dataManagementApiPlugin } from './vite-plugins/dataManagementApiPlugin'
 import { docsApiPlugin } from './vite-plugins/docsApiPlugin';
 import { docsImportApiPlugin } from './vite-plugins/docsImportApiPlugin';
 import { downloadDistPlugin } from './vite-plugins/downloadDistPlugin';
+import { difyWorkflowProxyPlugin } from './vite-plugins/difyWorkflowProxyPlugin';
 import { exportImageProxyPlugin } from './vite-plugins/exportImageProxyPlugin';
 import { fileSystemApiPlugin } from './vite-plugins/fileSystemApiPlugin';
 import { forceInlineDynamicImportsOff } from './vite-plugins/forceInlineDynamicImportsOff';
@@ -80,6 +81,7 @@ const config: any = {
     serveAdminPlugin(), // 服务 admin 目录（需要在最前面）
     axureBridgeProxyPlugin(), // 提供 /api/axure-bridge/* 端点
     exportImageProxyPlugin(), // 提供 /api/export/image-proxy 端点
+    difyWorkflowProxyPlugin(), // 提供湖南案例库真实检索代理，避免 Dify Key 暴露到浏览器
     injectStablePageIds(), // 注入稳定 ID（所有模式都启用）
     virtualHtmlPlugin(),
     websocketPlugin(),

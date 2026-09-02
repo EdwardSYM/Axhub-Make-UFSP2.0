@@ -1,6 +1,6 @@
 {
   "version": 1,
-  "updatedAt": "2026-08-25T08:43:49.102Z",
+  "updatedAt": "2026-09-01T08:00:12.505Z",
   "prototypes": [
     {
       "id": "folder-1786081161976-1jrynr",
@@ -238,6 +238,24 @@
     }
   ],
   "docs": [
+    {
+      "id": "item-docs-------------------md",
+      "kind": "item",
+      "title": "案例知识底座与智能应用标准产品方案.md",
+      "itemKey": "docs/案例知识底座与智能应用标准产品方案.md"
+    },
+    {
+      "id": "item-docs---------MVP-----md",
+      "kind": "item",
+      "title": "湖南案例知识治理MVP落地方案.md",
+      "itemKey": "docs/湖南案例知识治理MVP落地方案.md"
+    },
+    {
+      "id": "item-docs---------------------md",
+      "kind": "item",
+      "title": "通用知识入库治理与智能检索整体流程说明.md",
+      "itemKey": "docs/通用知识入库治理与智能检索整体流程说明.md"
+    },
     {
       "id": "item-docs--------------Prompt-----md",
       "kind": "item",

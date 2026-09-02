@@ -17,11 +17,9 @@ import actionPassIconSvg from '../problem-library-function-list/icons/pass.svg?r
 import actionRefreshIconSvg from '../problem-library-function-list/icons/action-refresh.svg?raw';
 import actionSettingsIconSvg from '../problem-library-function-list/icons/action-settings.svg?raw';
 import searchIconSvg from '../problem-library-function-list/icons/search.svg?raw';
-import React, { forwardRef, useImperativeHandle, useMemo, useState } from 'react';
+import React, { forwardRef, useEffect, useImperativeHandle, useMemo, useRef, useState } from 'react';
 import {
   ArrowLeft,
-  Archive,
-  BookOpenCheck,
   CheckCircle2,
   ChevronDown,
   ChevronLeft,
@@ -32,7 +30,6 @@ import {
   Download,
   Eye,
   ExternalLink,
-  FileCheck2,
   FileSearch,
   FileText,
   Files,
@@ -54,67 +51,33 @@ import {
 import TopBar from '../../common/components/TopBar';
 import type { AxureHandle, AxureProps, ConfigItem, EventItem, KeyDesc } from '../../common/axure-types';
 import { createEventEmitter, getConfigValue } from '../../common/axure-types';
+import {
+  EMPTY_FILTER_OPTIONS,
+  getCaseSearchFilterOptions,
+  searchCases,
+  type CaseSearchFilterOptions,
+  type CaseSearchFilters,
+  type CaseSearchItem,
+} from './searchApi';
+import {
+  CaseIngestionManagement,
+  MetadataManagement,
+  SmartTagManagement,
+} from './ManagementPages';
 
-type FeatureKey = 'search' | 'entry' | 'archive' | 'analysis' | 'typical';
+type FeatureKey = 'entry' | 'metadata' | 'tags' | 'search' | 'archive' | 'analysis' | 'typical';
 type Feature = { key: FeatureKey; name: string; desc: string; Icon: LucideIcon };
 type PanelState = null | { title: string; kind: 'entry' | 'archive' | 'typical'; id?: string };
 type OperationState = null | { kind: 'entry-confirm' | 'archive-detail' | 'analysis-detail'; id?: string };
 type AnalysisStatus = 'loading' | 'complete';
 type AnalysisFeedback = { vote?: 'up' | 'down'; reasons: string[]; note: string; submitted: boolean };
+type SearchStatus = 'idle' | 'loading' | 'success' | 'error';
 
 const FEATURES: Feature[] = [
-  { key: 'search', name: '案例检索', desc: '关键词、自然语言和相似案例检索', Icon: Search },
-  { key: 'entry', name: '案例入库管理', desc: '文书导入、质量确认和信息补充', Icon: FileCheck2 },
-  { key: 'archive', name: '案例档案', desc: '造册归档、检索和原文预览', Icon: Archive },
-  { key: 'analysis', name: '案例智能分析', desc: '聚类、整改措施和问题画像', Icon: Sparkles },
-  { key: 'typical', name: '典型案例管理', desc: '候选确认、维护和发布', Icon: BookOpenCheck },
-];
-
-const SEARCH_RESULTS = [
-  {
-    id: 'S01',
-    code: '湘财监整〔2025〕42号',
-    title: '关于专项债券项目资金支付进度异常问题的整改通知书',
-    type: '整改通知书',
-    date: '2025-11-18',
-    unit: '岳阳市某园区建设单位',
-    score: 96,
-    reason: ['问题描述语义高度相似', '命中“资金支付进度”', '同属专项债券项目'],
-    excerpt: '检查发现，项目资金支付进度明显快于实际建设进度，部分资金支付缺少与工程进度相匹配的验收资料，存在超进度支付风险。',
-  },
-  {
-    id: 'S02',
-    code: '湘财监报〔2024〕16号',
-    title: '专项债券资金使用管理监督检查报告',
-    type: '检查报告',
-    date: '2024-09-26',
-    unit: '株洲市某项目建设单位',
-    score: 91,
-    reason: ['命中专项债券专有名词', '问题事实表达相近', '相关单位类型相似'],
-    excerpt: '部分项目存在建设进度滞后、债券资金支出比例偏高的问题，资金拨付依据和工程计量资料未能形成完整对应关系。',
-  },
-  {
-    id: 'S03',
-    code: '湘财监处〔2023〕28号',
-    title: '关于项目建设进度滞后及资金闲置问题的处理决定',
-    type: '处理决定书',
-    date: '2023-12-08',
-    unit: '常德市某基础设施项目单位',
-    score: 86,
-    reason: ['建设进度与资金使用关系相似', '命中“项目建设进度”'],
-    excerpt: '项目建设未达到计划进度，已拨付专项资金未及时形成实物工作量，部分资金长期滞留项目账户。',
-  },
-  {
-    id: 'S04',
-    code: '湘财监整〔2022〕63号',
-    title: '关于政府投资项目工程款支付审核不严问题的整改通知书',
-    type: '整改通知书',
-    date: '2022-08-15',
-    unit: '衡阳市某项目管理中心',
-    score: 78,
-    reason: ['同属工程款支付管理', '支付依据问题相近'],
-    excerpt: '工程款支付审核主要依据施工单位申请，未充分核验监理确认的工程进度和合同约定，支付审核控制存在薄弱环节。',
-  },
+  { key: 'entry', name: '案例入库管理', desc: '接收 OA 文书和用户上传文件，跟踪入库进度', Icon: Files },
+  { key: 'metadata', name: '元数据管理', desc: '维护字段定义、值域方式和抽取规则', Icon: SlidersHorizontal },
+  { key: 'tags', name: '智能标签管理', desc: '维护正式标签、候选标签、别名和版本', Icon: Tag },
+  { key: 'search', name: '案例智能检索', desc: '关键词、自然语言和相似案例检索', Icon: Search },
 ];
 
 const DEEP_ANALYSIS: Record<string, {
@@ -207,6 +170,7 @@ const CONFIG_LIST: ConfigItem[] = [
 function initialFeature(): FeatureKey {
   if (typeof window === 'undefined') return 'search';
   const value = new URLSearchParams(window.location.search).get('feature');
+  if (value === 'governance' || value === 'quality') return 'entry';
   return FEATURES.some((item) => item.key === value) ? (value as FeatureKey) : 'search';
 }
 
@@ -278,17 +242,17 @@ function Catalog({ mode }: { mode: 'entry' | 'archive' }) {
   );
 }
 
-function SearchBox({ value, onChange, onSearch, compact = false }: { value: string; onChange: (value: string) => void; onSearch: () => void; compact?: boolean }) {
+function SearchBox({ value, onChange, onSearch, compact = false, loading = false }: { value: string; onChange: (value: string) => void; onSearch: () => void; compact?: boolean; loading?: boolean }) {
   return (
     <div className={`hn-case-search-box ${compact ? 'is-compact' : ''}`}>
       <Search size={compact ? 17 : 20} />
       <input value={value} onChange={(event) => onChange(event.target.value)} onKeyDown={(event) => { if (event.key === 'Enter') onSearch(); }} placeholder="请输入文号、标题、单位名称，或描述需要查找的问题" aria-label="案例检索内容" />
-      <button type="button" onClick={onSearch}>检索</button>
+      <button type="button" disabled={loading} onClick={() => onSearch()}>{loading ? '检索中' : '检索'}</button>
     </div>
   );
 }
 
-function SearchHome({ query, onQueryChange, onSearch, onNotice }: { query: string; onQueryChange: (value: string) => void; onSearch: () => void; onNotice: (message: string) => void }) {
+function SearchHome({ query, onQueryChange, onSearch, onNotice }: { query: string; onQueryChange: (value: string) => void; onSearch: (queryOverride?: string) => void; onNotice: (message: string) => void }) {
   const examples = ['专项债券资金支付进度与建设进度不匹配', '政府采购履约验收资料缺失', '财政暂付款长期挂账', '惠民补贴重复发放'];
   const [helpOpen, setHelpOpen] = useState(false);
   return (
@@ -297,12 +261,12 @@ function SearchHome({ query, onQueryChange, onSearch, onNotice }: { query: strin
         <div className="hn-search-heading"><strong>案例智能检索</strong></div>
         <SearchBox value={query} onChange={onQueryChange} onSearch={onSearch} />
         <div className="hn-search-assist">
-          <div className="hn-search-examples"><b><Sparkles size={13} />试试这样搜</b><div>{examples.map((item) => <button type="button" key={item} onClick={() => { onQueryChange(item); window.setTimeout(onSearch, 0); }}>{item}</button>)}</div></div>
+          <div className="hn-search-examples"><b><Sparkles size={13} />试试这样搜</b><div>{examples.map((item) => <button type="button" key={item} onClick={() => { onQueryChange(item); onSearch(item); }}>{item}</button>)}</div></div>
           <div className={`hn-search-help ${helpOpen ? 'is-open' : ''}`}><button type="button" aria-label="检索说明" title="检索说明" aria-expanded={helpOpen} onClick={() => setHelpOpen((value) => !value)}><Info size={15} /></button>{helpOpen ? <p><CircleAlert size={14} /><span>支持文号、专有名词等精确检索，也支持使用自然语言描述事项；结果直接来自已入库历史文书。</span></p> : null}</div>
         </div>
       </div>
       <div className="hn-search-home-grid">
-        <section><div className="hn-search-block-title"><History size={16} /><strong>最近检索</strong><button type="button" onClick={() => onNotice('已清空最近检索演示记录')}>清空</button></div><div className="hn-recent-searches">{['专项债券资金支付进度异常', '湘财监整〔2025〕42号', '采购合同履约验收资料', '暂付款长期挂账整改'].map((item) => <button type="button" key={item} onClick={() => { onQueryChange(item); window.setTimeout(onSearch, 0); }}><Search size={14} /><span>{item}</span><em>再次检索</em></button>)}</div></section>
+        <section><div className="hn-search-block-title"><History size={16} /><strong>最近检索</strong><button type="button" onClick={() => onNotice('已清空最近检索演示记录')}>清空</button></div><div className="hn-recent-searches">{['专项债券资金支付进度异常', '湘财监整〔2025〕42号', '采购合同履约验收资料', '暂付款长期挂账整改'].map((item) => <button type="button" key={item} onClick={() => { onQueryChange(item); onSearch(item); }}><Search size={14} /><span>{item}</span><em>再次检索</em></button>)}</div></section>
         <section><div className="hn-search-block-title"><SlidersHorizontal size={16} /><strong>可检索范围</strong><span>当前知识库</span></div><div className="hn-search-scope"><div><strong>12,680</strong><span>历史监督文书</span></div><div><strong>2021—2026</strong><span>文书年度范围</span></div><div><strong>4 类</strong><span>主要文书类型</span></div><p>整改通知书、检查报告、行政处罚决定书及其他监督执法文书。</p></div></section>
       </div>
     </div>
@@ -326,25 +290,32 @@ function MetadataMultiSelect({ label, value, options, open, onToggle, onChange }
   );
 }
 
-function SearchFilters({ onNotice, onCollapse }: { onNotice: (message: string) => void; onCollapse: () => void }) {
-  const [year, setYear] = useState('全部年度');
-  const [documentType, setDocumentType] = useState('全部类型');
-  const [supervisionDomain, setSupervisionDomain] = useState('全部领域');
-  const [violationTypes, setViolationTypes] = useState<string[]>([]);
-  const [documentNo, setDocumentNo] = useState('');
-  const [relatedUnit, setRelatedUnit] = useState('');
+function SearchFilters({ value, options, optionsStatus, onApply, onNotice, onCollapse }: {
+  value: CaseSearchFilters;
+  options: CaseSearchFilterOptions;
+  optionsStatus: 'loading' | 'success' | 'error';
+  onApply: (filters: CaseSearchFilters) => void;
+  onNotice: (message: string) => void;
+  onCollapse: () => void;
+}) {
+  const [year, setYear] = useState(value.year || '');
+  const [documentType, setDocumentType] = useState(value.documentType || '');
+  const [supervisionDomain, setSupervisionDomain] = useState(value.supervisionDomain || '');
+  const [violationTypes, setViolationTypes] = useState<string[]>(value.violationTypes || []);
+  const [documentNo, setDocumentNo] = useState(value.documentNo || '');
+  const [relatedUnit, setRelatedUnit] = useState(value.relatedUnit || '');
   const [moreOpen, setMoreOpen] = useState(false);
-  const [issueDateStart, setIssueDateStart] = useState('');
-  const [issueDateEnd, setIssueDateEnd] = useState('');
-  const [handlingMethods, setHandlingMethods] = useState<string[]>([]);
-  const [policyBasis, setPolicyBasis] = useState('');
+  const [issueDateStart, setIssueDateStart] = useState(value.issueDateStart || '');
+  const [issueDateEnd, setIssueDateEnd] = useState(value.issueDateEnd || '');
+  const [handlingMethods, setHandlingMethods] = useState<string[]>(value.handlingMethods || []);
+  const [policyBasis, setPolicyBasis] = useState(value.policyBasis || '');
   const [openMulti, setOpenMulti] = useState<'violation' | 'handling' | null>(null);
   const advancedCount = Number(Boolean(issueDateStart || issueDateEnd)) + Number(handlingMethods.length > 0) + Number(Boolean(policyBasis.trim()));
 
   const resetFilters = () => {
-    setYear('全部年度');
-    setDocumentType('全部类型');
-    setSupervisionDomain('全部领域');
+    setYear('');
+    setDocumentType('');
+    setSupervisionDomain('');
     setViolationTypes([]);
     setDocumentNo('');
     setRelatedUnit('');
@@ -354,26 +325,43 @@ function SearchFilters({ onNotice, onCollapse }: { onNotice: (message: string) =
     setPolicyBasis('');
     setMoreOpen(false);
     setOpenMulti(null);
+    onApply({});
     onNotice('筛选条件已重置');
+  };
+
+  const applyFilters = () => {
+    onApply({
+      year,
+      documentType,
+      supervisionDomain,
+      violationTypes,
+      documentNo: documentNo.trim(),
+      relatedUnit: relatedUnit.trim(),
+      issueDateStart,
+      issueDateEnd,
+      handlingMethods,
+      policyBasis: policyBasis.trim(),
+    });
+    onNotice('已应用知识库元数据筛选');
   };
 
   return (
     <aside className="hn-search-filters">
       <div className="hn-filter-head"><strong>筛选条件</strong><div><button type="button" onClick={resetFilters}>重置</button><button type="button" className="hn-filter-collapse" aria-label="收起筛选条件" title="收起筛选条件" onClick={onCollapse}><ChevronLeft size={15} /></button></div></div>
-      <label><span>年度</span><span className="hn-select-control"><select value={year} onChange={(event) => setYear(event.target.value)}><option>全部年度</option><option>2026年</option><option>2025年</option><option>2024年</option><option>2023年</option><option>2022年</option></select><ChevronDown size={14} /></span></label>
-      <label><span>文书类型</span><span className="hn-select-control"><select value={documentType} onChange={(event) => setDocumentType(event.target.value)}><option>全部类型</option><option>整改通知书</option><option>检查报告</option><option>行政处罚决定书</option><option>处理决定</option><option>检查通知书</option></select><ChevronDown size={14} /></span></label>
-      <label><span>监督领域</span><span className="hn-select-control"><select value={supervisionDomain} onChange={(event) => setSupervisionDomain(event.target.value)}><option>全部领域</option><option>预算管理</option><option>预算执行</option><option>债务</option><option>账户</option><option>专项资金</option><option>政府采购</option><option>第三方中介机构</option></select><ChevronDown size={14} /></span></label>
-      <MetadataMultiSelect label="违规类型" value={violationTypes} options={['资金使用不规范', '支付审核不严', '资料依据不完整', '预算执行不到位', '政府采购程序不规范', '资金长期闲置', '绩效目标不完整']} open={openMulti === 'violation'} onToggle={() => setOpenMulti((current) => current === 'violation' ? null : 'violation')} onChange={setViolationTypes} />
+      <label><span>年度</span><span className="hn-select-control"><select value={year} onChange={(event) => setYear(event.target.value)}><option value="">全部年度</option>{options.years.map((option) => <option key={option.value} value={option.value}>{option.value}年（{option.count}）</option>)}</select><ChevronDown size={14} /></span></label>
+      <label><span>文书类型</span><span className="hn-select-control"><select value={documentType} onChange={(event) => setDocumentType(event.target.value)}><option value="">全部类型</option>{options.documentTypes.map((option) => <option key={option.value} value={option.value}>{option.value}（{option.count}）</option>)}</select><ChevronDown size={14} /></span></label>
+      <label><span>监督领域</span><span className="hn-select-control"><select value={supervisionDomain} onChange={(event) => setSupervisionDomain(event.target.value)}><option value="">全部领域</option>{options.supervisionDomains.map((option) => <option key={option.value} value={option.value}>{option.value}（{option.count}）</option>)}</select><ChevronDown size={14} /></span></label>
+      <MetadataMultiSelect label="违规类型" value={violationTypes} options={options.violationTypes.map((option) => option.value)} open={openMulti === 'violation'} onToggle={() => setOpenMulti((current) => current === 'violation' ? null : 'violation')} onChange={setViolationTypes} />
       <label><span>文号</span><input value={documentNo} onChange={(event) => setDocumentNo(event.target.value)} placeholder="输入完整或部分文号" /></label>
-      <label><span>相关单位</span><input value={relatedUnit} onChange={(event) => setRelatedUnit(event.target.value)} placeholder="输入单位名称" /></label>
+      <label><span>相关单位</span><input list="hn-related-unit-options" value={relatedUnit} onChange={(event) => setRelatedUnit(event.target.value)} placeholder="输入或选择单位名称" /><datalist id="hn-related-unit-options">{options.relatedUnits.map((option) => <option key={option.value} value={option.value} />)}</datalist></label>
       <button type="button" className={`hn-more-filter-toggle ${moreOpen ? 'is-open' : ''}`} aria-expanded={moreOpen} onClick={() => { setMoreOpen((value) => !value); setOpenMulti(null); }}><span>更多筛选{advancedCount ? <em>{advancedCount}</em> : null}</span><ChevronDown size={14} /></button>
       {moreOpen ? <div className="hn-advanced-filters">
         <div className="hn-filter-field"><span>发文日期</span><div className="hn-date-range"><input value={issueDateStart} onChange={(event) => setIssueDateStart(event.target.value)} placeholder="YYYY-MM-DD" inputMode="numeric" aria-label="发文开始日期" /><i>至</i><input value={issueDateEnd} onChange={(event) => setIssueDateEnd(event.target.value)} placeholder="YYYY-MM-DD" inputMode="numeric" aria-label="发文结束日期" /></div></div>
-        <MetadataMultiSelect label="处理方式" value={handlingMethods} options={['责令整改', '限期改正', '行政处罚', '追回资金', '通报处理', '移送处理']} open={openMulti === 'handling'} onToggle={() => setOpenMulti((current) => current === 'handling' ? null : 'handling')} onChange={setHandlingMethods} />
-        <label><span>政策依据</span><input value={policyBasis} onChange={(event) => setPolicyBasis(event.target.value)} placeholder="输入政策文件名称" /></label>
+        <MetadataMultiSelect label="处理方式" value={handlingMethods} options={options.handlingMethods.map((option) => option.value)} open={openMulti === 'handling'} onToggle={() => setOpenMulti((current) => current === 'handling' ? null : 'handling')} onChange={setHandlingMethods} />
+        <label><span>政策依据</span><input list="hn-policy-basis-options" value={policyBasis} onChange={(event) => setPolicyBasis(event.target.value)} placeholder="输入或选择政策文件名称" /><datalist id="hn-policy-basis-options">{options.policyBasis.map((option) => <option key={option.value} value={option.value} />)}</datalist></label>
       </div> : null}
-      <button type="button" className="ufsp-btn ufsp-btn-primary" onClick={() => onNotice('检索结果已按当前条件筛选')}>应用筛选</button>
-      <div className="hn-filter-help"><CircleAlert size={14} /><span>筛选条件来自知识库文书元数据，不等同于案例标签。</span></div>
+      <button type="button" className="ufsp-btn ufsp-btn-primary" onClick={applyFilters}>应用筛选</button>
+      <div className={`hn-filter-help ${optionsStatus === 'error' ? 'is-error' : ''}`}><CircleAlert size={14} /><span>{optionsStatus === 'loading' ? '正在读取当前湖南案例库元数据…' : optionsStatus === 'error' ? '元数据选项读取失败，文本条件仍可继续使用。' : '筛选选项来自当前湖南案例库元数据，应用后仅显示匹配文书。'}</span></div>
     </aside>
   );
 }
@@ -436,68 +424,110 @@ function DeepAnalysisPanel({
   );
 }
 
-function SearchResultsPage({ query, onQueryChange, onSearch, onOpenDetail, onBack, onNotice }: { query: string; onQueryChange: (value: string) => void; onSearch: () => void; onOpenDetail: (id: string) => void; onBack: () => void; onNotice: (message: string) => void }) {
+function formatSearchScore(score: number | null): string {
+  if (score == null) return '—';
+  return `${(score * 100).toLocaleString('zh-CN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}%`;
+}
+
+function getCaseTags(item: CaseSearchItem): string[] {
+  return Array.from(new Set([
+    ...item.violationTypes,
+    ...item.handlingMethods,
+    item.supervisionDomain,
+  ].filter(Boolean))).slice(0, 4);
+}
+
+function escapeRegExp(value: string): string {
+  return value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+}
+
+function getHighlightTerms(query: string, item: CaseSearchItem): string[] {
+  const queryTerms = [query.trim(), ...query.trim().split(/[，。；、,;:\s]+/)]
+    .filter((term) => term.length >= 2);
+  const relatedCaseTerms = getCaseTags(item)
+    .filter((tag) => queryTerms.some((term) => tag.includes(term) || term.includes(tag)));
+
+  return Array.from(new Set([...relatedCaseTerms, ...queryTerms]))
+    .sort((left, right) => right.length - left.length);
+}
+
+function HighlightedText({ text, terms }: { text: string; terms: string[] }) {
+  if (!text || terms.length === 0) return <>{text}</>;
+
+  const pattern = new RegExp(`(${terms.map(escapeRegExp).join('|')})`, 'gi');
+  const normalizedTerms = new Set(terms.map((term) => term.toLocaleLowerCase('zh-CN')));
+
+  return <>{text.split(pattern).map((part, index) => (
+    normalizedTerms.has(part.toLocaleLowerCase('zh-CN'))
+      ? <mark key={`${part}-${index}`}>{part}</mark>
+      : part
+  ))}</>;
+}
+
+function SearchResultsPage({ query, results, total, status, error, activeFilters, onQueryChange, onSearch, onOpenDetail, onBack, onNotice }: {
+  query: string;
+  results: CaseSearchItem[];
+  total: number;
+  status: SearchStatus;
+  error: string;
+  activeFilters: CaseSearchFilters;
+  onQueryChange: (value: string) => void;
+  onSearch: (filters?: CaseSearchFilters) => void;
+  onOpenDetail: (id: string) => void;
+  onBack: () => void;
+  onNotice: (message: string) => void;
+}) {
   const [sort, setSort] = useState('相关度优先');
   const [filtersOpen, setFiltersOpen] = useState(true);
-  const [expandedAnalysisId, setExpandedAnalysisId] = useState<string | null>(null);
-  const [analysisStatusById, setAnalysisStatusById] = useState<Record<string, AnalysisStatus>>({});
-  const [feedbackById, setFeedbackById] = useState<Record<string, AnalysisFeedback>>({});
+  const [filterOptions, setFilterOptions] = useState<CaseSearchFilterOptions>(EMPTY_FILTER_OPTIONS);
+  const [filterOptionsStatus, setFilterOptionsStatus] = useState<'loading' | 'success' | 'error'>('loading');
 
-  const runDeepAnalysis = (id: string) => {
-    setExpandedAnalysisId(id);
-    setAnalysisStatusById((current) => ({ ...current, [id]: 'loading' }));
-    window.setTimeout(() => setAnalysisStatusById((current) => ({ ...current, [id]: 'complete' })), 900);
-  };
+  useEffect(() => {
+    const controller = new AbortController();
+    getCaseSearchFilterOptions(controller.signal)
+      .then((options) => { setFilterOptions(options); setFilterOptionsStatus('success'); })
+      .catch((reason) => { if (reason?.name !== 'AbortError') setFilterOptionsStatus('error'); });
+    return () => controller.abort();
+  }, []);
 
-  const toggleDeepAnalysis = (id: string) => {
-    const status = analysisStatusById[id];
-    if (expandedAnalysisId === id && status === 'complete') {
-      setExpandedAnalysisId(null);
-      return;
-    }
-    if (status) {
-      setExpandedAnalysisId(id);
-      return;
-    }
-    runDeepAnalysis(id);
-  };
-
-  const updateFeedback = (id: string, patch: Partial<AnalysisFeedback>) => {
-    setFeedbackById((current) => ({
-      ...current,
-      [id]: { vote: undefined, reasons: [], note: '', submitted: false, ...current[id], ...patch },
-    }));
-  };
+  const orderedResults = useMemo(() => {
+    if (sort === '相关度优先') return results;
+    const direction = sort === '最新时间' ? -1 : 1;
+    return [...results].sort((left, right) => {
+      const leftTime = Date.parse(left.date) || 0;
+      const rightTime = Date.parse(right.date) || 0;
+      return (leftTime - rightTime) * direction;
+    });
+  }, [results, sort]);
 
   const rerunSearch = () => {
-    setExpandedAnalysisId(null);
-    setAnalysisStatusById({});
-    setFeedbackById({});
-    onSearch();
+    onSearch(activeFilters);
+  };
+
+  const applyFilters = (filters: CaseSearchFilters) => {
+    onSearch(filters);
   };
 
   return (
     <div className="case-workspace hn-search-results-page">
       <div className={`hn-search-results-layout ${filtersOpen ? '' : 'is-filter-collapsed'}`}>
-        {filtersOpen ? <SearchFilters onNotice={onNotice} onCollapse={() => setFiltersOpen(false)} /> : <button type="button" className="hn-filter-rail" aria-label="展开筛选条件" title="展开筛选条件" onClick={() => setFiltersOpen(true)}><SlidersHorizontal size={17} /><ChevronRight size={14} /></button>}
+        {filtersOpen ? <SearchFilters value={activeFilters} options={filterOptions} optionsStatus={filterOptionsStatus} onApply={applyFilters} onNotice={onNotice} onCollapse={() => setFiltersOpen(false)} /> : <button type="button" className="hn-filter-rail" aria-label="展开筛选条件" title="展开筛选条件" onClick={() => setFiltersOpen(true)}><SlidersHorizontal size={17} /><ChevronRight size={14} /></button>}
         <section className="hn-search-result-main">
-          <div className="hn-result-command"><button type="button" className="ufsp-form-back" onClick={onBack} aria-label="返回检索首页" title="返回检索首页"><ArrowLeft size={16} /></button><SearchBox compact value={query} onChange={onQueryChange} onSearch={rerunSearch} /><div className="hn-result-tools"><span className="hn-result-count"><strong>36</strong><span>份相关文书</span></span><i aria-hidden="true" /><label><span className="hn-select-control"><select aria-label="结果排序" value={sort} onChange={(event) => setSort(event.target.value)}><option>相关度优先</option><option>最新时间</option><option>最早时间</option></select><ChevronDown size={14} /></span></label></div></div>
+          <div className="hn-result-command"><button type="button" className="ufsp-form-back" onClick={onBack} aria-label="返回检索首页" title="返回检索首页"><ArrowLeft size={16} /></button><SearchBox compact loading={status === 'loading'} value={query} onChange={onQueryChange} onSearch={rerunSearch} /><div className="hn-result-tools"><span className="hn-result-count"><strong>{status === 'loading' ? '—' : total}</strong><span>份相关文书</span></span><i aria-hidden="true" /><label><span className="hn-select-control"><select aria-label="结果排序" value={sort} onChange={(event) => setSort(event.target.value)}><option>相关度优先</option><option>最新时间</option><option>最早时间</option></select><ChevronDown size={14} /></span></label></div></div>
           <div className="hn-result-ledger">
-          <div className="hn-search-result-list">{SEARCH_RESULTS.map((item, index) => {
-            const analysisStatus = analysisStatusById[item.id];
-            const analysisExpanded = expandedAnalysisId === item.id;
-            const feedback = feedbackById[item.id] || { reasons: [], note: '', submitted: false };
-            return <article key={item.id} className={analysisExpanded ? 'is-analysis-expanded' : ''}>
-              <div className="hn-result-rank"><strong>{index + 1}</strong><span>{item.score}%</span><em>相关度</em></div>
+          {status === 'loading' ? <div className="hn-result-state"><LoaderCircle className="is-spinning" size={24} /><strong>正在检索历史案例</strong><span>正在执行混合检索与排序，请稍候</span></div> : status === 'error' ? <div className="hn-result-state is-error"><CircleAlert size={24} /><strong>检索未完成</strong><span>{error}</span><button type="button" onClick={rerunSearch}>重新检索</button></div> : status === 'success' && orderedResults.length === 0 ? <div className="hn-result-state"><FileSearch size={25} /><strong>没有找到相关案例</strong><span>可以尝试更换文号、单位名称或问题描述</span></div> : <div className="hn-search-result-list">{orderedResults.map((item, index) => {
+            const tags = getCaseTags(item);
+            const highlightTerms = getHighlightTerms(query, item);
+            return <article key={item.id}>
+              <div className="hn-result-rank" title="检索相关度分值，不代表准确率"><strong>{index + 1}</strong><span>{formatSearchScore(item.score)}</span><em>相关度</em></div>
               <div className="hn-result-content">
-                <div className="hn-result-title-row"><button type="button" className="hn-result-title" onClick={() => onOpenDetail(item.id)}>{item.title}</button><div className="hn-result-actions"><button type="button" className={`hn-deep-analysis-trigger ${analysisExpanded ? 'is-active' : ''}`} disabled={analysisExpanded && analysisStatus === 'loading'} onClick={() => toggleDeepAnalysis(item.id)}>{analysisExpanded && analysisStatus === 'loading' ? <LoaderCircle size={13} /> : <Sparkles size={13} />}{analysisExpanded && analysisStatus === 'loading' ? '分析中' : analysisStatus === 'complete' ? analysisExpanded ? '收起分析' : '查看分析' : '深度分析'}</button><button type="button" className="hn-result-detail" onClick={() => onOpenDetail(item.id)}>查看详情</button></div></div>
-                <div className="hn-result-meta"><span>{item.code}</span><span>{item.type}</span><span>{item.date}</span><span>{item.unit}</span></div>
-                <p><b>命中片段：</b>{item.excerpt}</p>
-                <div className="hn-match-reasons"><b>检索依据</b>{item.reason.map((reason) => <span key={reason}><CheckCircle2 size={12} />{reason}</span>)}</div>
-                {analysisExpanded && analysisStatus ? <DeepAnalysisPanel itemId={item.id} status={analysisStatus} feedback={feedback} onRerun={() => runDeepAnalysis(item.id)} onFeedbackChange={(patch) => updateFeedback(item.id, patch)} onSubmit={() => { updateFeedback(item.id, { submitted: true }); onNotice('深度分析反馈已提交'); }} onNotice={onNotice} /> : null}
+                <div className="hn-result-title-row"><button type="button" className="hn-result-title" onClick={() => onOpenDetail(item.id)}>{item.title}</button><div className="hn-result-actions"><button type="button" className="hn-deep-analysis-trigger" disabled title="后续将基于命中片段接入 AI 深度分析"><Sparkles size={13} />深度分析</button><button type="button" className="hn-result-detail" onClick={() => onOpenDetail(item.id)}>查看详情</button></div></div>
+                <div className="hn-result-meta">{[item.code, item.type, item.date, item.unit].filter(Boolean).map((meta) => <span key={meta}>{meta}</span>)}</div>
+                <p><b>命中片段：</b>{item.excerpt ? <HighlightedText text={item.excerpt} terms={highlightTerms} /> : '暂无可展示的命中片段'}</p>
+                {tags.length ? <div className="hn-match-reasons"><b>案例要素</b>{tags.map((tag) => <span key={tag}><CheckCircle2 size={12} />{tag}</span>)}</div> : null}
               </div>
             </article>;
-          })}</div>
+          })}</div>}
           </div>
         </section>
       </div>
@@ -505,20 +535,25 @@ function SearchResultsPage({ query, onQueryChange, onSearch, onOpenDetail, onBac
   );
 }
 
-function SearchDetailPage({ id, query, onBack, onNotice, onOpenDetail }: { id?: string; query: string; onBack: () => void; onNotice: (message: string) => void; onOpenDetail: (id: string) => void }) {
-  const item = SEARCH_RESULTS.find((row) => row.id === id) || SEARCH_RESULTS[0];
+function SearchDetailPage({ item, results, query, onBack, onNotice, onOpenDetail }: { item?: CaseSearchItem; results: CaseSearchItem[]; query: string; onBack: () => void; onNotice: (message: string) => void; onOpenDetail: (id: string) => void }) {
   const [section, setSection] = useState<'match' | 'document' | 'source'>('match');
+  if (!item) {
+    return <div className="case-workspace hn-search-detail-page"><OperationHead title="案例详情" subtitle="" onBack={onBack} actions={null} /><div className="hn-result-state"><FileSearch size={25} /><strong>未找到案例详情</strong><span>请返回检索结果后重新选择案例</span></div></div>;
+  }
+
+  const tags = [...getCaseTags(item), ...item.policyBasis].slice(0, 6);
+  const highlightTerms = getHighlightTerms(query, item);
   return (
     <div className="case-workspace hn-search-detail-page">
-      <OperationHead title="案例详情" subtitle="" onBack={onBack} actions={<button type="button" className="ufsp-btn ufsp-btn-primary" onClick={() => onNotice('已模拟跳转至 OA 文书来源')}><ExternalLink size={14} />查看 OA 来源</button>} />
+      <OperationHead title="案例详情" subtitle="" onBack={onBack} actions={<button type="button" className="ufsp-btn" onClick={() => onNotice('当前检索接口未返回 OA 来源地址')}><ExternalLink size={14} />查看 OA 来源</button>} />
       <div className="hn-operation-body hn-search-detail-body">
-        <section className="hn-search-detail-summary"><div className="hn-detail-score"><strong>{item.score}%</strong><span>检索相关度</span></div><div className="hn-detail-main-info"><h2>{item.title}</h2><p><span>{item.code}</span><span>{item.type}</span><span>{item.date}</span><span>{item.unit}</span></p></div><div className="hn-detail-query"><span>本次检索</span><strong>{query || '专项债券资金支付进度与建设进度不匹配'}</strong></div></section>
+        <section className="hn-search-detail-summary"><div className="hn-detail-score" title="检索相关度分值，不代表准确率"><strong>{formatSearchScore(item.score)}</strong><span>相关度</span></div><div className="hn-detail-main-info"><h2>{item.title}</h2><p>{[item.code, item.type, item.date, item.unit].filter(Boolean).map((meta) => <span key={meta}>{meta}</span>)}</p></div><div className="hn-detail-query"><span>本次检索</span><strong>{query}</strong></div></section>
         <div className="hn-search-detail-layout">
-          <aside className="hn-document-outline"><strong>内容定位</strong><button type="button" className={section === 'match' ? 'is-active' : ''} onClick={() => setSection('match')}><Search size={14} /><span>命中内容</span><em>3</em></button><button type="button" className={section === 'document' ? 'is-active' : ''} onClick={() => setSection('document')}><FileText size={14} /><span>文书正文</span></button><button type="button" className={section === 'source' ? 'is-active' : ''} onClick={() => setSection('source')}><PaperclipIcon /><span>源文件附件</span><em>2</em></button></aside>
+          <aside className="hn-document-outline"><strong>内容定位</strong><button type="button" className={section === 'match' ? 'is-active' : ''} onClick={() => setSection('match')}><Search size={14} /><span>命中内容</span><em>{item.excerpt ? 1 : 0}</em></button><button type="button" className={section === 'document' ? 'is-active' : ''} onClick={() => setSection('document')}><FileText size={14} /><span>文书正文</span></button><button type="button" className={section === 'source' ? 'is-active' : ''} onClick={() => setSection('source')}><PaperclipIcon /><span>源文件附件</span></button></aside>
           <main className="hn-search-document-view">
-            {section === 'match' ? <div className="hn-hit-passages"><button type="button" onClick={() => setSection('document')}><b>问题事实 · 第3段</b><p>检查发现，项目<mark>资金支付进度明显快于实际建设进度</mark>，部分资金支付缺少与工程进度相匹配的验收资料。</p></button><button type="button" onClick={() => setSection('document')}><b>处理意见 · 第6段</b><p>责令项目单位核实资金支付依据，按照实际工程进度规范拨付<mark>专项债券资金</mark>。</p></button><button type="button" onClick={() => setSection('document')}><b>整改要求 · 第8段</b><p>建立工程计量、监理确认、资金支付相互衔接的审核机制，防止发生<mark>超进度支付</mark>。</p></button></div> : section === 'document' ? <div className="hn-full-document"><span>湖南省财政厅</span><h2>财政监督检查整改通知书</h2><em>{item.code}</em><p>{item.unit}：</p><p>根据年度财政监督检查工作安排，我厅对你单位专项债券资金使用管理情况进行了检查。</p><p>检查发现，项目<mark>资金支付进度明显快于实际建设进度</mark>，部分资金支付缺少与工程进度相匹配的验收资料，存在超进度支付风险。</p><p>上述行为不符合专项债券资金管理有关要求。现责令你单位核实资金支付依据，按照实际工程进度规范拨付<mark>专项债券资金</mark>。</p><p>请建立工程计量、监理确认、资金支付相互衔接的审核机制，防止发生<mark>超进度支付</mark>，并按期报送整改情况。</p></div> : <div className="hn-source-files"><div><FileText size={19} /><span><strong>财政监督检查整改通知书.docx</strong><em>源文件 · 2.4 MB · 来自湖南 OA</em></span><button type="button" onClick={() => onNotice('已打开源文件预览')}><Eye size={14} />预览</button><button type="button" onClick={() => onNotice('已模拟下载源文件')}><Download size={14} />下载</button></div><div><FileText size={19} /><span><strong>监督检查工作底稿.pdf</strong><em>关联附件 · 4.8 MB · 来自湖南 OA</em></span><button type="button" onClick={() => onNotice('已打开关联附件预览')}><Eye size={14} />预览</button><button type="button" onClick={() => onNotice('已模拟下载关联附件')}><Download size={14} />下载</button></div><div className="hn-source-trace"><ExternalLink size={15} /><span><strong>来源位置</strong><em>湖南 OA / 财政监督检查 / 2025年度文书</em></span><button type="button" onClick={() => onNotice('已模拟跳转至 OA 来源记录')}>跳转来源</button></div></div>}
+            {section === 'match' ? <div className="hn-hit-passages">{item.excerpt ? <div className="hn-real-hit-passage"><b>检索命中片段</b><p><HighlightedText text={item.excerpt} terms={highlightTerms} /></p></div> : <div className="hn-detail-unavailable"><FileSearch size={24} /><strong>暂无命中片段</strong><span>当前检索结果未返回可展示的摘要内容</span></div>}</div> : <div className="hn-detail-unavailable"><FileText size={24} /><strong>{section === 'document' ? '完整原文暂未接入' : '源文件附件暂未接入'}</strong><span>{section === 'document' ? '当前 Dify 检索结果仅返回摘要和结构化元数据' : '当前接口尚未返回附件及 OA 来源地址'}</span></div>}
           </main>
-          <aside className="hn-detail-side-info"><section><div className="hn-section-caption"><div><Sparkles size={15} /><strong>匹配原因</strong></div></div><div className="hn-side-reasons">{item.reason.map((reason) => <span key={reason}><CheckCircle2 size={13} />{reason}</span>)}</div></section><section><div className="hn-section-caption"><div><Link2 size={15} /><strong>继续查看相似案例</strong></div></div><div className="hn-side-similar">{SEARCH_RESULTS.filter((row) => row.id !== item.id).slice(0, 3).map((row) => <button type="button" key={row.id} onClick={() => onOpenDetail(row.id)}><strong>{row.title}</strong><span>{row.code} · {row.score}%</span></button>)}</div></section></aside>
+          <aside className="hn-detail-side-info"><section><div className="hn-section-caption"><div><Tag size={15} /><strong>案例要素</strong></div></div><div className="hn-side-reasons">{tags.length ? tags.map((tag) => <span key={tag}><CheckCircle2 size={13} />{tag}</span>) : <p className="hn-side-empty">暂无结构化案例要素</p>}</div></section><section><div className="hn-section-caption"><div><Link2 size={15} /><strong>继续查看相似案例</strong></div></div><div className="hn-side-similar">{results.filter((row) => row.id !== item.id).slice(0, 3).map((row) => <button type="button" key={row.id} onClick={() => onOpenDetail(row.id)}><strong>{row.title}</strong><span>{row.code || row.type} · 相关度 {formatSearchScore(row.score)}</span></button>)}</div></section></aside>
         </div>
       </div>
     </div>
@@ -852,13 +887,52 @@ const Component = forwardRef<AxureHandle, AxureProps>(function Component(props, 
   const [operation, setOperation] = useState<OperationState>(null);
   const [searchView, setSearchView] = useState<'home' | 'results' | 'detail'>('home');
   const [searchQuery, setSearchQuery] = useState('');
-  const [searchResultId, setSearchResultId] = useState('S01');
+  const [searchResults, setSearchResults] = useState<CaseSearchItem[]>([]);
+  const [searchTotal, setSearchTotal] = useState(0);
+  const [searchStatus, setSearchStatus] = useState<SearchStatus>('idle');
+  const [searchError, setSearchError] = useState('');
+  const [searchFilters, setSearchFilters] = useState<CaseSearchFilters>({});
+  const [searchResultId, setSearchResultId] = useState('');
+  const searchRequestRef = useRef<AbortController | null>(null);
   const [notice, setNotice] = useState('');
   const activeFeature = FEATURES.find((item) => item.key === featureKey) || FEATURES[0];
+  const selectedSearchResult = searchResults.find((item) => item.id === searchResultId);
 
   const showNotice = (message: string) => {
     setNotice(message);
     window.setTimeout(() => setNotice(''), 2200);
+  };
+
+  const runCaseSearch = async (queryOverride?: string, filters: CaseSearchFilters = {}) => {
+    const nextQuery = (queryOverride ?? searchQuery).trim();
+    if (!nextQuery) {
+      showNotice('请输入需要检索的文号、单位或问题描述');
+      return;
+    }
+
+    searchRequestRef.current?.abort();
+    const controller = new AbortController();
+    searchRequestRef.current = controller;
+    setSearchQuery(nextQuery);
+    setSearchFilters(filters);
+    setSearchView('results');
+    setSearchStatus('loading');
+    setSearchError('');
+    setSearchResults([]);
+    setSearchTotal(0);
+
+    try {
+      const response = await searchCases(nextQuery, filters, controller.signal);
+      if (searchRequestRef.current !== controller) return;
+      setSearchResults(response.results);
+      setSearchTotal(response.total);
+      setSearchStatus('success');
+      setSearchResultId('');
+    } catch (error: any) {
+      if (error?.name === 'AbortError' || searchRequestRef.current !== controller) return;
+      setSearchError(error?.message || '案例检索失败，请稍后重试');
+      setSearchStatus('error');
+    }
   };
 
   const switchFeature = (key: FeatureKey) => {
@@ -908,7 +982,7 @@ const Component = forwardRef<AxureHandle, AxureProps>(function Component(props, 
             </nav>
           </aside>
           <section className="case-content">
-            {featureKey === 'search' ? searchView === 'home' ? <SearchHome query={searchQuery} onQueryChange={setSearchQuery} onSearch={() => setSearchView('results')} onNotice={showNotice} /> : searchView === 'results' ? <SearchResultsPage query={searchQuery} onQueryChange={setSearchQuery} onSearch={() => setSearchView('results')} onBack={() => setSearchView('home')} onOpenDetail={(id) => { setSearchResultId(id); setSearchView('detail'); }} onNotice={showNotice} /> : <SearchDetailPage id={searchResultId} query={searchQuery} onBack={() => setSearchView('results')} onOpenDetail={(id) => setSearchResultId(id)} onNotice={showNotice} /> : operation?.kind === 'entry-confirm' ? <EntryConfirmPage id={operation.id} onBack={() => setOperation(null)} onNotice={showNotice} /> : operation?.kind === 'archive-detail' ? <ArchiveDetailPage id={operation.id} onBack={() => setOperation(null)} onNotice={showNotice} /> : operation?.kind === 'analysis-detail' ? <AnalysisDetailPage id={operation.id} onBack={() => setOperation(null)} onNotice={showNotice} /> : featureKey === 'entry' ? <EntryPage onPanel={setPanel} onOperation={setOperation} onNotice={showNotice} /> : featureKey === 'archive' ? <ArchivePage onOperation={setOperation} onNotice={showNotice} /> : featureKey === 'analysis' ? <AnalysisPage onOperation={setOperation} onNotice={showNotice} /> : <TypicalPage onPanel={setPanel} onNotice={showNotice} />}
+            {featureKey === 'search' ? searchView === 'home' ? <SearchHome query={searchQuery} onQueryChange={setSearchQuery} onSearch={(query) => runCaseSearch(query, {})} onNotice={showNotice} /> : searchView === 'results' ? <SearchResultsPage query={searchQuery} results={searchResults} total={searchTotal} status={searchStatus} error={searchError} activeFilters={searchFilters} onQueryChange={setSearchQuery} onSearch={(filters) => runCaseSearch(undefined, filters)} onBack={() => setSearchView('home')} onOpenDetail={(id) => { setSearchResultId(id); setSearchView('detail'); }} onNotice={showNotice} /> : <SearchDetailPage key={searchResultId} item={selectedSearchResult} results={searchResults} query={searchQuery} onBack={() => setSearchView('results')} onOpenDetail={(id) => setSearchResultId(id)} onNotice={showNotice} /> : operation?.kind === 'entry-confirm' ? <EntryConfirmPage id={operation.id} onBack={() => setOperation(null)} onNotice={showNotice} /> : operation?.kind === 'archive-detail' ? <ArchiveDetailPage id={operation.id} onBack={() => setOperation(null)} onNotice={showNotice} /> : operation?.kind === 'analysis-detail' ? <AnalysisDetailPage id={operation.id} onBack={() => setOperation(null)} onNotice={showNotice} /> : featureKey === 'entry' ? <CaseIngestionManagement onNotice={showNotice} /> : featureKey === 'metadata' ? <MetadataManagement onNotice={showNotice} /> : featureKey === 'tags' ? <SmartTagManagement onNotice={showNotice} /> : featureKey === 'archive' ? <ArchivePage onOperation={setOperation} onNotice={showNotice} /> : featureKey === 'analysis' ? <AnalysisPage onOperation={setOperation} onNotice={showNotice} /> : <TypicalPage onPanel={setPanel} onNotice={showNotice} />}
           </section>
         </div>
       </main>
