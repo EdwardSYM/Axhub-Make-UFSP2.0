@@ -60,10 +60,12 @@ import {
   type CaseSearchItem,
 } from './searchApi';
 import {
+  SearchFeedbackDialog,
   CaseIngestionManagement,
   MetadataManagement,
   SmartTagManagement,
 } from './ManagementPages';
+import { updateGovernance } from './governanceModel';
 
 type FeatureKey = 'entry' | 'metadata' | 'tags' | 'search' | 'archive' | 'analysis' | 'typical';
 type Feature = { key: FeatureKey; name: string; desc: string; Icon: LucideIcon };
@@ -478,6 +480,8 @@ function SearchResultsPage({ query, results, total, status, error, activeFilters
   onNotice: (message: string) => void;
 }) {
   const [sort, setSort] = useState('相关度优先');
+  const [feedbackItem, setFeedbackItem] = useState<CaseSearchItem | null>(null);
+  const [expanded, setExpanded] = useState<string[]>([]);
   const [filtersOpen, setFiltersOpen] = useState(true);
   const [filterOptions, setFilterOptions] = useState<CaseSearchFilterOptions>(EMPTY_FILTER_OPTIONS);
   const [filterOptionsStatus, setFilterOptionsStatus] = useState<'loading' | 'success' | 'error'>('loading');
@@ -521,9 +525,9 @@ function SearchResultsPage({ query, results, total, status, error, activeFilters
             return <article key={item.id}>
               <div className="hn-result-rank" title="检索相关度分值，不代表准确率"><strong>{index + 1}</strong><span>{formatSearchScore(item.score)}</span><em>相关度</em></div>
               <div className="hn-result-content">
-                <div className="hn-result-title-row"><button type="button" className="hn-result-title" onClick={() => onOpenDetail(item.id)}>{item.title}</button><div className="hn-result-actions"><button type="button" className="hn-deep-analysis-trigger" disabled title="后续将基于命中片段接入 AI 深度分析"><Sparkles size={13} />深度分析</button><button type="button" className="hn-result-detail" onClick={() => onOpenDetail(item.id)}>查看详情</button></div></div>
+                <div className="hn-result-title-row"><button type="button" className="hn-result-title" onClick={() => onOpenDetail(item.id)}>{item.title}</button><div className="hn-result-actions"><button type="button" className="hn-deep-analysis-trigger" disabled title="后续将基于命中片段接入 AI 深度分析"><Sparkles size={13} />深度分析</button><button type="button" className="hn-result-detail" onClick={() => onOpenDetail(item.id)}>查看详情</button><button type="button" className="hn-result-detail" onClick={() => setFeedbackItem(item)}>反馈</button></div></div>
                 <div className="hn-result-meta">{[item.code, item.type, item.date, item.unit].filter(Boolean).map((meta) => <span key={meta}>{meta}</span>)}</div>
-                <p><b>命中片段：</b>{item.excerpt ? <HighlightedText text={item.excerpt} terms={highlightTerms} /> : '暂无可展示的命中片段'}</p>
+                <p className={expanded.includes(item.id) ? '' : 'hn-excerpt-clamped'}><b>命中片段：</b>{item.excerpt ? <HighlightedText text={item.excerpt} terms={highlightTerms} /> : '暂无可展示的命中片段'}</p>{item.excerpt.length > 180 && <button className="case-title-link hn-excerpt-toggle" onClick={() => setExpanded(v => v.includes(item.id) ? v.filter(id => id !== item.id) : [...v, item.id])}>{expanded.includes(item.id) ? '收起片段' : '展开片段'}</button>}
                 {tags.length ? <div className="hn-match-reasons"><b>案例要素</b>{tags.map((tag) => <span key={tag}><CheckCircle2 size={12} />{tag}</span>)}</div> : null}
               </div>
             </article>;
@@ -531,6 +535,7 @@ function SearchResultsPage({ query, results, total, status, error, activeFilters
           </div>
         </section>
       </div>
+      {feedbackItem && <SearchFeedbackDialog subject={feedbackItem.title} evidence={'检索词：' + query + '；文书ID：' + feedbackItem.id + '；片段：' + feedbackItem.excerpt} onClose={() => setFeedbackItem(null)} onNotice={onNotice} />}
     </div>
   );
 }
@@ -982,7 +987,7 @@ const Component = forwardRef<AxureHandle, AxureProps>(function Component(props, 
             </nav>
           </aside>
           <section className="case-content">
-            {featureKey === 'search' ? searchView === 'home' ? <SearchHome query={searchQuery} onQueryChange={setSearchQuery} onSearch={(query) => runCaseSearch(query, {})} onNotice={showNotice} /> : searchView === 'results' ? <SearchResultsPage query={searchQuery} results={searchResults} total={searchTotal} status={searchStatus} error={searchError} activeFilters={searchFilters} onQueryChange={setSearchQuery} onSearch={(filters) => runCaseSearch(undefined, filters)} onBack={() => setSearchView('home')} onOpenDetail={(id) => { setSearchResultId(id); setSearchView('detail'); }} onNotice={showNotice} /> : <SearchDetailPage key={searchResultId} item={selectedSearchResult} results={searchResults} query={searchQuery} onBack={() => setSearchView('results')} onOpenDetail={(id) => setSearchResultId(id)} onNotice={showNotice} /> : operation?.kind === 'entry-confirm' ? <EntryConfirmPage id={operation.id} onBack={() => setOperation(null)} onNotice={showNotice} /> : operation?.kind === 'archive-detail' ? <ArchiveDetailPage id={operation.id} onBack={() => setOperation(null)} onNotice={showNotice} /> : operation?.kind === 'analysis-detail' ? <AnalysisDetailPage id={operation.id} onBack={() => setOperation(null)} onNotice={showNotice} /> : featureKey === 'entry' ? <CaseIngestionManagement onNotice={showNotice} /> : featureKey === 'metadata' ? <MetadataManagement onNotice={showNotice} /> : featureKey === 'tags' ? <SmartTagManagement onNotice={showNotice} /> : featureKey === 'archive' ? <ArchivePage onOperation={setOperation} onNotice={showNotice} /> : featureKey === 'analysis' ? <AnalysisPage onOperation={setOperation} onNotice={showNotice} /> : <TypicalPage onPanel={setPanel} onNotice={showNotice} />}
+            {featureKey === 'search' ? searchView === 'home' ? <SearchHome query={searchQuery} onQueryChange={setSearchQuery} onSearch={(query) => runCaseSearch(query, {})} onNotice={showNotice} /> : searchView === 'results' ? <SearchResultsPage query={searchQuery} results={searchResults} total={searchTotal} status={searchStatus} error={searchError} activeFilters={searchFilters} onQueryChange={setSearchQuery} onSearch={(filters) => runCaseSearch(undefined, filters)} onBack={() => setSearchView('home')} onOpenDetail={(id) => { setSearchResultId(id); setSearchView('detail'); }} onNotice={showNotice} /> : <SearchDetailPage key={searchResultId} item={selectedSearchResult} results={searchResults} query={searchQuery} onBack={() => setSearchView('results')} onOpenDetail={(id) => setSearchResultId(id)} onNotice={showNotice} /> : operation?.kind === 'entry-confirm' ? <EntryConfirmPage id={operation.id} onBack={() => setOperation(null)} onNotice={showNotice} /> : operation?.kind === 'archive-detail' ? <ArchiveDetailPage id={operation.id} onBack={() => setOperation(null)} onNotice={showNotice} /> : operation?.kind === 'analysis-detail' ? <AnalysisDetailPage id={operation.id} onBack={() => setOperation(null)} onNotice={showNotice} /> : featureKey === 'entry' ? <CaseIngestionManagement onNotice={showNotice} onNavigate={(key, field) => { updateGovernance(s => ({ ...s, focusField: field || '' })); switchFeature(key); }} /> : featureKey === 'metadata' ? <MetadataManagement onNotice={showNotice} onNavigate={(key, field) => { updateGovernance(s => ({ ...s, focusField: field || '' })); switchFeature(key); }} /> : featureKey === 'tags' ? <SmartTagManagement onNotice={showNotice} onNavigate={(key, field) => { updateGovernance(s => ({ ...s, focusField: field || '' })); switchFeature(key); }} /> : featureKey === 'archive' ? <ArchivePage onOperation={setOperation} onNotice={showNotice} /> : featureKey === 'analysis' ? <AnalysisPage onOperation={setOperation} onNotice={showNotice} /> : <TypicalPage onPanel={setPanel} onNotice={showNotice} />}
           </section>
         </div>
       </main>

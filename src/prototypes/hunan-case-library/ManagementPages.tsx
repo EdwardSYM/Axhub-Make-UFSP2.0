@@ -1,5 +1,5 @@
-import React, { useMemo, useState } from 'react';
-import { ArrowLeft, CheckCircle2, FolderTree, History, Link2, Search, Tag, X } from 'lucide-react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
+import { ArrowLeft, CheckCircle2, ChevronDown, ChevronLeft, ChevronRight, FolderTree, Link2, Search, Tag, X } from 'lucide-react';
 import actionAddIconSvg from '../problem-library-function-list/icons/action-add.svg?raw';
 import actionExportIconSvg from '../problem-library-function-list/icons/action-export.svg?raw';
 import actionFilterIconSvg from '../problem-library-function-list/icons/action-filter.svg?raw';
@@ -9,21 +9,9 @@ import actionRefreshIconSvg from '../problem-library-function-list/icons/action-
 import actionSettingsIconSvg from '../problem-library-function-list/icons/action-settings.svg?raw';
 import searchIconSvg from '../problem-library-function-list/icons/search.svg?raw';
 
-type NoticeProps = { onNotice: (message: string) => void };
+import { useGovernance, updateGovernance, getGovernance, recordFeedback, newId, nowText, isDirectory, setCasePath, getCasePath, tagUsage, resolveCandidate, METADATA_GROUPS, METADATA_MODES, DOMAIN_NAMES, metadataField, resolveCaseSubjects, resolveCaseIssues, resolveCaseDecisions, type MetadataField, type MetadataEdit, type MetadataMode, type IngestionRow, type CaseIssue, type TagValue } from './governanceModel';
 
-type CaseSubject = { role: string; name: string };
-type CasePolicyBasis = { name: string; clauses?: string };
-type CaseIssue = {
-  id: string; title: string; domain: string; aspect: string; type: string; nature: string;
-  responsibility: string; facts: string[]; violatedBases: CasePolicyBasis[]; evidences: string[];
-  standardMatch: { status: '已匹配' | '待确认' | '未匹配'; name: string; version: string; basis?: string };
-};
-type CaseDecisionGroup = {
-  grade?: string;
-  actions: Array<{ type: string; target: string; content: string; measure?: string }>;
-  bases: CasePolicyBasis[];
-  relatedIssueIds: string[];
-};
+type NoticeProps = { onNotice: (message: string) => void; onNavigate?: (key: 'entry' | 'metadata' | 'tags', field?: string) => void };
 
 function normalizeSvg(svg: string) {
   return svg.replace(/<\?xml[^>]*>/g, '').replace(/<!DOCTYPE[^>]*>/g, '').replace(/\s(width|height)="[^"]*"/g, '').replace(/\sfill="[^"]*"/g, ' fill="currentColor"').replace(/<svg\b([^>]*)>/, '<svg$1 aria-hidden="true" focusable="false">');
@@ -34,320 +22,523 @@ function RawIcon({ svg }: { svg: string }) {
   return <span className="ufsp-iconfont-box" dangerouslySetInnerHTML={{ __html: html }} />;
 }
 
-function StandardSearchTools({ onNotice, placeholder = '请输入' }: NoticeProps & { placeholder?: string }) {
+function StandardSearchTools({ onNotice, placeholder = '请输入', query = '', onQuery, onReset }: NoticeProps & { placeholder?: string; query?: string; onQuery?: (value: string) => void; onReset?: () => void }) {
   return <div className="case-toolbar-right">
-    <label className="ufsp-search-box ufsp-filter-input"><input placeholder={placeholder} aria-label={placeholder} /></label>
-    <button className="ufsp-icon-btn ufsp-icon-btn-primary" title="查询" onClick={() => onNotice('已按当前条件查询演示数据')}><RawIcon svg={searchIconSvg} /></button>
-    <button className="ufsp-icon-btn ufsp-icon-btn-secondary" title="刷新" onClick={() => onNotice('演示数据已刷新')}><RawIcon svg={actionRefreshIconSvg} /></button>
-    <button className="ufsp-icon-btn ufsp-icon-btn-secondary" title="筛选" onClick={() => onNotice('已展开高级筛选演示')}><RawIcon svg={actionFilterIconSvg} /></button>
-    <button className="ufsp-btn ufsp-btn-secondary" onClick={() => onNotice('已打开查询方案演示')}>查询方案</button>
-    <button className="ufsp-icon-btn ufsp-icon-btn-secondary" title="列设置" onClick={() => onNotice('已打开列设置演示')}><RawIcon svg={actionSettingsIconSvg} /></button>
+    <label className="ufsp-search-box ufsp-filter-input"><input placeholder="请输入" aria-label={placeholder} value={query} onChange={event => onQuery?.(event.target.value)} /></label>
+    <button className="ufsp-icon-btn ufsp-icon-btn-primary" title="查询" onClick={() => onQuery?.(query.trim())}><RawIcon svg={searchIconSvg} /></button>
+    <button className="ufsp-icon-btn ufsp-icon-btn-secondary" title="刷新" onClick={() => onReset ? onReset() : onQuery?.('')}><RawIcon svg={actionRefreshIconSvg} /></button>
+    <button className="ufsp-icon-btn ufsp-icon-btn-secondary" title="筛选" onClick={() => onNotice('可使用左侧目录、状态页签和关键词筛选')}><RawIcon svg={actionFilterIconSvg} /></button>
+    <button className="ufsp-btn ufsp-btn-secondary" onClick={() => onNotice('当前使用临时查询条件，未接查询方案保存')}>查询方案</button>
+    <button className="ufsp-icon-btn ufsp-icon-btn-secondary" title="列设置" onClick={() => onNotice('当前按已确认字段展示，列配置暂未接入')}><RawIcon svg={actionSettingsIconSvg} /></button>
   </div>;
 }
 
-function Pagination({ total }: { total: number }) {
-  return <div className="case-pagination"><span className="ufsp-page-total">共 {total} 条</span><button className="ufsp-page-btn">上一页</button><button className="ufsp-page-btn is-active">1</button><button className="ufsp-page-btn">下一页</button><button className="ufsp-page-size">20 条/页</button></div>;
-}
 
-function Catalog({ title, items, active, onChange }: { title: string; items: Array<[string, number, boolean?]>; active: string; onChange: (value: string) => void }) {
-  return <aside className="hn-catalog"><div className="hn-catalog-search"><Search size={14} /><input placeholder={`搜索${title}`} /></div><div className="hn-catalog-caption"><FolderTree size={14} /><span>{title}</span></div><div className="hn-catalog-list">{items.map(([label, count, child]) => <button key={label} className={`${active === label ? 'is-active' : ''} ${child ? 'is-child' : ''}`} onClick={() => onChange(label)}><span>{label}</span><em>{count}</em></button>)}</div></aside>;
+function Pagination({ total, page = 1, onPage }: { total: number; page?: number; onPage?: (value: number) => void }) {
+  return <div className="case-pagination"><span className="ufsp-page-total">共 {total} 条</span><button className="ufsp-page-btn" disabled={page <= 1} onClick={() => onPage?.(page - 1)}>上一页</button><button className="ufsp-page-btn is-active">{page}</button><button className="ufsp-page-btn" disabled={page * 20 >= total} onClick={() => onPage?.(page + 1)}>下一页</button><span className="ufsp-page-size">20 条/页</span></div>;
 }
-
+function Catalog({ title, items, active, onChange }: { title: string; items: Array<[string, number, boolean?, string?]>; active: string; onChange: (value: string) => void }) {
+  const [query, setQuery] = useState(''); const [collapsed, setCollapsed] = useState(false);
+  return <aside className={'ufsp-ledger-tree hn-shared-tree' + (collapsed ? ' is-collapsed' : '')}>
+    <button className="ufsp-tree-collapse" aria-label={collapsed ? '展开目录' : '收起目录'} onClick={() => setCollapsed(!collapsed)}>{collapsed ? <ChevronRight size={14} /> : <ChevronLeft size={14} />}</button>
+    {!collapsed && <div className="ufsp-tree-inner"><div className="ufsp-tree-search"><input placeholder="请输入" aria-label={'搜索' + title} value={query} onChange={e => setQuery(e.target.value)} /><Search size={14} /></div><div className="ufsp-tree-list">
+      {items.filter(([label]) => label.includes(query)).map(([label, count, child, id]) => <button key={id || label} className={'ufsp-tree-item ' + (child ? 'topic ' : 'year ') + (active === (id || label) ? 'is-active' : '')} onClick={() => onChange(id || label)}>{child ? <span className="ufsp-tree-indent" /> : <ChevronDown size={14} />}<span>{label}</span>{count >= 0 && <em>({count})</em>}</button>)}
+    </div></div>}
+  </aside>;
+}
+function ConfirmAction({ title, children, onClose, onConfirm }: { title: string; children: React.ReactNode; onClose: () => void; onConfirm: () => void }) {
+  return <div className="case-modal-mask hn-metadata-discard"><section className="hn-standard-upload" role="dialog" aria-modal="true" aria-label={title}><header className="case-modal-head"><h2>{title}</h2><button aria-label="关闭" onClick={onClose}><X size={18} /></button></header><div className="hn-standard-upload-body">{children}</div><footer className="case-modal-actions"><button className="ufsp-btn" onClick={onClose}>取消</button><button className="ufsp-btn ufsp-btn-primary" onClick={onConfirm}>确认</button></footer></section></div>;
+}
+function exportCsv(name: string, rows: string[][]) {
+  const csv = rows.map(row => row.map(value => '"' + (/^[=+@-]/.test(value) ? "'" : '') + value.replace(/"/g, '""') + '"').join(',')).join('\n');
+  const url = URL.createObjectURL(new Blob(['\ufeff' + csv], { type: 'text/csv;charset=utf-8' }));
+  const link = document.createElement('a'); link.href = url; link.download = name + '.csv'; link.click(); setTimeout(() => URL.revokeObjectURL(url), 1000);
+}
 function Drawer({ title, subtitle, children, onClose, actions }: { title: string; subtitle?: string; children: React.ReactNode; onClose: () => void; actions: React.ReactNode }) {
   return <div className="case-drawer-mask" role="presentation" onMouseDown={onClose}><aside className="case-drawer hn-standard-drawer" role="dialog" aria-modal="true" onMouseDown={(event) => event.stopPropagation()}><header className="case-drawer-head"><div><h2>{title}</h2>{subtitle ? <span>{subtitle}</span> : null}</div><button onClick={onClose}><X size={18} /></button></header><div className="case-drawer-content">{children}</div><footer className="hn-standard-drawer-footer">{actions}</footer></aside></div>;
 }
 
-type IngestionRow = {
-  id: string; title: string; no: string; source: string; sourceId: string; fileName: string;
-  type: string; year: string; issueDate: string; relatedUnit: string; domain: string; aspect: string;
-  issueType: string; manifestation: string; nature: string; responsibility: string; impactLevel: string;
-  impactRule: string; handlingMethod: string; policyBasis: string; standardRef: string; standardVersion: string;
-  reviewStatus: string; ruleVersion: string; metadataUpdatedAt: string; time: string;
-  status: '已入库' | '未入库'; detailStatus: '已入库' | '待人工处理' | '处理中' | '处理失败'; result: string;
-  qualityIssues: Array<{ field: string; current: string; suggestion: string; confidence: string; reason: string }>;
-  subjects?: CaseSubject[]; issues?: CaseIssue[]; decisions?: CaseDecisionGroup[];
-  revisionStatus?: '复核中';
-};
 
-const DOMAIN_NAMES = [
-  '预算管理', '信息公开', '国库管理', '债务管控', '滥发钱物', '私设小金库', '采购管理',
-  '资产管理', '财务会计管理', '票据管理', '项目管理', '监督管理', '内部控制',
-];
-
-const INGESTION_ROWS: IngestionRow[] = [
-  {
-    id: 'I01', title: '关于专项债券资金闲置问题的整改通知书', no: '湘财监〔2026〕18号', source: 'OA同步', sourceId: 'OA-20260901-018', fileName: '湘财监〔2026〕18号正文及附件.pdf', type: '整改通知书', year: '2026', issueDate: '2026-08-31', relatedUnit: '岳阳市某项目建设单位',
-    domain: '债务管控', aspect: '债券管理', issueType: '债券资金闲置、效益不高', manifestation: '专项债券资金拨付后长期未形成实物工作量，部分资金沉淀在项目账户。', nature: '一般', responsibility: '市县主责', impactLevel: 'Ⅲ类', impactRule: '根据闲置金额、持续时间及对项目建设进度的影响综合判定。',
-    handlingMethod: '责令限期整改｜盘活闲置资金｜加快项目建设进度', policyBasis: '《地方政府专项债券项目资金绩效管理办法》', standardRef: '基础认定标准 / 债务管控 / 债券管理 / 第45类', standardVersion: 'HN-FS-2026.1', reviewStatus: '自动通过', ruleVersion: 'metadata-v1.3', metadataUpdatedAt: '2026-09-01 09:45', time: '2026-09-01 09:42', status: '已入库', detailStatus: '已入库', result: '元数据、认定标准关联和知识索引已生成。', qualityIssues: [],
-  },
-  {
-    id: 'I02', title: '行政处罚决定书', no: '湘财行罚〔2026〕26号', source: '用户上传', sourceId: 'UPLOAD-20260901-006', fileName: '80fe4c85b86d4df390063b7d97a8fde0.docx', type: '行政处罚决定书', year: '2026', issueDate: '2026-04-18', relatedUnit: '龙再云',
-    domain: '财务会计管理', aspect: '会计监督', issueType: '未履行必要审计程序、未获取充分适当审计证据', manifestation: '3份审计报告均存在必要审计程序缺失、审计证据不充分和审计工作底稿不完整等问题。', nature: '待确认', responsibility: '注册会计师', impactLevel: '—', impactRule: '—',
-    handlingMethod: '警告｜暂停执业1个月｜责令立即整改', policyBasis: '《中华人民共和国注册会计师法》｜《会计师事务所执业许可和监督管理办法》｜《中国注册会计师审计准则第1131号——审计工作底稿》｜《中国注册会计师审计准则第1301号——审计证据》｜《中国注册会计师审计准则第1312号——函证》', standardRef: '未匹配现行基础认定标准', standardVersion: 'HN-FS-2026.1', reviewStatus: '待人工复核', ruleVersion: 'metadata-v1.3', metadataUpdatedAt: '2026-09-01 09:31', time: '2026-09-01 09:28', status: '未入库', detailStatus: '待人工处理', result: '存在 2 项阻断问题，处理完成并重新校验通过后才能正式入库。',
-    subjects: [
-      { role: '当事人', name: '龙再云' },
-      { role: '所属机构', name: '湖南恒圆会计师事务所合伙企业（普通合伙）' },
-    ],
-    issues: [{
-      id: 'ISSUE-01', title: '未履行必要的审计程序，未获取充分适当的审计证据', domain: '财务会计管理', aspect: '会计监督', type: '审计执业程序不规范', nature: '待确认', responsibility: '注册会计师',
-      facts: [
-        '湘恒圆审字（2024）第01-01号：银行存款、短期借款未实施函证，且未检查借款凭证、借款单。',
-        '湘恒圆审字（2024）第01-01号：往来款项未函证，也未实施函证替代程序。',
-        '湘恒圆审字（2024）第01-01号：营业收入、营业成本、销售费用只有审定表，未实施进一步审计程序。',
-        '湘恒圆审字（2024）第01-01号：未见现金流量表审计工作底稿。',
-        '湘恒圆审字（2024）第03-05号：银行存款未函证，仅取得对账单复印件。',
-        '湘恒圆审字（2024）第03-05号：其他应收款未函证，未实施进一步审计程序。',
-        '湘恒圆审字（2024）第03-05号：长期股权投资、长期待摊费用、预收账款未见底稿。',
-        '湘恒圆审字（2024）第03-05号：营业收入和营业成本只有明细表。',
-        '湘恒圆审字（2024）第03-12号：银行存款、短期借款未函证，未检查借款合同和凭证。',
-        '湘恒圆审字（2024）第03-12号：往来款项只有明细表，未函证且未实施进一步审计程序。',
-        '湘恒圆审字（2024）第03-12号：存货和应交税费只有审定表和明细表。',
-        '湘恒圆审字（2024）第03-12号：营业收入和营业成本只有明细表。',
-        '湘恒圆审字（2024）第03-12号：管理费用只有审定表。',
-      ],
-      violatedBases: [
-        { name: '《中华人民共和国注册会计师法》', clauses: '第二十一条、第三十一条' },
-        { name: '《会计师事务所执业许可和监督管理办法》', clauses: '第六十条第一项' },
-        { name: '《中国注册会计师审计准则第1131号——审计工作底稿》', clauses: '第八条' },
-        { name: '《中国注册会计师审计准则第1301号——审计证据》', clauses: '第十条' },
-        { name: '《中国注册会计师审计准则第1312号——函证》', clauses: '第十二条、第十三条' },
-      ],
-      evidences: ['3份审计报告及工作底稿', '当事人签字确认的财政检查工作底稿'],
-      standardMatch: { status: '未匹配', name: '现行基础认定标准暂未覆盖该问题', version: 'HN-FS-2026.1', basis: '问题事实与财务会计管理相关，但现行问题类型目录无直接对应项。' },
-    }],
-    decisions: [{
-      grade: '一般处罚阶次', relatedIssueIds: ['ISSUE-01'],
-      actions: [
-        { type: '行政处罚', target: '龙再云', content: '给予警告' },
-        { type: '行政处罚', target: '龙再云', content: '暂停执业', measure: '1个月' },
-        { type: '整改要求', target: '龙再云', content: '责令立即整改' },
-      ],
-      bases: [
-        { name: '《中华人民共和国注册会计师法》', clauses: '第三十九条第二款' },
-        { name: '《会计师事务所执业许可和监督管理办法》', clauses: '第七十条第一款' },
-        { name: '《湖南省财政厅行政处罚裁量权基准（2022年版）》', clauses: '注册会计师和会计师事务所监督类第9项' },
-      ],
-    }],
-    qualityIssues: [
-      { field: '匹配认定标准', current: '未匹配', suggestion: '保留为候选问题类型', confidence: '61%', reason: '现行基础认定标准未直接覆盖注册会计师审计执业程序问题。' },
-      { field: '问题性质', current: '待确认', suggestion: '不直接采用“一般处罚阶次”', confidence: '95%', reason: '处罚阶次是裁量结论，不能直接等同于基础认定标准中的问题性质。' },
-    ],
-  },
-  {
-    id: 'I03', title: '政府采购专项检查整改通知书', no: '湘财购监〔2026〕8号', source: 'OA同步', sourceId: 'OA-20260901-011', fileName: '湘财购监〔2026〕8号.pdf', type: '整改通知书', year: '2026', issueDate: '2026-08-30', relatedUnit: '株洲市某项目建设单位',
-    domain: '采购管理', aspect: '政府采购执行', issueType: '履约验收不合理', manifestation: '采购人未按合同约定组织履约验收，验收资料不完整。', nature: '一般', responsibility: '省级部门主责、市县主责', impactLevel: '待判定', impactRule: '需结合采购金额、履约偏差和财政资金损失情况判定影响度。',
-    handlingMethod: '责令补充验收资料｜限期整改', policyBasis: '《中华人民共和国政府采购法实施条例》', standardRef: '基础认定标准 / 采购管理 / 政府采购执行 / 第72类', standardVersion: 'HN-FS-2026.1', reviewStatus: '系统处理中', ruleVersion: 'metadata-v1.3', metadataUpdatedAt: '—', time: '2026-09-01 08:56', status: '未入库', detailStatus: '处理中', result: '系统正在生成标准化元数据和知识索引，无需人工操作。', qualityIssues: [],
-  },
-  {
-    id: 'I04', title: '预算执行监督检查情况汇总表', no: '—', source: '用户上传', sourceId: 'UPLOAD-20260831-021', fileName: '预算执行监督检查情况汇总表.xlsx', type: '表格附件', year: '2026', issueDate: '—', relatedUnit: '—',
-    domain: '预算管理', aspect: '待提取', issueType: '待提取', manifestation: '—', nature: '待提取', responsibility: '待提取', impactLevel: '待提取', impactRule: '—', handlingMethod: '—', policyBasis: '—', standardRef: '—', standardVersion: 'HN-FS-2026.1', reviewStatus: '解析失败', ruleVersion: 'metadata-v1.3', metadataUpdatedAt: '—', time: '2026-08-31 17:36', status: '未入库', detailStatus: '处理失败', result: 'Excel 存在多级合并表头，通用解析模板无法准确识别数据区。', qualityIssues: [
-      { field: '文档内容', current: '表头错位', suggestion: '使用多级表头解析模板重新识别', confidence: '91%', reason: '第 1—3 行存在合并单元格，通用解析器未能准确识别数据区。' },
-    ],
-  },
-  {
-    id: 'I05', title: '专项债券项目资金管理处理决定', no: '湘财监〔2026〕15号', source: 'OA同步', sourceId: 'OA-20260831-096', fileName: '湘财监〔2026〕15号.pdf', type: '处理决定', year: '2026', issueDate: '2026-08-28', relatedUnit: '常德市某专项债券项目单位',
-    domain: '债务管控', aspect: '债券管理', issueType: '债券资金闲置、效益不高', manifestation: '项目建设进度明显滞后，已拨付专项债券资金长期滞留项目账户。', nature: '一般', responsibility: '市县主责', impactLevel: '待判定', impactRule: '根据资金闲置规模、项目延期时间及预期效益实现情况综合判定。',
-    handlingMethod: '责令加快资金支付进度｜限期形成实物工作量', policyBasis: '《地方政府专项债券项目资金绩效管理办法》', standardRef: '基础认定标准 / 债务管控 / 债券管理 / 第45类', standardVersion: 'HN-FS-2026.1', reviewStatus: '待人工复核', ruleVersion: 'metadata-v1.3', metadataUpdatedAt: '2026-08-31 16:19', time: '2026-08-31 16:14', status: '未入库', detailStatus: '待人工处理', result: '存在 1 项阻断问题，确认发文日期后可重新校验。', qualityIssues: [
-      { field: '发文日期', current: '空值', suggestion: '2026-08-28', confidence: '96%', reason: '正文落款处可识别日期，但原始结构化字段为空。' },
-    ],
-  },
-  {
-    id: 'I06', title: '关于2025年度部门决算公开情况的检查通报', no: '湘财监〔2026〕13号', source: 'OA同步', sourceId: 'OA-20260831-083', fileName: '湘财监〔2026〕13号.pdf', type: '检查通报', year: '2026', issueDate: '2026-08-27', relatedUnit: '湖南省某事业单位',
-    domain: '信息公开', aspect: '预决算公开', issueType: '预决算公开不完整', manifestation: '部门决算公开内容缺少政府采购支出和国有资产占用情况说明。', nature: '一般', responsibility: '省级部门主责、财政厅主责、市县主责', impactLevel: 'Ⅳ类', impactRule: '根据缺失内容范围、持续时间和社会影响综合判定。',
-    handlingMethod: '责令补充公开｜限期整改', policyBasis: '《中华人民共和国预算法实施条例》', standardRef: '基础认定标准 / 信息公开 / 预决算公开', standardVersion: 'HN-FS-2026.1', reviewStatus: '自动通过', ruleVersion: 'metadata-v1.3', metadataUpdatedAt: '2026-08-31 15:46', time: '2026-08-31 15:42', status: '已入库', detailStatus: '已入库', result: '质量校验通过，已写入正式知识库。', qualityIssues: [],
-    issues: [
-      { id: 'I06-ISSUE-01', title: '政府采购支出情况未完整公开', domain: '信息公开', aspect: '预决算公开', type: '预决算公开不完整', nature: '一般', responsibility: '省级部门主责、市县主责', facts: ['部门决算公开内容缺少政府采购支出情况说明。'], violatedBases: [{ name: '《中华人民共和国预算法实施条例》' }], evidences: ['2025年度部门决算公开页面截图'], standardMatch: { status: '已匹配', name: '基础认定标准 / 信息公开 / 预决算公开不完整', version: 'HN-FS-2026.1' } },
-      { id: 'I06-ISSUE-02', title: '国有资产占用情况说明缺失', domain: '信息公开', aspect: '预决算公开', type: '预决算公开不完整', nature: '一般', responsibility: '省级部门主责、市县主责', facts: ['部门决算公开内容未说明国有资产占用及变动情况。'], violatedBases: [{ name: '《中华人民共和国预算法实施条例》' }], evidences: ['公开内容完整性检查记录'], standardMatch: { status: '已匹配', name: '基础认定标准 / 信息公开 / 预决算公开不完整', version: 'HN-FS-2026.1' } },
-      { id: 'I06-ISSUE-03', title: '部门决算公开时间超过规定期限', domain: '信息公开', aspect: '预决算公开', type: '预决算公开不及时', nature: '一般', responsibility: '省级部门主责、市县主责', facts: ['部门决算在批复后超过规定期限公开。'], violatedBases: [{ name: '《中华人民共和国预算法实施条例》' }], evidences: ['决算批复时间及公开页面发布时间记录'], standardMatch: { status: '已匹配', name: '基础认定标准 / 信息公开 / 预决算公开不及时', version: 'HN-FS-2026.1' } },
-    ],
-    decisions: [{ actions: [{ type: '处理要求', target: '湖南省某事业单位', content: '补充公开缺失内容' }, { type: '整改要求', target: '湖南省某事业单位', content: '限期完成整改并报送佐证材料' }], bases: [{ name: '《中华人民共和国预算法实施条例》' }], relatedIssueIds: ['I06-ISSUE-01', 'I06-ISSUE-02', 'I06-ISSUE-03'] }],
-  },
-  {
-    id: 'I07', title: '财政暂付款清理情况专项检查报告', no: '湘财库检〔2026〕7号', source: '用户上传', sourceId: 'UPLOAD-20260831-019', fileName: '财政暂付款清理情况专项检查报告.docx', type: '检查报告', year: '2026', issueDate: '—', relatedUnit: '衡阳市某县财政局',
-    domain: '国库管理', aspect: '暂付款管理', issueType: '暂付款管控不到位', manifestation: '部分暂付款长期挂账，未按规定制定清理计划并落实责任。', nature: '较严重', responsibility: '市县主责', impactLevel: 'Ⅱ类', impactRule: '根据挂账金额、账龄和清理进度综合判定。',
-    handlingMethod: '责令制定清理计划｜限期整改', policyBasis: '《财政总会计制度》', standardRef: '基础认定标准 / 国库管理 / 暂付款管理', standardVersion: 'HN-FS-2026.1', reviewStatus: '待人工复核', ruleVersion: 'metadata-v1.3', metadataUpdatedAt: '2026-08-31 14:28', time: '2026-08-31 14:21', status: '未入库', detailStatus: '待人工处理', result: '存在 1 项阻断问题，确认发文日期后可重新校验。', qualityIssues: [
-      { field: '发文日期', current: '空值', suggestion: '2026-08-26', confidence: '93%', reason: '正文落款可以识别日期，但标题区和结构化字段均未提供。' },
-    ],
-  },
-  {
-    id: 'I08', title: '违规发放津贴补贴问题处理决定', no: '湘财监处〔2026〕9号', source: 'OA同步', sourceId: 'OA-20260831-071', fileName: '湘财监处〔2026〕9号.pdf', type: '处理决定', year: '2026', issueDate: '2026-08-25', relatedUnit: '湖南省某厅直属单位',
-    domain: '滥发钱物', aspect: '违规发放钱物', issueType: '超标准、超范围发放奖金、津贴补贴', manifestation: '超出规定范围向部分人员发放专项工作补贴。', nature: '较严重', responsibility: '省级部门主责、市县主责', impactLevel: 'Ⅱ类', impactRule: '根据违规发放金额、人数和持续时间综合判定。',
-    handlingMethod: '责令追回资金｜追究相关责任', policyBasis: '《违规发放津贴补贴行为处分规定》', standardRef: '基础认定标准 / 滥发钱物 / 违规发放钱物', standardVersion: 'HN-FS-2026.1', reviewStatus: '自动通过', ruleVersion: 'metadata-v1.3', metadataUpdatedAt: '2026-08-31 13:15', time: '2026-08-31 13:10', status: '已入库', detailStatus: '已入库', result: '质量校验通过，已写入正式知识库。', qualityIssues: [],
-  },
-  {
-    id: 'I09', title: '关于账外资金问题的整改通知书', no: '湘财监整〔2026〕6号', source: '第三方采集', sourceId: 'COLLECT-20260830-041', fileName: '关于账外资金问题的整改通知书.pdf', type: '整改通知书', year: '2026', issueDate: '2026-08-24', relatedUnit: '永州市某县属事业单位',
-    domain: '私设小金库', aspect: '私设小金库', issueType: '虚列支出转出资金设立小金库', manifestation: '以会议费和劳务费名义虚列支出，将财政资金转入账外账户。', nature: '严重', responsibility: '待确认', impactLevel: 'Ⅰ类', impactRule: '根据资金规模、持续时间和使用方向综合判定。',
-    handlingMethod: '责令追回资金｜移送相关线索', policyBasis: '《财政违法行为处罚处分条例》', standardRef: '基础认定标准 / 私设小金库 / 私设小金库', standardVersion: 'HN-FS-2026.1', reviewStatus: '待人工复核', ruleVersion: 'metadata-v1.3', metadataUpdatedAt: '2026-08-30 17:18', time: '2026-08-30 17:10', status: '未入库', detailStatus: '待人工处理', result: '存在 1 项阻断问题，责任主体需要结合检查方案确认。', qualityIssues: [
-      { field: '责任主体', current: '待确认', suggestion: '省级部门主责、市县主责', confidence: '72%', reason: '正文能够识别被检查单位，但无法仅凭文书确定省级部门是否承担主责。' },
-    ],
-  },
-  {
-    id: 'I10', title: '行政事业性国有资产管理检查报告', no: '湘财资检〔2026〕5号', source: '用户上传', sourceId: 'UPLOAD-20260830-015', fileName: '行政事业性国有资产管理检查报告.pdf', type: '检查报告', year: '2026', issueDate: '2026-08-22', relatedUnit: '郴州市某市直单位',
-    domain: '资产管理', aspect: '资产管理', issueType: '资产管理不规范', manifestation: '部分固定资产未及时登记入账，资产卡片信息与实物不一致。', nature: '一般', responsibility: '省级部门主责、市县主责', impactLevel: 'Ⅲ类', impactRule: '根据账实不符资产数量、金额和管理影响综合判定。',
-    handlingMethod: '责令补录资产卡片｜限期盘点整改', policyBasis: '《行政事业性国有资产管理条例》', standardRef: '基础认定标准 / 资产管理 / 资产管理', standardVersion: 'HN-FS-2026.1', reviewStatus: '自动通过', ruleVersion: 'metadata-v1.3', metadataUpdatedAt: '2026-08-30 15:32', time: '2026-08-30 15:27', status: '已入库', detailStatus: '已入库', revisionStatus: '复核中', result: '质量校验通过，已写入正式知识库。', qualityIssues: [],
-  },
-  {
-    id: 'I11', title: '财政票据使用管理专项检查情况通报', no: '湘财综〔2026〕21号', source: 'OA同步', sourceId: 'OA-20260830-062', fileName: '湘财综〔2026〕21号.pdf', type: '检查通报', year: '2026', issueDate: '2026-08-21', relatedUnit: '娄底市某执收单位',
-    domain: '票据管理', aspect: '票据使用管理', issueType: '票据使用不规范', manifestation: '部分财政票据领用、核销记录不完整，票据使用台账更新不及时。', nature: '一般', responsibility: '省级部门主责、市县主责', impactLevel: 'Ⅳ类', impactRule: '根据票据数量、涉及金额和管理后果综合判定。',
-    handlingMethod: '责令完善台账｜限期整改', policyBasis: '《财政票据管理办法》', standardRef: '基础认定标准 / 票据管理 / 票据使用管理', standardVersion: 'HN-FS-2026.1', reviewStatus: '自动通过', ruleVersion: 'metadata-v1.3', metadataUpdatedAt: '2026-08-30 11:19', time: '2026-08-30 11:14', status: '已入库', detailStatus: '已入库', result: '质量校验通过，已写入正式知识库。', qualityIssues: [],
-  },
-  {
-    id: 'I12', title: '重点建设项目实施情况检查报告', no: '湘财建检〔2026〕10号', source: '用户上传', sourceId: 'UPLOAD-20260829-013', fileName: '重点建设项目实施情况检查报告.xlsx', type: '检查报告', year: '2026', issueDate: '2026-08-20', relatedUnit: '湘潭市某项目实施单位',
-    domain: '项目管理', aspect: '项目执行管理', issueType: '项目实施不规范', manifestation: '项目实际建设内容与批复方案存在差异，部分变更未履行审批程序。', nature: '待确认', responsibility: '省级部门主责、市县主责', impactLevel: '待判定', impactRule: '需结合变更内容、项目金额和实际影响确定问题性质与影响度。',
-    handlingMethod: '责令补办变更手续｜限期整改', policyBasis: '《政府投资条例》', standardRef: '基础认定标准 / 项目管理 / 项目执行管理', standardVersion: 'HN-FS-2026.1', reviewStatus: '待人工复核', ruleVersion: 'metadata-v1.3', metadataUpdatedAt: '2026-08-29 16:53', time: '2026-08-29 16:45', status: '未入库', detailStatus: '待人工处理', result: '存在 1 项阻断问题，问题性质需结合项目变更影响确认。', qualityIssues: [
-      { field: '问题性质', current: '待确认', suggestion: '较严重', confidence: '74%', reason: '表现形式符合项目实施不规范，但项目变更金额和实际影响证据不足。' },
-    ],
-  },
-  {
-    id: 'I13', title: '财政监督检查发现问题整改情况通报', no: '湘财监〔2026〕12号', source: 'OA同步', sourceId: 'OA-20260829-052', fileName: '湘财监〔2026〕12号.pdf', type: '整改通报', year: '2026', issueDate: '2026-08-19', relatedUnit: '张家界市某区财政局',
-    domain: '监督管理', aspect: '问题整改', issueType: '问题整改不力', manifestation: '部分问题超过整改期限仍未完成，整改报告未附充分佐证材料。', nature: '较严重', responsibility: '省级部门主责、财政厅主责、市县主责', impactLevel: 'Ⅱ类', impactRule: '根据逾期时长、未整改问题数量和影响范围综合判定。',
-    handlingMethod: '责令限期完成整改｜通报批评', policyBasis: '《财政检查工作办法》', standardRef: '基础认定标准 / 监督管理 / 问题整改', standardVersion: 'HN-FS-2026.1', reviewStatus: '自动通过', ruleVersion: 'metadata-v1.3', metadataUpdatedAt: '2026-08-29 14:11', time: '2026-08-29 14:07', status: '已入库', detailStatus: '已入库', result: '质量校验通过，已写入正式知识库。', qualityIssues: [],
-  },
-  {
-    id: 'I14', title: '预算单位内部控制执行情况检查报告', no: '湘财会检〔2026〕4号', source: 'OA同步', sourceId: 'OA-20260829-037', fileName: '湘财会检〔2026〕4号.pdf', type: '检查报告', year: '2026', issueDate: '2026-08-18', relatedUnit: '湖南省某行政单位',
-    domain: '内部控制', aspect: '制度执行', issueType: '内控制度执行不到位', manifestation: '采购、合同和资金支付岗位未严格执行不相容岗位分离要求。', nature: '较严重', responsibility: '省级部门主责、市县主责', impactLevel: 'Ⅱ类', impactRule: '根据控制缺陷范围、持续时间和已造成后果综合判定。',
-    handlingMethod: '责令完善岗位分离｜限期整改', policyBasis: '《行政事业单位内部控制规范（试行）》', standardRef: '基础认定标准 / 内部控制 / 制度执行', standardVersion: 'HN-FS-2026.1', reviewStatus: '自动通过', ruleVersion: 'metadata-v1.3', metadataUpdatedAt: '2026-08-29 10:36', time: '2026-08-29 10:31', status: '已入库', detailStatus: '已入库', result: '质量校验通过，已写入正式知识库。', qualityIssues: [],
-  },
-];
-
-function splitAggregate(value: string) {
-  return value === '—' ? [] : value.split('｜').map((item) => item.trim()).filter(Boolean);
-}
-
-function resolveCaseSubjects(row: IngestionRow): CaseSubject[] {
-  if (row.subjects?.length) return row.subjects;
-  return row.relatedUnit && row.relatedUnit !== '—' ? [{ role: '相关单位', name: row.relatedUnit }] : [];
-}
-
-function resolveCaseIssues(row: IngestionRow): CaseIssue[] {
-  if (row.issues?.length) return row.issues;
-  return [{
-    id: `${row.id}-ISSUE-01`, title: row.manifestation && row.manifestation !== '—' ? row.manifestation.replace(/[。；].*$/, '') : row.issueType,
-    domain: row.domain, aspect: row.aspect, type: row.issueType,
-    nature: row.nature, responsibility: row.responsibility,
-    facts: row.manifestation && row.manifestation !== '—' ? [row.manifestation] : [],
-    violatedBases: splitAggregate(row.policyBasis).map((name) => ({ name })), evidences: [],
-    standardMatch: {
-      status: row.standardRef === '—' ? '待确认' : row.standardRef.includes('未匹配') ? '未匹配' : '已匹配',
-      name: row.standardRef, version: row.standardVersion,
-    },
-  }];
-}
-
-function resolveCaseDecisions(row: IngestionRow): CaseDecisionGroup[] {
-  if (row.decisions?.length) return row.decisions;
-  const actions = splitAggregate(row.handlingMethod).map((content) => ({ type: '处理要求', target: row.relatedUnit, content }));
-  return actions.length > 0 ? [{ actions, bases: [], relatedIssueIds: [`${row.id}-ISSUE-01`] }] : [];
-}
-
-function IngestionMetadataPage({ row, onBack, onNotice }: { row: IngestionRow; onBack: () => void; onNotice: (message: string) => void }) {
-  const [reviewOpen, setReviewOpen] = useState(false);
-  const [reviewSubmitted, setReviewSubmitted] = useState(false);
-  const editable = row.detailStatus === '待人工处理' || row.detailStatus === '处理失败';
-  const field = (label: string, value: string, wide = false) => <label className={`ufsp-field-block ${wide ? 'hn-field-wide' : ''}`} key={label}><span>{label}</span><input defaultValue={value} readOnly={!editable} /></label>;
-  const pageMode = row.detailStatus === '待人工处理' || row.detailStatus === '处理失败' ? '数据处理' : '入库详情';
-  const flowAction = row.detailStatus === '待人工处理' ? '重新校验' : row.detailStatus === '处理失败' ? '重新解析' : row.detailStatus === '处理中' ? '刷新状态' : null;
-  const subjects = resolveCaseSubjects(row);
-  const issues = resolveCaseIssues(row);
-  const decisionGroups = resolveCaseDecisions(row);
-  const revisionStatus = reviewSubmitted ? '复核中' : row.revisionStatus;
-  const standardStatusClass = (status: CaseIssue['standardMatch']['status']) => status === '已匹配' ? 'is-success' : status === '未匹配' ? 'is-danger' : 'is-warning';
-  const issueNameById = new Map(issues.map((issue, index) => [issue.id, `问题 ${index + 1}`]));
-  const countLabel = (count: number, unit = '项') => count > 1 ? <em>共 {count} {unit}</em> : null;
-
-  return <div className="case-workspace case-form-page ufsp-form-shell hn-ingestion-detail-page">
-    <div className="case-form-head ufsp-form-head"><div className="ufsp-form-title"><button type="button" className="ufsp-form-back" onClick={onBack} aria-label="返回入库列表"><ArrowLeft size={18} /></button><h1><span>案例入库管理</span><em>/ {pageMode}</em></h1></div><div className="case-head-actions ufsp-form-actions"><button className="ufsp-btn ufsp-btn-secondary" onClick={() => onNotice('已打开原始来源资料')}>查看源文件</button>{row.detailStatus === '已入库' ? <button className="ufsp-btn ufsp-btn-secondary" onClick={() => setReviewOpen(true)}>{revisionStatus ? '查看复核' : '申请复核'}</button> : null}{editable ? <button className="ufsp-btn ufsp-btn-secondary" onClick={() => onNotice('当前修正内容已保存')}>保存</button> : null}{flowAction ? <button className="ufsp-btn ufsp-btn-primary" onClick={() => onNotice(`已模拟${flowAction}`)}>{flowAction}</button> : null}</div></div>
-    <div className="case-edit-body case-standard-form ufsp-ledger-edit-body hn-ingestion-form">
-      {revisionStatus ? <div className="hn-revision-notice"><strong>该案例正在复核</strong><span>正式案例仍按当前版本提供检索；复核通过后生成新版本，并重新执行质量校验和知识索引。</span></div> : null}
-      <section className="ufsp-ledger-edit-section hn-ingestion-quality-section"><h2>质量校验结果</h2>{row.qualityIssues.length > 0 ? <><div className="hn-ingestion-quality-summary"><strong>{row.qualityIssues.length} 项阻断问题</strong><span>修正并重新校验通过后，文档才会写入正式知识库。</span></div><div className="hn-quality-issue-wrap"><table className="hn-quality-issue-table"><thead><tr><th>字段</th><th>当前值</th><th>系统建议</th><th>置信度</th><th>待处理原因</th></tr></thead><tbody>{row.qualityIssues.map((issue) => <tr key={`${issue.field}-${issue.reason}`}><td>{issue.field}</td><td>{issue.current}</td><td>{issue.suggestion}</td><td>{issue.confidence}</td><td>{issue.reason}</td></tr>)}</tbody></table></div></> : <div className={`hn-quality-result ${row.detailStatus === '已入库' ? 'is-pass' : 'is-processing'}`}><CheckCircle2 size={16} /><div><strong>{row.detailStatus === '已入库' ? '质量校验已通过' : '系统正在执行质量校验'}</strong><span>{row.detailStatus === '已入库' ? '未发现阻断项，文档已进入正式知识库。' : '完成前不会写入正式知识库，无需人工处理。'}</span></div></div>}</section>
-      <section className="ufsp-ledger-edit-section"><h2>文书基本信息</h2><div className="ufsp-ledger-form-grid four">{field('文书标题（document_title）', row.title, true)}{field('文号（document_no）', row.no)}{field('文书类型（document_type）', row.type)}{field('所属年度（year）', row.year)}{field('发文日期（issue_date）', row.issueDate)}{field('主要相关主体（related_unit）', row.relatedUnit, true)}</div></section>
-      <section className="ufsp-ledger-edit-section"><h2>关联主体 {countLabel(subjects.length)}</h2>{subjects.length > 0 ? <div className="hn-structured-table-wrap"><table className="hn-structured-table"><thead><tr><th>主体角色</th><th>主体名称</th></tr></thead><tbody>{subjects.map((subject, index) => <tr key={`${subject.role}-${subject.name}-${index}`}><td>{subject.role}</td><td>{subject.name}</td></tr>)}</tbody></table></div> : <p className="hn-structured-empty">原文暂未识别到明确关联主体。</p>}</section>
-      <section className="ufsp-ledger-edit-section"><h2>问题认定 {countLabel(issues.length)}</h2>{issues.length > 5 ? <nav className="hn-case-issue-index" aria-label="问题目录">{issues.map((issue, index) => <a key={issue.id} href={`#${issue.id}`}>{index + 1}. {issue.title}</a>)}</nav> : null}<div className="hn-case-issue-list">{issues.map((issue, issueIndex) => <article className="hn-case-issue" id={issue.id} key={issue.id}>
-        <header className={`hn-case-issue-head ${issues.length === 1 ? 'is-single' : ''}`}>{issues.length > 1 ? <span>问题 {issueIndex + 1}</span> : null}<h3>{issue.title}</h3><em className={`case-badge ${standardStatusClass(issue.standardMatch.status)}`}>{issue.standardMatch.status}</em></header>
-        <div className="ufsp-ledger-form-grid four hn-case-classification-grid">{field('监督领域（supervision_domain）', issue.domain)}{field('方面（problem_aspect）', issue.aspect)}{field('问题类型（violation_type）', issue.type, true)}{field('问题性质（problem_nature）', issue.nature)}{field('责任主体（responsibility_subject）', issue.responsibility, true)}</div>
-        <div className="hn-case-standard-match"><strong>适用认定标准</strong><span>{issue.standardMatch.name}</span><em>{issue.standardMatch.version}</em>{issue.standardMatch.basis ? <small>{issue.standardMatch.basis}</small> : null}</div>
-        <div className="hn-case-detail-grid"><section className="hn-case-detail-block"><h4>具体问题事实 {countLabel(issue.facts.length, '条')}</h4>{issue.facts.length > 0 ? <ol className="hn-case-fact-list">{issue.facts.map((fact, index) => <li key={`${issue.id}-fact-${index}`}>{fact}</li>)}</ol> : <p className="hn-structured-empty">原文暂未识别到明确问题事实。</p>}</section><section className="hn-case-detail-block"><h4>违规认定依据 {countLabel(issue.violatedBases.length, '条')}</h4>{issue.violatedBases.length > 0 ? <ul className="hn-case-policy-list">{issue.violatedBases.map((basis, index) => <li key={`${issue.id}-basis-${index}`}><strong>{basis.name}</strong>{basis.clauses ? <span>{basis.clauses}</span> : null}</li>)}</ul> : <p className="hn-structured-empty">原文暂未识别到明确违规依据。</p>}</section></div>
-        {issue.evidences.length > 0 ? <div className="hn-case-evidence-line"><strong>证据材料</strong><span>{issue.evidences.join('；')}</span></div> : null}
-      </article>)}</div></section>
-      <section className="ufsp-ledger-edit-section"><h2>处理决定 {countLabel(decisionGroups.length)}</h2>{decisionGroups.length > 0 ? <div className="hn-case-decision-list">{decisionGroups.map((group, groupIndex) => <article className="hn-case-decision" key={`decision-${groupIndex}`}><header><strong>{decisionGroups.length > 1 ? `处置组 ${groupIndex + 1}` : '处理结果'}</strong>{group.grade ? <span>{group.grade}</span> : null}{issues.length > 1 ? <em>关联 {group.relatedIssueIds.map((id) => issueNameById.get(id) || id).join('、')}</em> : null}</header><div className="hn-structured-table-wrap"><table className="hn-structured-table hn-case-decision-table"><thead><tr><th>处理类型</th><th>处理对象</th><th>处理内容</th><th>金额或期限</th></tr></thead><tbody>{group.actions.map((action, index) => <tr key={`${action.type}-${action.content}-${index}`}><td>{action.type}</td><td>{action.target}</td><td>{action.content}</td><td>{action.measure || '—'}</td></tr>)}</tbody></table></div>{group.bases.length > 0 ? <div className="hn-case-decision-bases"><strong>处理 / 处罚依据</strong><ul>{group.bases.map((basis, index) => <li key={`${basis.name}-${index}`}><span>{basis.name}</span>{basis.clauses ? <em>{basis.clauses}</em> : null}</li>)}</ul></div> : null}</article>)}</div> : <p className="hn-structured-empty">原文未识别到明确处理决定。</p>}</section>
-      <section className="ufsp-ledger-edit-section"><h2>来源与治理信息</h2><div className="ufsp-ledger-form-grid four">{field('接入来源', row.source)}{field('来源标识', row.sourceId)}{field('源文件名称', row.fileName, true)}{field('正式知识库状态', row.detailStatus)}{field('元数据审核状态', row.reviewStatus)}{field('元数据规则版本', row.ruleVersion)}{field('元数据更新时间', row.metadataUpdatedAt)}</div><div className={row.detailStatus === '处理失败' ? 'case-warning-block' : 'hn-standard-evidence'}>{row.result}</div></section>
-    </div>
-    {reviewOpen ? <div className="case-modal-mask" role="presentation" onMouseDown={() => setReviewOpen(false)}><section className="hn-review-modal" role="dialog" aria-modal="true" aria-labelledby="hn-review-title" onMouseDown={(event) => event.stopPropagation()}><header className="case-modal-head"><div><h2 id="hn-review-title">{revisionStatus ? '复核任务' : '申请复核'}</h2><span>{row.no} · {row.title}</span></div><button onClick={() => setReviewOpen(false)} aria-label="关闭"><X size={18} /></button></header>{revisionStatus ? <div className="hn-review-status"><strong>复核中</strong><span>原案例继续按当前版本提供检索，复核结论形成后将保留完整版本记录。</span></div> : <div className="hn-review-form"><div className="hn-review-grid"><label><span>反馈范围</span><select defaultValue="问题认定"><option>文书基本信息</option><option>关联主体</option><option>问题认定</option><option>认定依据</option><option>处理决定</option><option>源文件或重复数据</option></select></label><label><span>异议类型</span><select defaultValue="分类不当"><option>信息错误</option><option>信息遗漏</option><option>分类不当</option><option>依据不准确</option><option>其他</option></select></label></div><label><span>问题说明</span><textarea placeholder="请说明存在的问题，以及对应的原文位置或业务依据" /></label><label><span>建议修正</span><textarea placeholder="请输入建议的正确内容；暂不确定时可不填写" /></label><label><span>佐证说明</span><input placeholder="请输入政策文件、原文页码或其他佐证" /></label><p>提交后生成独立复核任务，不直接覆盖正式案例。审核通过后生成新版本，并重新执行质量校验和知识索引。</p></div>}<footer className="case-modal-actions"><button className="ufsp-btn" onClick={() => setReviewOpen(false)}>关闭</button>{!revisionStatus ? <button className="ufsp-btn ufsp-btn-primary" onClick={() => { setReviewSubmitted(true); setReviewOpen(false); onNotice('复核申请已提交，原案例继续按当前版本提供检索'); }}>提交复核</button> : null}</footer></section></div> : null}
-  </div>;
-}
-
-export function CaseIngestionManagement({ onNotice }: NoticeProps) {
-  const [tab, setTab] = useState('未入库');
-  const [catalog, setCatalog] = useState('全部领域');
-  const [detailId, setDetailId] = useState<string | null>(null);
-  const [uploadOpen, setUploadOpen] = useState(false);
-  const tabRows = INGESTION_ROWS.filter((row) => tab === '全部' || (tab === '已入库' ? row.status === '已入库' : row.status !== '已入库'));
-  const rows = tabRows.filter((row) => catalog === '全部领域' || row.domain === catalog);
-  const tabCounts = {
-    已入库: INGESTION_ROWS.filter((row) => row.status === '已入库').length,
-    未入库: INGESTION_ROWS.filter((row) => row.status !== '已入库').length,
-    全部: INGESTION_ROWS.length,
+function IngestionMetadataPage({ row, onBack, onNotice, onNavigate }: NoticeProps & { row: IngestionRow; onBack: () => void }) {
+  const { fields, tags } = useGovernance();
+  const [draft, setDraft] = useState<IngestionRow>(() => row.savedDraft ? JSON.parse(row.savedDraft) : JSON.parse(JSON.stringify(row)));
+  const [editable, setEditable] = useState(row.status !== '已入库' && row.detailStatus !== '处理中');
+  const [dirty, setDirty] = useState(false);
+  const [reason, setReason] = useState(row.savedDraft ? JSON.parse(row.savedDraft).processingReason || '' : '');
+  const [solutions, setSolutions] = useState<Record<number, string>>(row.savedDraft ? JSON.parse(row.savedDraft).processingNotes || {} : {});
+  const [editor, setEditor] = useState<{ id?: string; seed?: Partial<TagValue>; path: string } | null>(null);
+  const [confirm, setConfirm] = useState<'leave' | 'publish' | null>(null);
+  const [history, setHistory] = useState(false);
+  const [collapsed, setCollapsed] = useState<string[]>([]);
+  const [removal, setRemoval] = useState<{ title: string; run: () => void } | null>(null);
+  const [checked, setChecked] = useState(false);
+  const formRef = useRef<HTMLDivElement>(null);
+  const change = (path: string, value: string) => { setDraft(d => setCasePath(d, path, value)); setDirty(true); setChecked(false); };
+  const mutate = (update: (d: IngestionRow) => IngestionRow) => { setDraft(update); setDirty(true); setChecked(false); };
+  const paths: Record<string, string[]> = {
+    document_title: ['title'], document_no: ['no'], document_type: ['type'], year: ['year'], issue_date: ['issueDate'], related_unit: ['relatedUnit'],
+    subject_role: draft.subjects?.map((_, i) => `subjects.${i}.role`) || [], subject_name: draft.subjects?.map((_, i) => `subjects.${i}.name`) || [],
   };
-  const domainItems: Array<[string, number, boolean?]> = [
-    ['全部领域', tabRows.length],
-    ...DOMAIN_NAMES.map((name) => [name, tabRows.filter((row) => row.domain === name).length, true] as [string, number, boolean]),
-  ];
-  const selected = INGESTION_ROWS.find((row) => row.id === detailId);
-
-  if (selected) return <IngestionMetadataPage row={selected} onBack={() => setDetailId(null)} onNotice={onNotice} />;
-
-  return <div className="case-workspace hn-module-page hn-standard-management-page">
-    <div className="case-tabs">{(['已入库', '未入库', '全部'] as const).map((name) => <button key={name} className={tab === name ? 'is-active' : ''} onClick={() => { setTab(name); setCatalog('全部领域'); }}>{name}（{tabCounts[name]}）</button>)}</div>
-    <div className="hn-split-workspace"><Catalog title="监督领域" active={catalog} onChange={setCatalog} items={domainItems} /><section className="hn-list-region">
-      <div className="case-list-toolbar"><div className="case-toolbar-left"><button className="ufsp-btn ufsp-btn-primary" onClick={() => setUploadOpen(true)}><RawIcon svg={actionImportIconSvg} />上传文档</button>{tab !== '已入库' ? <button className="ufsp-btn ufsp-btn-secondary" onClick={() => onNotice('已对所选待处理文档执行批量处理演示')}><RawIcon svg={actionPassIconSvg} />批量处理</button> : null}<button className="ufsp-btn ufsp-btn-secondary" onClick={() => onNotice('已导出入库任务清单')}><RawIcon svg={actionExportIconSvg} />导出</button></div><StandardSearchTools onNotice={onNotice} placeholder="请输入标题、文号或相关单位" /></div>
-      <div className="case-table-wrap"><table className="case-table hn-standard-table hn-ingestion-standard-table"><thead><tr><th className="case-col-check"><input type="checkbox" /></th><th>文档标题</th><th>文号</th><th>监督领域</th><th>方面</th><th>问题类型</th><th>问题性质</th><th>相关单位</th><th>当前状态</th><th>接入时间</th><th className="case-col-actions">操作</th></tr></thead><tbody>{rows.map((row) => {
-        const displayStatus = row.revisionStatus || row.detailStatus;
-        const rowStatusClass = row.revisionStatus ? 'is-ai' : row.detailStatus === '已入库' ? 'is-success' : row.detailStatus === '处理失败' ? 'is-danger' : 'is-warning';
-        const actionLabel = row.detailStatus === '待人工处理' || row.detailStatus === '处理失败' ? '处理' : '详情';
-        const issueTip = row.revisionStatus ? '用户已提交复核申请，当前正式版本仍可检索。' : row.qualityIssues.length > 0 ? `待处理原因：${row.qualityIssues.map((issue, index) => `${index + 1}. ${issue.field}：${issue.reason}`).join('；')}` : undefined;
-        return <tr key={row.id}><td className="case-col-check"><input type="checkbox" /></td><td><button className="case-title-link" onClick={() => setDetailId(row.id)}>{row.title}</button></td><td>{row.no}</td><td>{row.domain}</td><td>{row.aspect}</td><td>{row.issueType}</td><td>{row.nature}</td><td>{row.relatedUnit}</td><td><span className={`case-badge ${rowStatusClass}`} title={issueTip} aria-label={issueTip || displayStatus}>{displayStatus}</span></td><td>{row.time}</td><td className="case-col-actions"><button onClick={() => setDetailId(row.id)}>{actionLabel}</button></td></tr>;
-      })}</tbody></table></div><Pagination total={rows.length} />
-    </section></div>
-    {uploadOpen ? <div className="case-modal-mask" role="presentation" onMouseDown={() => setUploadOpen(false)}><section className="hn-standard-upload" role="dialog" aria-modal="true" onMouseDown={(event) => event.stopPropagation()}><header className="case-modal-head"><h2>上传案例文档</h2><button onClick={() => setUploadOpen(false)}><X size={18} /></button></header><div className="hn-standard-upload-body"><div className="hn-standard-upload-drop"><RawIcon svg={actionImportIconSvg} /><strong>点击或拖拽文件到此处</strong><span>支持 PDF、Word、Excel，单个文件不超过 50MB</span></div><label><span>来源说明</span><input placeholder="请输入来源说明" /></label></div><footer className="case-modal-actions"><button className="ufsp-btn" onClick={() => setUploadOpen(false)}>取消</button><button className="ufsp-btn ufsp-btn-primary" onClick={() => { setUploadOpen(false); onNotice('文件已加入入库任务队列演示'); }}>开始上传</button></footer></section></div> : null}
+  Object.entries({ problem_summary: 'title', supervision_domain: 'domain', problem_aspect: 'aspect', violation_type: 'type', problem_nature: 'nature', responsibility_subject: 'responsibility' }).forEach(([code, key]) => { paths[code] = draft.issues?.map((_, i) => `issues.${i}.${key}`) || []; });
+  Object.entries({ handling_method: 'type', handling_target: 'target', handling_content: 'content', handling_measure: 'measure' }).forEach(([code, key]) => { paths[code] = draft.decisions?.flatMap((d, i) => d.actions.map((_, j) => `decisions.${i}.actions.${j}.${key}`)) || []; });
+  const pathLabel = (path: string, name: string) => path.startsWith('issues.') ? `问题${Number(path.split('.')[1]) + 1} · ${name}` : path.startsWith('decisions.') ? `决定${Number(path.split('.')[1]) + 1} · ${name}` : name;
+  const tasks: Array<{ path: string; label: string; message: string; blocking: boolean; resolved?: boolean }> = [];
+  fields.filter(f => f.status === '已生效').forEach(f => (paths[f.code] || []).forEach(path => {
+    const value = String(getCasePath(draft, path)).trim();
+    const candidate = tags.find(t => t.status === '待生效' && t.bindings.some(b => b.caseId === row.id && b.path === path));
+    const invalid = value && isDirectory(f) && (f.count === '多值' ? value.split(/[、，；]/) : [value]).some(v => !tags.some(t => t.fieldCode === f.code && t.status === '已生效' && (t.name === v || t.aliases.includes(v))));
+    if ((!value && f.blocking) || invalid || candidate) tasks.push({ path, label: pathLabel(path, f.name), message: candidate ? `建议标签“${candidate.name}”${candidate.review === '已退回' ? '已退回，请重新选择' : '待确认'}` : invalid ? '尚未匹配正式值；请选择已有值或清空后补' : '必填内容缺失', blocking: !!f.blocking || !!invalid });
+  }));
+  draft.issues?.forEach((issue, i) => {
+    if (!issue.facts.some(v => v.trim())) tasks.push({ path: `issues.${i}.facts`, label: `问题${i + 1} · 具体事实`, message: '请补充原文事实', blocking: true });
+    if (issue.standardMatch.status !== '已匹配' && issue.standardMatch.status !== '人工确认') tasks.push({ path: `issues.${i}.type`, label: `问题${i + 1} · 分类认定`, message: '请核对分类和依据后确认', blocking: true });
+  });
+  row.qualityIssues.forEach((q, i) => {
+    const code = fields.find(f => f.name === q.field)?.code;
+    const path = code && paths[code]?.[0] || (q.field === '匹配认定标准' && draft.issues?.length ? 'issues.0.type' : `quality.${i}`);
+    tasks.push({ path, label: q.field, message: q.reason, blocking: true, resolved: !!solutions[i]?.trim() && !row.localFileUrl });
+  });
+  if (!draft.issues?.length && !row.localFileUrl) tasks.push({ path: 'issues', label: '问题认定', message: '尚无问题记录，请补充原文问题事实', blocking: true });
+  const locate = (path: string) => {
+    if (path.startsWith('issues.')) { const issue = draft.issues?.[Number(path.split('.')[1])]; if (issue) setCollapsed(v => v.filter(id => id !== issue.id)); }
+    requestAnimationFrame(() => { const target = Array.from(formRef.current?.querySelectorAll<HTMLElement>('[data-field-path]') || []).find(el => el.dataset.fieldPath === path); target?.scrollIntoView({ behavior: 'smooth', block: 'center' }); target?.querySelector<HTMLElement>('input,select,textarea')?.focus({ preventScroll: true }); });
+  };
+  const removeItem = (kind: 'issues' | 'decisions', index: number) => {
+    if (tags.some(t => t.status === '待生效' && t.bindings.some(b => b.caseId === row.id && b.path.startsWith(kind + '.')))) return onNotice('请先处理此案例的相关标签建议，再移除条目，避免建议关联错位');
+    const issue = draft.issues?.[index];
+    setRemoval({ title: kind === 'issues' ? '移除此问题？' : '移除此处理决定？', run: () => {
+      mutate(d => kind === 'issues' ? { ...d, issues: d.issues!.filter((_, i) => i !== index), decisions: d.decisions?.map(g => ({ ...g, relatedIssueIds: g.relatedIssueIds.filter(id => id !== issue?.id) })) } : { ...d, decisions: d.decisions!.filter((_, i) => i !== index) }); setRemoval(null);
+    } });
+  };
+  const saveDraft = () => {
+    updateGovernance(s => ({ ...s, cases: s.cases.map(c => c.id === row.id ? { ...c, savedDraft: JSON.stringify({ ...draft, savedDraft: undefined, processingReason: reason, processingNotes: solutions }) } : c) }));
+    setDirty(false); onNotice('处理内容已保存，尚未替换正式版本');
+  };
+  const values = (code: string) => tags.filter(t => t.fieldCode === code && t.status === '已生效');
+  const field = (code: string, path: string, wide = false, customLabel?: string) => {
+    const config = fields.find(f => f.code === code);
+    const value = String(getCasePath(draft, path));
+    const options = values(code);
+    const candidates = tags.filter(t => t.status === '待生效' && t.bindings.some(b => b.caseId === row.id && b.path === path));
+    const directory = isDirectory(config) && config?.count !== '多值';
+    const unmatched = !!value && isDirectory(config) && (config?.count === '多值' ? value.split(/[、，；]/) : [value]).some(v => !options.some(t => t.name === v || t.aliases.includes(v)));
+    const suggest = () => { saveDraft(); setEditor({ path, seed: { fieldCode: code, name: value, evidence: draft.title + '：' + (draft.issues?.[Number(path.split('.')[1])]?.facts[0] || draft.issues?.[0]?.facts[0] || ''), bindings: [{ caseId: row.id, path }] } }); };
+    const label = customLabel || config?.name || code;
+    const task = tasks.find(t => t.path === path && !t.resolved);
+    return <div data-field-path={path} className={'ufsp-field-block hn-ingestion-field ' + (wide ? 'hn-field-wide ' : '') + (editable && task ? task.blocking ? 'is-invalid' : 'is-pending' : '')} key={path}><span>{label}{config?.blocking ? <b> *</b> : null}</span>
+      {editable && directory ? <select aria-label={label} value={value} onChange={e => e.target.value === '__suggest_new__' ? suggest() : change(path, e.target.value)}><option value="">暂不填写</option>{value && !options.some(t => t.name === value) && <option value={value}>{value}{unmatched ? '（待核对）' : ''}</option>}{options.map(t => <option key={t.id} value={t.name}>{t.name}</option>)}{config?.asTag && config.mode === '可扩展目录' && !candidates.length && <option value="__suggest_new__">找不到合适值？建议新增…</option>}</select> : <input aria-label={label} value={value} readOnly={!editable || config?.mode === '系统关联'} onChange={e => change(path, e.target.value)} />}
+      {editable && config?.asTag && (candidates.length > 0 || unmatched) && <div className="hn-field-actions">{candidates.map(t => <React.Fragment key={t.id}><span>建议标签：{t.name}（{t.review}）</span><button className="case-title-link" onClick={() => { saveDraft(); setEditor({ id: t.id, path }); }}>查看建议</button></React.Fragment>)}{!candidates.length && unmatched && <><span>尚未匹配正式值</span>{config.mode === '可扩展目录' && <button className="case-title-link" onClick={suggest}>建议新增</button>}</>}</div>}
+      {editable && task && !candidates.length && !unmatched && <small className="hn-field-error">{task.message}</small>}
+    </div>;
+  };
+  const textField = (label: string, value: string, onChange: (v: string) => void) => <label className="ufsp-field-block"><span>{label}</span><textarea value={value} readOnly={!editable} onChange={e => { onChange(e.target.value); setDirty(true); setChecked(false); }} /></label>;
+  const validate = () => {
+    if (row.detailStatus === '处理中') return '解析尚未完成，不能直接入库';
+    if (row.localFileUrl) return '上传文件尚未接入解析服务，当前只能保存和预览原文件';
+    if (!draft.issues?.length) return '请补充至少一项问题及原文事实';
+    if (draft.decisions?.some(g => !g.actions.length || g.actions.some(a => !a.content.trim()))) return '请补充处理决定的具体内容，或移除误识别的决定';
+    if (draft.decisions?.some(g => g.relatedIssueIds.some(id => !draft.issues?.some(issue => issue.id === id)))) return '处理决定存在失效的问题关联';
+    const unresolved = tasks.find(t => t.blocking && !t.resolved && !t.path.startsWith('quality.'));
+    if (unresolved) { locate(unresolved.path); return unresolved.label + '：' + unresolved.message; }
+    if (row.qualityIssues.some((_, i) => !solutions[i]?.trim())) return '请逐项填写阻断问题的处理结论及依据';
+    if (row.status === '已入库' && !reason.trim()) return '请填写本次修正原因和依据';
+    const paths: Record<string, string[]> = {
+      document_title: ['title'], document_no: ['no'], document_type: ['type'], year: ['year'], issue_date: ['issueDate'], related_unit: ['relatedUnit'],
+      subject_role: draft.subjects?.map((_, i) => 'subjects.' + i + '.role') || [],
+      subject_name: draft.subjects?.map((_, i) => 'subjects.' + i + '.name') || [],
+    };
+    const issueKeys: Record<string, string> = { problem_summary: 'title', supervision_domain: 'domain', problem_aspect: 'aspect', violation_type: 'type', problem_nature: 'nature', responsibility_subject: 'responsibility' };
+    Object.entries(issueKeys).forEach(([code, key]) => { paths[code] = draft.issues?.map((_, i) => 'issues.' + i + '.' + key) || []; });
+    const actionKeys: Record<string, string> = { handling_method: 'type', handling_target: 'target', handling_content: 'content', handling_measure: 'measure' };
+    Object.entries(actionKeys).forEach(([code, key]) => { paths[code] = draft.decisions?.flatMap((d, i) => d.actions.map((_, j) => 'decisions.' + i + '.actions.' + j + '.' + key)) || []; });
+    for (const f of fields.filter(f => f.status === '已生效' && f.blocking)) {
+      if (f.code === 'problem_facts') {
+        if (!draft.issues?.length || draft.issues.some(i => !i.facts.some(t => t.trim()))) return '请补充具体问题事实';
+      } else if (paths[f.code]) {
+        if (!paths[f.code].length || paths[f.code].some(path => !String(getCasePath(draft, path)).trim())) return '必填字段未完成：' + f.name;
+        if (isDirectory(f) && paths[f.code].some(path => {
+          const raw = String(getCasePath(draft, path));
+          const entries = f.count === '多值' ? raw.split(/[、，；]/) : [raw];
+          return entries.some(v => !values(f.code).some(t => t.name === v || t.aliases.includes(v)));
+        })) return '请确认正式目录值：' + f.name;
+      } else return '新增必填字段尚未在当前表单配置录入位置：' + f.name;
+    }
+    for (const f of fields.filter(f => f.status === '已生效' && isDirectory(f))) {
+      for (const path of paths[f.code] || []) {
+        const raw = String(getCasePath(draft, path));
+        if (!raw) continue;
+        const entries = f.count === '多值' ? raw.split(/[、，；]/) : [raw];
+        if (entries.some(v => !values(f.code).some(t => t.name === v || t.aliases.includes(v)))) return f.name + '尚未匹配正式值；请选择已有值，或清空后待补充';
+      }
+    }
+    return '';
+  };
+  const publish = () => {
+    const error = validate(); if (error) { setConfirm(null); onNotice(error); return; }
+    const previous = { ...row, savedDraft: undefined, versions: undefined };
+    const version = row.status === '已入库' ? (row.version || 1) + 1 : 1;
+    const updated: IngestionRow = { ...draft, status: '已入库', detailStatus: '已入库', savedDraft: undefined, version, qualityIssues: [], reviewStatus: '人工确认', metadataUpdatedAt: nowText(), result: '当前版本已通过人工核对及必填校验。', versions: [...(row.versions || []), { version: row.version || 0, at: nowText(), reason: reason || Object.values(solutions).join('；') || '首次确认入库', snapshot: JSON.stringify(previous) }] };
+    updateGovernance(s => ({ ...s, cases: s.cases.map(c => c.id === row.id ? updated : c) }));
+    recordFeedback('入库', row.title, (reason || '入库校验处理') + '；' + Object.values(solutions).join('；'));
+    setDraft(updated); setDirty(false); setEditable(false); setConfirm(null); onNotice('案例版本已更新（本地），原始文件保留');
+  };
+  return <div className="case-workspace case-form-page ufsp-form-shell hn-ingestion-detail-page">
+    <div className="case-form-head ufsp-form-head"><div className="ufsp-form-title"><button className="ufsp-form-back" aria-label="返回" onClick={() => dirty ? setConfirm('leave') : onBack()}><ArrowLeft size={18} /></button><h1><span>案例入库管理</span><em>/ {editable ? '数据处理' : '入库详情'}</em></h1></div><div className="case-head-actions ufsp-form-actions">
+      <button className="ufsp-btn ufsp-btn-secondary" onClick={() => row.localFileUrl ? window.open(row.localFileUrl, '_blank', 'noopener') : onNotice('该演示案例未连接原始文件服务')}>查看源文件</button>
+      <button className="ufsp-btn ufsp-btn-secondary" onClick={() => setHistory(true)}>版本记录</button>
+      {!editable ? <button className="ufsp-btn ufsp-btn-primary" disabled={row.detailStatus === '处理中'} onClick={() => setEditable(true)}>修正数据</button> : <><button className="ufsp-btn ufsp-btn-secondary" onClick={saveDraft}>保存</button><button className="ufsp-btn ufsp-btn-primary" onClick={() => { const error = validate(); error ? onNotice(error) : setConfirm('publish'); }}>{row.status === '已入库' ? '校验并更新版本' : '校验并入库'}</button></>}
+    </div></div>
+    <div ref={formRef} className="case-edit-body case-standard-form ufsp-ledger-edit-body hn-ingestion-form">
+      {row.detailStatus === '处理中' && <section className="hn-processing-summary"><strong>文件正在解析，请等待处理结果，无需修改字段。</strong></section>}
+      {editable && <section className="hn-processing-summary" aria-label="入库检查"><div><strong>{row.detailStatus === '处理中' ? '文件正在解析，请等待处理结果' : tasks.some(t => t.blocking && !t.resolved) ? `尚有 ${tasks.filter(t => t.blocking && !t.resolved).length} 项阻断需要处理` : checked ? '当前表单校验通过，可确认入库' : '当前修改尚未校验'}</strong><button className="ufsp-btn ufsp-btn-secondary" onClick={() => { const error = validate(); setChecked(!error); onNotice(error || '表单校验通过，尚未发布入库'); }}>重新校验</button></div>{tasks.length > 0 && <ul>{tasks.map((task, i) => <li key={task.path + i} className={task.resolved ? 'is-resolved' : task.blocking ? 'is-blocking' : 'is-optional'}><button onClick={() => locate(task.path)}>{task.label}</button><span>{task.resolved ? '已填写处理结论，待校验' : task.message}</span><em>{task.resolved ? '待校验' : task.blocking ? '阻断' : '可后补'}</em></li>)}</ul>}</section>}
+      {row.qualityIssues.length > 0 && <section className="ufsp-ledger-edit-section hn-ingestion-quality-section"><h2>异常处理</h2><div className="hn-quality-issue-wrap"><table className="hn-quality-issue-table"><thead><tr><th>字段</th><th>待处理原因</th><th>建议</th><th>处理结论及依据</th></tr></thead><tbody>{row.qualityIssues.map((q, i) => <tr key={i} data-field-path={`quality.${i}`}><td>{q.field}</td><td>{q.reason}</td><td>{q.suggestion}</td><td><input aria-label={q.field + '处理结论'} readOnly={!editable} placeholder="核对原文并说明如何处理" value={solutions[i] || ''} onChange={e => { setSolutions({ ...solutions, [i]: e.target.value }); setDirty(true); setChecked(false); }} /></td></tr>)}</tbody></table></div></section>}
+      <section className="ufsp-ledger-edit-section"><h2>文书基本信息</h2><div className="ufsp-ledger-form-grid four">{field('document_title', 'title', true)}{field('document_no', 'no')}{field('document_type', 'type')}{field('year', 'year')}{field('issue_date', 'issueDate')}{field('related_unit', 'relatedUnit', true)}</div></section>
+      <section className="ufsp-ledger-edit-section"><h2>关联主体</h2><div className="ufsp-ledger-form-grid four">{draft.subjects?.map((_, i) => <React.Fragment key={i}>{field('subject_role', 'subjects.' + i + '.role')}{field('subject_name', 'subjects.' + i + '.name')}</React.Fragment>)}</div></section>
+      <section className="ufsp-ledger-edit-section"><h2>问题认定{(draft.issues?.length || 0) > 1 ? <em>共 {draft.issues!.length} 项</em> : null}{editable && <button className="case-title-link hn-section-action" onClick={() => mutate(d => ({ ...d, issues: [...(d.issues || []), { id: newId(), title: '', domain: '', aspect: '', type: '', nature: '', responsibility: '', facts: [], violatedBases: [], evidences: [], standardMatch: { status: '待确认', name: '', version: '' } }] }))}>＋补充问题</button>}</h2><div className="hn-case-issue-list">{!draft.issues?.length && <p className="hn-issue-empty">尚未提取问题；可在正文解析后核对，或补充遗漏的问题。</p>}{draft.issues?.map((issue, i) => <article className="hn-case-issue" key={issue.id}>
+        <header className="hn-case-issue-head">{draft.issues!.length > 1 && <span>问题 {i + 1}</span>}{(!editable || collapsed.includes(issue.id)) && <h3>{issue.title || '尚未填写问题概述'}</h3>}{tasks.some(t => t.path.startsWith(`issues.${i}.`) && t.blocking) && <em className="case-badge is-warning">待处理</em>}<div className="hn-issue-row-actions">{editable && <button className="case-title-link" onClick={() => removeItem('issues', i)}>移除</button>}{draft.issues!.length > 1 && <button className="case-title-link" onClick={() => setCollapsed(v => v.includes(issue.id) ? v.filter(id => id !== issue.id) : [...v, issue.id])}>{collapsed.includes(issue.id) ? '展开' : '收起'}</button>}</div></header>
+        {!collapsed.includes(issue.id) && <>
+        <div className="hn-issue-facts">
+          {editable && field('problem_summary', 'issues.' + i + '.title')}
+          <div data-field-path={`issues.${i}.facts`} className={editable && !issue.facts.some(v => v.trim()) ? 'hn-facts-invalid' : ''}>{textField(editable ? '具体问题事实（每行一条）' : '具体问题事实', issue.facts.join('\n'), value => setDraft(d => ({ ...d, issues: d.issues!.map((v, n) => n === i ? { ...v, facts: value.split('\n') } : v) })))}</div>
+        </div>
+        <div className="hn-issue-classification-head"><h4>分类认定</h4><em className={'case-badge ' + (['已匹配', '人工确认'].includes(issue.standardMatch.status) ? 'is-success' : 'is-warning')}>{issue.standardMatch.status}</em>{editable && <><button className="case-title-link" onClick={() => { if (!issue.type || !issue.domain || !issue.facts.some(v => v.trim())) return onNotice('请先填写问题事实、监督领域和问题类型'); mutate(d => ({ ...d, issues: d.issues!.map((v, n) => n === i ? { ...v, standardMatch: { ...v.standardMatch, status: '人工确认' } } : v) })); }}>确认本问题认定</button><button className="case-title-link" onClick={() => { saveDraft(); recordFeedback('元数据', 'violation_type', draft.title + '：' + [issue.domain, issue.aspect, issue.type, issue.nature, issue.responsibility].join(' / ') + '；请求核对认定目录'); onNavigate?.('metadata', 'violation_type'); }}>反馈目录问题</button></>}</div>
+        <div className="ufsp-ledger-form-grid four hn-case-classification-grid">{field('supervision_domain', 'issues.' + i + '.domain')}{field('problem_aspect', 'issues.' + i + '.aspect')}{field('violation_type', 'issues.' + i + '.type', true)}{field('problem_nature', 'issues.' + i + '.nature')}{field('responsibility_subject', 'issues.' + i + '.responsibility', true)}</div>
+        <div className="hn-case-standard-match"><strong>适用认定标准</strong><span>{issue.standardMatch.name || '尚未确认'}</span><em>{issue.standardMatch.version}</em></div>
+        <section className="hn-case-detail-block hn-issue-bases"><h4>违规认定依据{editable && <button className="case-title-link hn-section-action" onClick={() => mutate(d => ({ ...d, issues: d.issues!.map((v, n) => n === i ? { ...v, violatedBases: [...v.violatedBases, { name: '', clauses: '' }] } : v) }))}>＋补充依据</button>}</h4>{issue.violatedBases.map((basis, j) => <div className="hn-basis-fields" key={j}>{field('violation_basis', 'issues.' + i + '.violatedBases.' + j + '.name', false, '文件名称')}{field('violation_basis', 'issues.' + i + '.violatedBases.' + j + '.clauses', false, '条款')}</div>)}{issue.violatedBases.length === 0 && <p className="hn-issue-empty">原文暂未提取到明确依据</p>}</section>
+        <div className="hn-issue-evidence">{textField(editable ? '证据材料（每行一条）' : '证据材料', issue.evidences.join('\n'), value => setDraft(d => ({ ...d, issues: d.issues!.map((v, n) => n === i ? { ...v, evidences: value.split('\n') } : v) })))}</div>
+        </>}
+      </article>)}</div></section>
+      <section className="ufsp-ledger-edit-section"><h2>处理决定{editable && <button className="case-title-link hn-section-action" onClick={() => mutate(d => ({ ...d, decisions: [...(d.decisions || []), { actions: [{ type: '', target: d.relatedUnit, content: '', measure: '' }], bases: [], relatedIssueIds: [] }] }))}>＋补充决定</button>}</h2>
+        {!draft.decisions?.length && <p className="hn-issue-empty">原文未提取到明确处理决定，可按实际内容补充。</p>}
+        {draft.decisions?.map((group, i) => <article className="hn-case-decision hn-decision-editor" key={i}>
+          <header><strong>{draft.decisions!.length > 1 ? `决定 ${i + 1}` : '处理内容'}</strong>{editable && <button className="case-title-link" onClick={() => removeItem('decisions', i)}>移除决定</button>}</header>
+          <div className="hn-decision-relations"><span>关联问题</span>{draft.issues?.map((issue, n) => <label key={issue.id}><input type="checkbox" disabled={!editable} checked={group.relatedIssueIds.includes(issue.id)} onChange={e => mutate(d => ({ ...d, decisions: d.decisions!.map((g, k) => k === i ? { ...g, relatedIssueIds: e.target.checked ? [...g.relatedIssueIds, issue.id] : g.relatedIssueIds.filter(id => id !== issue.id) } : g) }))} />问题{n + 1}：{issue.title || '未填写概述'}</label>)}{!group.relatedIssueIds.length && <em>整体处理 / 原文未明确对应问题</em>}</div>
+          {group.actions.map((_, j) => <div className="hn-decision-action" key={j}><div className="ufsp-ledger-form-grid four hn-action-fields">{field('handling_method', `decisions.${i}.actions.${j}.type`)}{field('handling_target', `decisions.${i}.actions.${j}.target`, true)}{field('handling_measure', `decisions.${i}.actions.${j}.measure`)}</div>{field('handling_content', `decisions.${i}.actions.${j}.content`)}{editable && group.actions.length > 1 && <button className="case-title-link hn-remove-action" onClick={() => { if (tags.some(t => t.status === '待生效' && t.bindings.some(b => b.caseId === row.id && b.path.startsWith(`decisions.${i}.actions.`)))) return onNotice('请先处理本决定的标签建议'); mutate(d => ({ ...d, decisions: d.decisions!.map((g, n) => n === i ? { ...g, actions: g.actions.filter((a, k) => k !== j) } : g) })); }}>移除此项措施</button>}</div>)}
+          {editable && <button className="case-title-link hn-add-action" onClick={() => mutate(d => ({ ...d, decisions: d.decisions!.map((g, n) => n === i ? { ...g, actions: [...g.actions, { type: '', target: d.relatedUnit, content: '', measure: '' }] } : g) }))}>＋补充处理措施</button>}
+          <div className="hn-decision-bases"><h4>处理 / 处罚依据{editable && <button className="case-title-link hn-section-action" onClick={() => mutate(d => ({ ...d, decisions: d.decisions!.map((g, n) => n === i ? { ...g, bases: [...g.bases, { name: '', clauses: '' }] } : g) }))}>＋补充依据</button>}</h4>{group.bases.map((_, j) => <div className="hn-basis-fields" key={j}>{field('policy_basis', `decisions.${i}.bases.${j}.name`, false, '文件名称')}{field('policy_basis', `decisions.${i}.bases.${j}.clauses`, false, '条款')}</div>)}{!group.bases.length && <p className="hn-issue-empty">原文未提取到明确依据</p>}</div>
+          {(editable || group.grade) && <details className="hn-penalty-details" open={group.grade ? true : undefined}><summary>处罚阶次（有明确裁量结论时填写）</summary><div className="ufsp-ledger-form-grid four">{field('penalty_grade', `decisions.${i}.grade`)}</div></details>}
+        </article>)}
+      </section>
+      {editable && <section className="ufsp-ledger-edit-section"><h2>{row.status === '已入库' ? '修正说明' : '处理备注'}</h2><label className="ufsp-field-block"><textarea placeholder="请说明修改了什么，以及原文或认定依据" value={reason} onChange={e => { setReason(e.target.value); setDirty(true); }} /></label></section>}
+      <section className="ufsp-ledger-edit-section"><h2>来源与版本</h2><dl className="hn-detail-list"><div><dt>来源</dt><dd>{row.source}</dd></div><div><dt>来源标识</dt><dd>{row.sourceId}</dd></div><div><dt>文件名称</dt><dd>{row.fileName}</dd></div><div><dt>状态</dt><dd>{row.status} · V{row.version || 1}</dd></div><div><dt>更新时间</dt><dd>{row.metadataUpdatedAt}</dd></div></dl></section>
+    </div>
+    {editor && <TagEditor id={editor.id} seed={editor.seed} onClose={() => setEditor(null)} onResolved={value => change(editor.path, value)} onNotice={onNotice} onNavigate={onNavigate} />}
+    {removal && <ConfirmAction title={removal.title} onClose={() => setRemoval(null)} onConfirm={removal.run}>仅移除当前草稿中的条目。关联的问题关系会同步清除；请核对剩余处理决定，正式版本需保存并校验后才更新。</ConfirmAction>}
+    {confirm && <ConfirmAction title={confirm === 'leave' ? '放弃未保存修改？' : row.status === '已入库' ? '确认更新案例版本？' : '确认正式入库？'} onClose={() => setConfirm(null)} onConfirm={confirm === 'leave' ? onBack : publish}>{confirm === 'leave' ? '仅放弃当前未保存修改。' : '已核对原文和目录匹配。未完成的非必填值可后补；原文件及历史版本保留。'}</ConfirmAction>}
+    {history && <Drawer title="版本记录" onClose={() => setHistory(false)} actions={<button className="ufsp-btn" onClick={() => setHistory(false)}>关闭</button>}><p>当前 V{row.version || 1} · {row.status}</p>{row.versions?.length ? row.versions.map((v, i) => <section className="hn-drawer-section" key={i}><h3>变更前 V{v.version}</h3><p>{v.at} · {v.reason}</p><p>{JSON.parse(v.snapshot).title}</p></section>) : <p>暂无历史变更</p>}</Drawer>}
   </div>;
 }
 
-const METADATA_FIELDS = [
-  { id: 'M01', group: '文书属性', name: '文号', code: 'document_no', type: '文本', count: '单值', mode: '开放值', coverage: '96%', status: '已发布', definition: '文书正式文号，保留原文格式，不进行改写。', rule: '优先识别标题下方或落款前的正式文号；不得使用文件名代替。', usage: '检索展示、精确筛选、去重校验' },
-  { id: 'M02', group: '文书属性', name: '文书类型', code: 'document_type', type: '标签', count: '单值', mode: '可扩充标签', coverage: '100%', status: '已发布', definition: '文书实际文种，如行政处罚决定书、检查报告、整改通知书。', rule: '优先匹配正式值和别名；无法匹配时生成候选值，进入标签审核。', usage: '筛选、统计、分类展示' },
-  { id: 'M03', group: '文书属性', name: '发文日期', code: 'issue_date', type: '日期', count: '单值', mode: '格式约束', coverage: '89%', status: '已发布', definition: '文书正式发文日期，统一为 YYYY-MM-DD。', rule: '优先使用正式落款日期，无法确定时为空，不用上传日期代替。', usage: '时间排序、日期筛选' },
-  { id: 'M04', group: '主体属性', name: '相关单位', code: 'related_unit', type: '文本', count: '单值', mode: '开放值', coverage: '92%', status: '已发布', definition: '被检查、被处理或被监督的主要单位名称。', rule: '不得把发文机关识别为相关单位，除非其明确为被处理主体。', usage: '筛选、检索展示' },
-  { id: 'M05', group: '业务分类', name: '监督领域', code: 'supervision_domain', type: '枚举', count: '单值', mode: '固定枚举', coverage: '98%', status: '已发布', definition: '监督工作所属的上位业务领域。', rule: '仅从已发布枚举中选择最匹配项，无法判断时为空。', usage: '筛选、统计、权限范围' },
-  { id: 'M06', group: '问题分类', name: '问题领域', code: 'problem_domain', type: '标签', count: '单值', mode: '可扩充标签', coverage: '84%', status: '草稿', definition: '问题事实所属的稳定业务问题大类，比监督领域更贴近具体问题。', rule: '优先匹配正式标签；无相近标签且证据充分时生成候选标签。', usage: '问题聚类、筛选、深度分析' },
-  { id: 'M07', group: '问题分类', name: '违规类型', code: 'violation_type', type: '标签', count: '多值', mode: '可扩充标签', coverage: '87%', status: '草稿', definition: '文书涉及的主要违规问题类型，可返回多个稳定、可复用的概念。', rule: '匹配正式标签和别名；不得直接复制整段事实描述。', usage: '问题检索、案例要素、相似分析' },
-  { id: 'M08', group: '处置属性', name: '处理方式', code: 'handling_method', type: '标签', count: '多值', mode: '可扩充标签', coverage: '81%', status: '已发布', definition: '文书明确记载的处理、整改、处罚或处置方式。', rule: '仅提取原文明确存在的方式，并优先匹配正式标签。', usage: '筛选、整改分析' },
-];
-
-export function MetadataManagement({ onNotice }: NoticeProps) {
-  const [tab, setTab] = useState('全部字段'); const [catalog, setCatalog] = useState('全部字段'); const [drawerId, setDrawerId] = useState<string | null>(null);
-  const selected = METADATA_FIELDS.find((row) => row.id === drawerId) || METADATA_FIELDS[0];
-  const rows = METADATA_FIELDS.filter((row) => catalog === '全部字段' || row.group === catalog).filter((row) => tab === '全部字段' || row.status === tab);
-  return <div className="case-workspace hn-module-page hn-standard-management-page"><div className="case-tabs">{['全部字段（12）', '已发布（10）', '草稿（2）'].map((item) => { const name = item.split('（')[0]; return <button key={item} className={tab === name ? 'is-active' : ''} onClick={() => setTab(name)}>{item}</button>; })}</div><div className="hn-split-workspace"><Catalog title="字段分组" active={catalog} onChange={setCatalog} items={[["全部字段", 12], ["文书属性", 5, true], ["主体属性", 1, true], ["业务分类", 2, true], ["问题分类", 2, true], ["处置属性", 1, true], ["依据属性", 1, true]]} /><section className="hn-list-region">
-    <div className="case-list-toolbar"><div className="case-toolbar-left"><button className="ufsp-btn ufsp-btn-primary" onClick={() => onNotice('已打开新增元数据字段演示')}><RawIcon svg={actionAddIconSvg} />新增字段</button><button className="ufsp-btn ufsp-btn-secondary" onClick={() => onNotice('元数据规则 V1.3 已发布演示')}><RawIcon svg={actionPassIconSvg} />发布版本</button><button className="ufsp-btn ufsp-btn-secondary" onClick={() => onNotice('已打开规则版本记录')}><History size={14} />版本记录</button><button className="ufsp-btn ufsp-btn-secondary" onClick={() => onNotice('已导出字段目录')}><RawIcon svg={actionExportIconSvg} />导出</button></div><StandardSearchTools onNotice={onNotice} placeholder="请输入字段名称或编码" /></div><div className="hn-filter-summary"><span>当前版本 V1.2 · 草稿 V1.3 含 2 项变更</span><span>发布后默认作用于新增文档，存量回填需单独确认</span></div>
-    <div className="case-table-wrap"><table className="case-table hn-standard-table hn-metadata-standard-table"><thead><tr><th className="case-col-check"><input type="checkbox" /></th><th>字段名称</th><th>字段编码</th><th>字段分组</th><th>数据类型</th><th>单值/多值</th><th>值域方式</th><th>覆盖率</th><th>状态</th><th className="case-col-actions">操作</th></tr></thead><tbody>{rows.map((row) => <tr key={row.id}><td className="case-col-check"><input type="checkbox" /></td><td><button className="case-title-link" onClick={() => setDrawerId(row.id)}>{row.name}</button></td><td>{row.code}</td><td>{row.group}</td><td>{row.type}</td><td>{row.count}</td><td><span className="case-badge is-ai">{row.mode}</span></td><td>{row.coverage}</td><td><span className={`case-badge ${row.status === '已发布' ? 'is-success' : 'is-warning'}`}>{row.status}</span></td><td className="case-col-actions"><button onClick={() => setDrawerId(row.id)}>查看</button><button onClick={() => setDrawerId(row.id)}>编辑</button></td></tr>)}</tbody></table></div><Pagination total={12} />
-  </section></div>{drawerId ? <Drawer title="元数据字段" subtitle={selected.code} onClose={() => setDrawerId(null)} actions={<><button className="ufsp-btn" onClick={() => setDrawerId(null)}>取消</button><button className="ufsp-btn ufsp-btn-primary" onClick={() => { setDrawerId(null); onNotice('字段规则已保存为 V1.3 草稿'); }}>保存草稿</button></>}><section className="hn-drawer-section"><h3>基本信息</h3><dl className="hn-detail-list"><div><dt>字段名称</dt><dd>{selected.name}</dd></div><div><dt>字段编码</dt><dd>{selected.code}</dd></div><div><dt>字段分组</dt><dd>{selected.group}</dd></div><div><dt>数据类型</dt><dd>{selected.type}</dd></div><div><dt>取值数量</dt><dd>{selected.count}</dd></div><div><dt>值域方式</dt><dd>{selected.mode}</dd></div></dl></section><section className="hn-drawer-section"><h3>业务定义</h3><textarea defaultValue={selected.definition} /></section><section className="hn-drawer-section"><h3>抽取与匹配规则</h3><textarea defaultValue={selected.rule} /></section><section className="hn-drawer-section"><h3>应用位置</h3><p>{selected.usage}</p></section>{selected.mode === '固定枚举' ? <div className="hn-value-list"><span>预算管理</span><span>预算执行</span><span>债务</span><span>账户</span><span>专项资金</span><span>政府采购</span><span>第三方中介机构</span></div> : selected.mode === '可扩充标签' ? <div className="hn-drawer-note"><Tag size={14} />该字段的正式值、别名和候选值由智能标签管理维护。</div> : null}</Drawer> : null}</div>;
+export function CaseIngestionManagement({ onNotice, onNavigate }: NoticeProps) {
+  const { cases, tags, focusCase } = useGovernance();
+  const [tab, setTab] = useState('未入库'); const [catalog, setCatalog] = useState('全部领域');
+  const [detailId, setDetailId] = useState<string | null>(focusCase || null);
+  const [query, setQuery] = useState(''); const [page, setPage] = useState(1);
+  const [uploadOpen, setUploadOpen] = useState(false); const [files, setFiles] = useState<File[]>([]);
+  const uploadRef = useRef<HTMLInputElement>(null);
+  const [dragging, setDragging] = useState(false);
+  const fileError = (file: File) => !/\.(pdf|docx?|xlsx?)$/i.test(file.name) ? '不支持的格式' : file.size > 50 * 1024 * 1024 ? '超过 50MB' : file.size === 0 ? '文件为空' : '';
+  const addFiles = (incoming: File[]) => setFiles(current => [...current, ...incoming.filter(f => !current.some(v => v.name === f.name && v.size === f.size && v.lastModified === f.lastModified))]);
+  useEffect(() => { if (focusCase) { setDetailId(focusCase); updateGovernance(s => ({ ...s, focusCase: undefined })); } }, [focusCase]);
+  const tabRows = cases.filter(c => tab === '全部' || c.status === tab);
+  const inDomain = (c: IngestionRow, name: string) => c.issues?.some(i => i.domain === name) || c.domain === name;
+  const rows = tabRows.filter(c => (catalog === '全部领域' || inDomain(c, catalog)) && [c.title, c.no, c.relatedUnit].join(' ').includes(query.trim()));
+  const domains = [...new Set([...DOMAIN_NAMES, ...cases.flatMap(c => c.issues?.map(i => i.domain) || [c.domain])])].filter(Boolean);
+  const domainItems: Array<[string, number, boolean?]> = [['全部领域', tabRows.length], ...domains.map(name => [name, tabRows.filter(c => inDomain(c, name)).length, true] as [string, number, boolean])];
+  const selected = cases.find(c => c.id === detailId);
+  const receive = () => {
+    if (!files.length) return onNotice('请选择文件');
+    if (files.some(fileError)) return onNotice('请移除格式或大小不符合要求的文件');
+    if (files.some(f => f.size > 50 * 1024 * 1024)) return onNotice('单个文件不能超过 50MB');
+    const newRows: IngestionRow[] = files.map(f => ({ ...cases[0], id: newId(), title: f.name, no: '', type: '', year: '', issueDate: '', relatedUnit: '', domain: '未分类', aspect: '', issueType: '', nature: '', manifestation: '', handlingMethod: '', policyBasis: '', source: '用户上传', sourceId: 'UPLOAD-' + newId(), fileName: f.name, localFileUrl: URL.createObjectURL(f), status: '未入库', detailStatus: '待人工处理', subjects: [], issues: [], decisions: [], qualityIssues: [{ field: '文档解析', current: '未解析', suggestion: '接入解析服务后提取正文', confidence: '—', reason: '尚未接入文件解析服务' }], result: '原文件已在本地接收，尚未解析。', version: 1, versions: [], savedDraft: undefined, time: nowText(), metadataUpdatedAt: nowText() }));
+    updateGovernance(s => ({ ...s, cases: [...newRows, ...s.cases] })); setFiles([]); setUploadOpen(false); setTab('未入库'); setCatalog('全部领域'); setQuery(''); onNotice('已接收本地文件；未上传服务器，刷新后不保留');
+  };
+  if (selected) return <IngestionMetadataPage key={selected.id} row={selected} onBack={() => setDetailId(null)} onNotice={onNotice} onNavigate={onNavigate} />;
+  return <div className="case-workspace hn-module-page hn-standard-management-page"><div className="case-tabs">{['已入库', '未入库', '全部'].map(name => <button key={name} className={tab === name ? 'is-active' : ''} onClick={() => { setTab(name); setCatalog('全部领域'); setPage(1); }}>{name} ({cases.filter(c => name === '全部' || c.status === name).length})</button>)}</div>
+    <div className="hn-split-workspace"><Catalog title="监督领域" active={catalog} onChange={v => { setCatalog(v); setPage(1); }} items={domainItems} /><section className="hn-list-region"><div className="case-list-toolbar"><div className="case-toolbar-left"><button className="ufsp-btn ufsp-btn-primary" onClick={() => setUploadOpen(true)}><RawIcon svg={actionImportIconSvg} />上传文档</button><button className="ufsp-btn ufsp-btn-secondary" onClick={() => exportCsv('案例入库清单', [['标题', '文号', '相关单位', '状态'], ...rows.map(r => [r.title, r.no, r.relatedUnit, r.status])])}><RawIcon svg={actionExportIconSvg} />导出</button></div><StandardSearchTools query={query} onQuery={v => { setQuery(v); setPage(1); }} onNotice={onNotice} /></div>
+      <div className="case-table-wrap"><table className="case-table hn-standard-table hn-ingestion-standard-table"><thead><tr><th className="case-col-check">序号</th><th>文档标题</th><th>文号</th><th>监督领域</th><th>方面</th><th>问题类型</th><th>问题性质</th><th>相关单位</th><th>当前状态</th><th>接入时间</th><th className="case-col-actions">操作</th></tr></thead><tbody>{rows.slice((page - 1) * 20, page * 20).map((r, index) => {
+        const pending = tags.filter(t => t.status === '待生效' && t.bindings.some(b => b.caseId === r.id));
+        const tip = [r.result, ...r.qualityIssues.map(q => q.field + '：' + q.reason), ...pending.map(t => '标签建议' + t.review + '：' + t.name)].join('；');
+        const aggregate = (key: keyof CaseIssue) => [...new Set(r.issues?.map(i => String(i[key])) || [])].join('、') || '—';
+        return <tr key={r.id}><td className="case-col-check">{(page - 1) * 20 + index + 1}</td><td><button className="case-title-link" onClick={() => setDetailId(r.id)}>{r.title}</button></td><td>{r.no || '—'}</td><td title={aggregate('domain')}>{aggregate('domain')}</td><td title={aggregate('aspect')}>{aggregate('aspect')}</td><td title={aggregate('type')}>{aggregate('type')}</td><td>{aggregate('nature')}</td><td>{r.relatedUnit || '—'}</td><td><span className={'case-badge ' + (r.status === '已入库' ? 'is-success' : 'is-warning')} title={tip}>{r.status === '已入库' ? r.savedDraft ? '已入库 · 有修改' : '已入库' : r.detailStatus}</span></td><td>{r.time}</td><td className="case-col-actions"><button onClick={() => setDetailId(r.id)}>{r.status === '已入库' || r.detailStatus === '处理中' ? '详情' : '处理'}</button></td></tr>;
+      })}</tbody></table>{!rows.length && <div className="hn-metadata-empty">暂无符合条件的案例</div>}</div><Pagination total={rows.length} page={page} onPage={setPage} />
+    </section></div>{uploadOpen && <div className="case-modal-mask"><section className="hn-standard-upload" role="dialog" aria-modal="true" aria-label="上传案例文档"><header className="case-modal-head"><h2>上传案例文档</h2><button aria-label="关闭" onClick={() => { setFiles([]); setUploadOpen(false); }}><X size={18} /></button></header><div className="hn-standard-upload-body">
+      <input ref={uploadRef} type="file" hidden multiple accept=".pdf,.doc,.docx,.xls,.xlsx" onChange={e => { addFiles(Array.from(e.target.files || [])); e.target.value = ''; }} />
+      <button type="button" className={'hn-standard-upload-drop' + (dragging ? ' is-dragging' : '')} onClick={() => uploadRef.current?.click()} onDragOver={e => { e.preventDefault(); setDragging(true); }} onDragLeave={() => setDragging(false)} onDrop={e => { e.preventDefault(); setDragging(false); addFiles(Array.from(e.dataTransfer.files)); }}><RawIcon svg={actionImportIconSvg} /><strong>点击选择，或拖入案例文件</strong><span>支持 PDF、Word、Excel，单个文件不超过 50MB</span></button>
+      {files.length > 0 && <div className="hn-upload-file-list"><div className="hn-upload-list-head"><strong>已选择 {files.length} 个文件</strong><button className="case-title-link" onClick={() => uploadRef.current?.click()}>继续添加</button></div>{files.map((f, i) => <div className="hn-upload-file" key={f.name + f.lastModified + i}><div><strong title={f.name}>{f.name}</strong><span>{f.size < 1024 * 1024 ? `${Math.ceil(f.size / 1024)} KB` : `${(f.size / 1024 / 1024).toFixed(1)} MB`} · <em className={fileError(f) ? 'is-error' : ''}>{fileError(f) || '可接收'}</em></span></div><button className="case-title-link" aria-label={'移除 ' + f.name} onClick={() => setFiles(v => v.filter((_, n) => n !== i))}>移除</button></div>)}</div>}
+      <p className="hn-upload-footnote">接收后进入未入库列表，解析与校验通过后才能正式入库。</p>
+    </div><footer className="case-modal-actions"><button className="ufsp-btn" onClick={() => { setFiles([]); setUploadOpen(false); }}>取消</button><button className="ufsp-btn ufsp-btn-primary" disabled={!files.length || files.some(fileError)} onClick={receive}>接收文件{files.length ? `（${files.length}）` : ''}</button></footer></section></div>}
+  </div>;
 }
 
-const TAG_ROWS = [
-  { id: 'T01', field: '违规类型', group: '资金类违规', code: 'V-FUND-01', name: '专项资金使用不规范', status: '正式', aliases: 1, usage: 28, candidates: 0, similar: '—', definition: '专项资金在拨付、使用或核算过程中未按规定执行。', examples: '超范围使用专项资金；专项资金未专账核算' },
-  { id: 'T02', field: '违规类型', group: '资金类违规', code: 'V-FUND-02', name: '资金支付与项目进度不匹配', status: '正式', aliases: 2, usage: 16, candidates: 3, similar: '—', definition: '资金支付比例明显超出项目实际建设或履约进度。', examples: '工程进度不足但资金已大比例支付' },
-  { id: 'T03', field: '违规类型', group: '采购类违规', code: 'V-PROC-01', name: '政府采购程序执行不规范', status: '正式', aliases: 1, usage: 22, candidates: 1, similar: '—', definition: '政府采购活动未完整履行法定程序或内部控制要求。', examples: '未按规定履行采购方式审批' },
-  { id: 'T04', field: '问题领域', group: '收入管理', code: 'C-PROB-012', name: '应收未收财政收入', status: '候选', aliases: 0, usage: 0, candidates: 2, similar: '暂无稳定匹配', definition: '应征财政收入未在规定期限内足额征缴入库。', examples: '非税收入应收未收' },
-  { id: 'T05', field: '处理方式', group: '整改处置', code: 'H-RECT-01', name: '责令限期整改', status: '正式', aliases: 2, usage: 34, candidates: 4, similar: '—', definition: '要求责任主体在明确期限内完成问题整改。', examples: '责令于30日内整改并报送结果' },
-  { id: 'T06', field: '违规类型', group: '资金类违规', code: 'C-VIOL-024', name: '超进度拨付专项债券资金', status: '候选', aliases: 0, usage: 0, candidates: 3, similar: '资金支付与项目进度不匹配', definition: '候选表达，待确认是否并入现有正式标签。', examples: '项目资金支付进度明显快于实际建设进度' },
-];
+const metadataStatus = (field: MetadataField) => field.status === '草稿' ? '待生效' : field.status;
+const metadataInTab = (field: MetadataField, tab: string) => tab === '全部' || (tab === '待生效' ? field.status === '草稿' || !!field.draft : metadataStatus(field) === tab);
+const metadataDisplay = (field: MetadataField): MetadataField => ({ ...field, ...field.draft });
 
-export function SmartTagManagement({ onNotice }: NoticeProps) {
-  const [tab, setTab] = useState('正式标签'); const [catalog, setCatalog] = useState('违规类型'); const [drawerId, setDrawerId] = useState<string | null>(null);
-  const selected = TAG_ROWS.find((row) => row.id === drawerId) || TAG_ROWS[0];
-  const rows = TAG_ROWS.filter((row) => row.field === catalog).filter((row) => tab === '正式标签' ? row.status === '正式' : tab === '候选标签' ? row.status === '候选' || row.candidates > 0 : false);
-  return <div className="case-workspace hn-module-page hn-standard-management-page"><div className="case-tabs">{['正式标签（74）', '候选标签（9）', '已停用（3）'].map((item) => { const name = item.split('（')[0]; return <button key={item} className={tab === name ? 'is-active' : ''} onClick={() => setTab(name)}>{item}</button>; })}</div><div className="hn-split-workspace"><Catalog title="标签字段" active={catalog} onChange={setCatalog} items={[["违规类型", 32], ["问题领域", 18], ["处理方式", 14], ["文书类型", 10]]} /><section className="hn-list-region">
-    <div className="case-list-toolbar"><div className="case-toolbar-left"><button className="ufsp-btn ufsp-btn-primary" onClick={() => onNotice('已打开新增标签演示')}><RawIcon svg={actionAddIconSvg} />新增标签</button><button className="ufsp-btn ufsp-btn-secondary" onClick={() => onNotice('已打开标签合并演示')}><Link2 size={14} />合并</button><button className="ufsp-btn ufsp-btn-secondary" onClick={() => onNotice('已批量审核候选标签演示')}><RawIcon svg={actionPassIconSvg} />批量审核</button><button className="ufsp-btn ufsp-btn-secondary" onClick={() => onNotice('标签目录 V1.6 已发布演示')}><RawIcon svg={actionExportIconSvg} />发布目录</button></div><StandardSearchTools onNotice={onNotice} placeholder="请输入标签名称、编码或别名" /></div><div className="hn-filter-summary"><span>当前目录版本 V1.5 · 待发布变更 6 项</span><span>候选表达不直接写入正式元数据值</span></div>
-    <div className="case-table-wrap"><table className="case-table hn-standard-table hn-tag-standard-table"><thead><tr><th className="case-col-check"><input type="checkbox" /></th><th>标签名称</th><th>标签编码</th><th>标签分类</th><th>正式引用</th><th>别名</th><th>待归并候选</th><th>相近正式标签</th><th>状态</th><th className="case-col-actions">操作</th></tr></thead><tbody>{rows.map((row) => <tr key={row.id}><td className="case-col-check"><input type="checkbox" /></td><td><button className="case-title-link" onClick={() => setDrawerId(row.id)}>{row.name}</button></td><td>{row.code}</td><td>{row.group}</td><td>{row.usage} 份</td><td>{row.aliases} 个</td><td>{row.candidates} 条</td><td>{row.similar}</td><td><span className={`case-badge ${row.status === '正式' ? 'is-success' : 'is-warning'}`}>{row.status}</span></td><td className="case-col-actions"><button onClick={() => setDrawerId(row.id)}>{row.status === '候选' ? '审核' : '查看'}</button><button onClick={() => onNotice(row.status === '候选' ? '已打开候选归并演示' : '已打开标签编辑演示')}>{row.status === '候选' ? '归并' : '编辑'}</button></td></tr>)}</tbody></table></div><Pagination total={tab === '正式标签' ? 74 : tab === '候选标签' ? 9 : 3} />
-  </section></div>{drawerId ? <Drawer title={selected.status === '候选' ? '候选标签审核' : '标签详情'} subtitle={selected.code} onClose={() => setDrawerId(null)} actions={selected.status === '候选' ? <><button className="ufsp-btn" onClick={() => onNotice('候选标签已驳回演示')}>驳回</button><button className="ufsp-btn ufsp-btn-secondary" onClick={() => onNotice('候选标签已并入现有标签')}>并入现有</button><button className="ufsp-btn ufsp-btn-primary" onClick={() => { setDrawerId(null); onNotice('候选标签已批准为正式标签'); }}>批准新增</button></> : <><button className="ufsp-btn" onClick={() => setDrawerId(null)}>关闭</button><button className="ufsp-btn ufsp-btn-primary" onClick={() => onNotice('已打开标签编辑演示')}>编辑</button></>}><section className="hn-drawer-section"><h3>标签信息</h3><dl className="hn-detail-list"><div><dt>标签名称</dt><dd>{selected.name}</dd></div><div><dt>标签编码</dt><dd>{selected.code}</dd></div><div><dt>所属字段</dt><dd>{selected.field}</dd></div><div><dt>所属分类</dt><dd>{selected.group}</dd></div><div><dt>正式引用</dt><dd>{selected.usage} 份</dd></div><div><dt>待归并候选</dt><dd>{selected.candidates} 条</dd></div></dl></section><section className="hn-drawer-section"><h3>业务定义</h3><p>{selected.definition}</p></section><section className="hn-drawer-section"><h3>典型依据</h3><p className="hn-standard-evidence">{selected.examples}</p></section>{selected.status === '候选' ? <div className="hn-drawer-note"><CheckCircle2 size={14} />系统建议优先与“{selected.similar}”比较；审核后才会成为正式值或别名。</div> : <div className="hn-drawer-note"><Tag size={14} />当前标签已发布，合并或停用前应先查看历史引用影响。</div>}</Drawer> : null}</div>;
+export function MetadataManagement({ onNotice, onNavigate }: NoticeProps) {
+  const { fields, tags, advice, focusField } = useGovernance();
+  const setFields = (update: (fields: MetadataField[]) => MetadataField[]) => updateGovernance(s => ({ ...s, fields: update(s.fields) }));
+  const [confirm, setConfirm] = useState<{ title: string; text: string; run: () => void } | null>(null);
+  const [tab, setTab] = useState('全部');
+  const [catalog, setCatalog] = useState('全部字段');
+  const [treeSearch, setTreeSearch] = useState('');
+  const [treeCollapsed, setTreeCollapsed] = useState(false);
+  const [query, setQuery] = useState('');
+  const [search, setSearch] = useState('');
+  const [modeFilter, setModeFilter] = useState('全部');
+  const [filterOpen, setFilterOpen] = useState(false);
+  const [page, setPage] = useState(1);
+  const [drawer, setDrawer] = useState<{ kind: 'view' | 'edit' | 'add'; code: string } | null>(null);
+  const [form, setForm] = useState<MetadataField | null>(null);
+  const [dirty, setDirty] = useState(false);
+  const [discardOpen, setDiscardOpen] = useState(false);
+  const inTab = fields.filter((field) => metadataInTab(field, tab));
+  const rows = inTab.filter((field) => {
+    const current = tab === '待生效' ? metadataDisplay(field) : field;
+    return (catalog === '全部字段' || field.group === catalog)
+      && (modeFilter === '全部' || field.mode === modeFilter)
+      && (!search || [current.name, field.code, field.group, field.source].join(' ').toLowerCase().includes(search.toLowerCase()));
+  });
+  const pageCount = Math.max(1, Math.ceil(rows.length / 20));
+  const currentPage = Math.min(page, pageCount);
+  const pageRows = rows.slice((currentPage - 1) * 20, currentPage * 20);
+  const selected = fields.find((field) => field.code === drawer?.code);
+  const visibleField = drawer?.kind === 'view' && selected ? (tab === '待生效' ? metadataDisplay(selected) : selected) : form;
+  const editing = drawer?.kind !== 'view';
+  const pendingCount = fields.filter((field) => metadataInTab(field, '待生效')).length;
+  const openField = (field: MetadataField, kind: 'view' | 'edit') => {
+    setDrawer({ kind, code: field.code }); setForm(metadataDisplay(field)); setDirty(false);
+  };
+  useEffect(() => {
+    if (!focusField) return;
+    const target = fields.find(f => f.code === focusField);
+    if (target) { setTab('全部'); openField(target, 'view'); }
+    updateGovernance(s => ({ ...s, focusField: '' }));
+  }, [focusField]);
+  const closeDrawer = () => {
+    if (dirty) { setDiscardOpen(true); return; }
+    setDrawer(null); setForm(null);
+  };
+  const updateForm = (patch: Partial<MetadataField>) => {
+    setForm((current) => current ? { ...current, ...patch, ...(patch.mode && !['固定目录', '可扩展目录'].includes(patch.mode) ? { asTag: false } : {}) } : current); setDirty(true);
+  };
+  const openAdd = () => {
+    setForm(metadataField({ code: '', name: '', group: catalog === '全部字段' ? METADATA_GROUPS[0] : catalog,
+      mode: '原文提取', source: '文书原文', definition: '', rule: '', usage: '' }));
+    setDrawer({ kind: 'add', code: '' }); setDirty(false);
+  };
+  const saveDraft = (publish = false) => {
+    if (!form) return;
+    const next = { ...form, code: form.code.trim(), name: form.name.trim(), definition: form.definition.trim(), rule: form.rule.trim() };
+    if (!next.name || !next.definition || !next.rule) { onNotice('请填写字段名称、业务定义和抽取匹配规则'); return; }
+    if (drawer?.kind === 'add') {
+      if (!/^[a-z][a-z0-9_]*$/.test(next.code)) { onNotice('字段编码请使用小写字母、数字和下划线，并以字母开头'); return; }
+      if (fields.some((field) => field.code === next.code)) { onNotice('字段编码已存在，请使用不同编码'); return; }
+      const source = next.mode === '固定目录' || next.mode === '可扩展目录' ? next.name + '目录（待配置）' : next.mode === '系统关联' ? '系统关联规则（待配置）' : '文书原文';
+      setFields((current) => [...current, { ...next, source, status: publish ? '已生效' : '草稿', version: 1 }]);
+    } else {
+      const patch = { name: next.name, definition: next.definition, rule: next.rule, usage: next.usage, asTag: next.asTag, blocking: next.blocking };
+      // 已生效配置保留不动；修改只落在本地草稿，不改正式案例或知识库。
+      setFields((current) => current.map((field) => field.code !== drawer?.code ? field : publish ? { ...field, ...patch, status: '已生效', draft: undefined, version: (field.version || 1) + 1 } : field.status === '已生效' ? { ...field, draft: patch } : { ...field, ...patch }));
+    }
+    setTab(publish ? '已生效' : '待生效'); setCatalog('全部字段'); setQuery(''); setSearch(''); setModeFilter('全部'); setPage(1);
+    setDirty(false); setDrawer(null); setForm(null);
+    onNotice(publish ? '字段配置已在本地生效；未写入真实知识库' : '草稿已保存，原生效配置继续使用');
+  };
+  const confirmPublish = () => { if (!form) return; setConfirm({ title: '确认字段配置生效', text: '本次调整将更新此字段配置与标签目录入口。已有案例不自动回填；历史引用保留。是否继续？', run: () => { saveDraft(true); setConfirm(null); } }); };
+  const exportFields = () => {
+    const values = [['字段名称', '字段编码', '所属对象', '数据类型', '取值数量', '取值方式', '取值来源', '状态'], ...rows.map((field) => [metadataDisplay(field).name, field.code, field.group, field.type, field.count, field.mode, field.source, metadataStatus(field)])];
+    const csv = values.map((cells) => cells.map((cell) => '"' + cell.replace(/"/g, '""') + '"').join(',')).join('\n');
+    const url = URL.createObjectURL(new Blob(['\ufeff' + csv], { type: 'text/csv;charset=utf-8;' }));
+    const link = document.createElement('a'); link.href = url; link.download = '湖南案例元数据字段.csv'; link.click();
+    window.setTimeout(() => URL.revokeObjectURL(url), 1000);
+    onNotice('已导出当前范围的 ' + rows.length + ' 个字段');
+  };
+  return <div className="case-workspace hn-module-page hn-standard-management-page hn-metadata-page">
+    <div className="case-tabs" role="tablist" aria-label="字段配置状态">
+      {['已生效', '待生效', '已停用', '全部'].map((name) => <button key={name} role="tab" aria-selected={tab === name} className={tab === name ? 'is-active' : ''} onClick={() => { setTab(name); setCatalog('全部字段'); setPage(1); }}>
+        {name} ({name === '全部' ? fields.length : fields.filter((field) => metadataInTab(field, name)).length})
+      </button>)}
+      <button className={tab === '规则建议' ? 'is-active' : ''} onClick={() => setTab('规则建议')}>规则建议 ({advice.filter(a => a.status === '待确认').length})</button>
+    </div>
+    {tab === '规则建议' ? <GovernanceAdvice onNotice={onNotice} onField={code => { setTab('已生效'); const f = fields.find(f => f.code === code); if (f) openField(f, 'edit'); }} /> : <div className={'case-management-body hn-metadata-body' + (treeCollapsed ? ' is-tree-collapsed' : '')}>
+      <aside className="ufsp-ledger-tree" aria-label="字段所属对象目录">
+        <button className="ufsp-tree-collapse" aria-label={treeCollapsed ? '展开字段目录' : '收起字段目录'} onClick={() => setTreeCollapsed(!treeCollapsed)}>{treeCollapsed ? <ChevronRight size={14} /> : <ChevronLeft size={14} />}</button>
+        <div className="ufsp-tree-inner" hidden={treeCollapsed}>
+          <div className="ufsp-tree-search"><input placeholder="请输入" aria-label="搜索字段所属对象" value={treeSearch} onChange={(event) => setTreeSearch(event.target.value)} /><Search size={14} /></div>
+          <div className="ufsp-tree-list">
+            {['全部字段', ...METADATA_GROUPS].filter((group) => group === '全部字段' || group.includes(treeSearch.trim())).map((group) => <button key={group} className={'ufsp-tree-item ' + (group === '全部字段' ? 'year ' : 'topic ') + (catalog === group ? 'is-active' : '')} onClick={() => { setCatalog(group); setPage(1); }}>
+              {group === '全部字段' ? <ChevronDown size={14} /> : <span className="ufsp-tree-indent" />}<span>{group}</span><em>({group === '全部字段' ? inTab.length : inTab.filter((field) => field.group === group).length})</em>
+            </button>)}
+          </div>
+        </div>
+      </aside>
+      <section className="hn-list-region">
+        <div className="case-list-toolbar">
+          <div className="case-toolbar-left">
+            <button className="ufsp-btn ufsp-btn-primary" onClick={openAdd}><RawIcon svg={actionAddIconSvg} />新增</button>
+            <button className="ufsp-btn ufsp-btn-secondary" disabled={pendingCount === 0} onClick={() => setConfirm({ title: '确认待生效配置', text: '将使 ' + pendingCount + ' 项字段配置生效；保留当前案例值，不自动全量回填。', run: () => { setFields(fs => fs.map(f => metadataInTab(f, '待生效') ? { ...f, ...f.draft, status: '已生效', draft: undefined, version: (f.version || 0) + 1 } : f)); setConfirm(null); onNotice('配置已在本地生效'); } })}><RawIcon svg={actionPassIconSvg} />发布版本</button>
+            <button className="ufsp-btn ufsp-btn-secondary" onClick={exportFields}><RawIcon svg={actionExportIconSvg} />导出</button>
+          </div>
+          <div className="case-toolbar-right">
+            <label className="ufsp-search-box ufsp-filter-input"><input placeholder="请输入" aria-label="搜索字段名称、编码或取值来源" value={query} onChange={(event) => setQuery(event.target.value)} onKeyDown={(event) => { if (event.key === 'Enter') { setSearch(query.trim()); setPage(1); } }} /></label>
+            <button className="ufsp-icon-btn ufsp-icon-btn-primary" title="查询" aria-label="查询" onClick={() => { setSearch(query.trim()); setPage(1); }}><RawIcon svg={searchIconSvg} /></button>
+            <button className="ufsp-icon-btn ufsp-icon-btn-secondary" title="重置查询" aria-label="重置查询" onClick={() => { setQuery(''); setSearch(''); setModeFilter('全部'); setCatalog('全部字段'); setTreeSearch(''); setPage(1); }}><RawIcon svg={actionRefreshIconSvg} /></button>
+            <button className="ufsp-icon-btn ufsp-icon-btn-secondary" title="筛选" aria-label="筛选" aria-expanded={filterOpen} onClick={() => setFilterOpen(!filterOpen)}><RawIcon svg={actionFilterIconSvg} /></button>
+            <button className="ufsp-btn ufsp-btn-secondary" onClick={() => onNotice('查询方案保存尚未接入，当前查询条件可正常使用')}>查询方案</button>
+            <button className="ufsp-icon-btn ufsp-icon-btn-secondary" title="列设置" aria-label="列设置" onClick={() => onNotice('本轮使用固定字段列，列显示配置尚未接入')}><RawIcon svg={actionSettingsIconSvg} /></button>
+          </div>
+        </div>
+        {filterOpen ? <div className="hn-metadata-filter" role="group" aria-label="取值方式筛选"><span>取值方式</span>{['全部', ...METADATA_MODES].map((mode) => <button key={mode} className={'ufsp-btn ' + (modeFilter === mode ? 'ufsp-btn-secondary' : '')} aria-pressed={modeFilter === mode} onClick={() => { setModeFilter(mode); setPage(1); }}>{mode}</button>)}</div> : null}
+        {search || modeFilter !== '全部' ? <div className="hn-filter-summary"><span>当前条件：{[search && '关键词“' + search + '”', modeFilter !== '全部' && modeFilter].filter(Boolean).join(' · ')}</span><button className="case-title-link" onClick={() => { setQuery(''); setSearch(''); setModeFilter('全部'); setPage(1); }}>清空</button></div> : null}
+        <div className="case-table-wrap">
+          <table className="case-table hn-standard-table hn-metadata-standard-table">
+            <thead><tr><th className="case-col-check">序号</th><th>字段名称</th><th>字段编码</th><th>所属对象</th><th>数据类型</th><th title="以当前文书、主体、问题或处理措施为单位">取值数量</th><th>取值方式</th><th>标签维度</th><th>入库要求</th><th>取值来源</th><th>状态</th><th className="case-col-actions">操作</th></tr></thead>
+            <tbody>{pageRows.map((field, index) => <tr key={field.code}>
+              <td className="case-col-check">{(currentPage - 1) * 20 + index + 1}</td>
+              <td><button className="case-title-link" title={metadataDisplay(field).name} onClick={() => openField(field, 'view')}>{(tab === '待生效' ? metadataDisplay(field) : field).name}</button></td>
+              <td title={field.code}>{field.code}</td><td>{field.group}</td><td>{field.type}</td><td>{field.count}</td><td>{field.mode}</td><td>{field.asTag ? <button className="case-title-link" onClick={() => onNavigate?.('tags', field.code)}>查看标签值 ({tags.filter(t => t.fieldCode === field.code && t.status === '已生效').length})</button> : '否'}</td><td>{field.blocking ? '必填 · 阻断' : '允许后补'}</td><td title={field.source}>{field.source}</td>
+              <td><span className={'case-badge ' + (metadataStatus(field) === '已生效' ? 'is-success' : 'is-warning')} title={field.draft ? '修改草稿待生效，已生效配置仍保留' : field.status === '草稿' ? '待生效的字段配置' : '已生效配置'}>{tab === '待生效' ? '待生效' : metadataStatus(field)}{field.draft && tab !== '待生效' ? ' · 有修改' : ''}</span></td>
+              <td className="case-col-actions"><button onClick={() => openField(field, 'view')}>详情</button><button onClick={() => openField(field, 'edit')}>编辑</button></td>
+            </tr>)}</tbody>
+          </table>
+          {!rows.length ? <div className="hn-metadata-empty">暂无符合条件的字段</div> : null}
+        </div>
+        <div className="case-pagination"><span className="ufsp-page-total">共 {rows.length} 条</span><button className="ufsp-page-btn" disabled={currentPage <= 1} onClick={() => setPage(currentPage - 1)}>上一页</button><button className="ufsp-page-btn is-active" aria-current="page">{currentPage}</button><button className="ufsp-page-btn" disabled={currentPage >= pageCount} onClick={() => setPage(currentPage + 1)}>下一页</button><span className="ufsp-page-size">20 条/页</span></div>
+      </section>
+    </div>
+    }
+    {confirm && <ConfirmAction title={confirm.title} onClose={() => setConfirm(null)} onConfirm={confirm.run}>{confirm.text}</ConfirmAction>}
+    {drawer && visibleField ? <div className="hn-metadata-dialog"><Drawer title={drawer.kind === 'add' ? '新增字段' : editing ? '编辑字段规则' : visibleField.name} subtitle={drawer.kind === 'add' ? undefined : visibleField.code} onClose={closeDrawer} actions={editing ? <><button className="ufsp-btn" onClick={closeDrawer}>取消</button><button className="ufsp-btn ufsp-btn-primary" disabled={drawer.kind === 'edit' && !dirty} onClick={() => saveDraft()}>保存草稿</button><button className="ufsp-btn ufsp-btn-primary" onClick={confirmPublish}>保存并生效</button></> : <><button className="ufsp-btn" onClick={closeDrawer}>关闭</button><button className="ufsp-btn ufsp-btn-primary" onClick={() => selected && openField(selected, 'edit')}>编辑</button>{selected?.asTag && <button className="ufsp-btn ufsp-btn-secondary" onClick={() => onNavigate?.('tags', selected.code)}>查看标签值</button>}{selected && <button className="ufsp-btn ufsp-btn-secondary" onClick={() => setConfirm({ title: selected.status === '已停用' ? '启用字段' : '停用字段', text: '已有案例值和历史引用保留，停止新数据使用前请确认影响。', run: () => { setFields(fs => fs.map(f => f.code === selected.code ? { ...f, status: f.status === '已停用' ? '已生效' : '已停用' } : f)); setConfirm(null); setDrawer(null); } })}>{selected.status === '已停用' ? '启用' : '停用'}</button>}</>}>
+      <section className="hn-drawer-section"><h3>字段定义</h3>
+        {drawer.kind === 'add' ? <div className="hn-metadata-form-grid">
+          <label className="ufsp-field-block"><span>字段名称 <b>*</b></span><input value={visibleField.name} onChange={(event) => updateForm({ name: event.target.value })} /></label>
+          <label className="ufsp-field-block"><span>字段编码 <b>*</b></span><input value={visibleField.code} placeholder="如 region_code" onChange={(event) => updateForm({ code: event.target.value })} /></label>
+          <label className="ufsp-field-block"><span>所属对象</span><select value={visibleField.group} onChange={(event) => updateForm({ group: event.target.value })}>{METADATA_GROUPS.map((group) => <option key={group}>{group}</option>)}</select></label>
+          <label className="ufsp-field-block"><span>数据类型</span><select value={visibleField.type} onChange={(event) => updateForm({ type: event.target.value })}>{['文本', '长文本', '整数', '日期'].map((type) => <option key={type}>{type}</option>)}</select></label>
+          <label className="ufsp-field-block"><span>取值数量</span><select value={visibleField.count} onChange={(event) => updateForm({ count: event.target.value as MetadataField['count'] })}><option>单值</option><option>多值</option></select></label>
+          <label className="ufsp-field-block"><span>取值方式</span><select value={visibleField.mode} onChange={(event) => updateForm({ mode: event.target.value as MetadataMode })}>{METADATA_MODES.map((mode) => <option key={mode}>{mode}</option>)}</select></label>
+        </div> : <>
+          {editing ? <label className="ufsp-field-block hn-metadata-name"><span>字段名称 <b>*</b></span><input value={visibleField.name} onChange={(event) => updateForm({ name: event.target.value })} /></label> : null}
+          <dl className="hn-detail-list"><div><dt>所属对象</dt><dd>{visibleField.group}</dd></div><div><dt>数据类型</dt><dd>{visibleField.type}</dd></div><div><dt>取值数量</dt><dd>{visibleField.count}（{visibleField.group === '问题认定' ? '每个问题' : visibleField.group === '关联主体' ? '每个关联主体' : visibleField.group === '处理决定' ? ['policy_basis', 'penalty_grade', 'related_issue_ids'].includes(visibleField.code) ? '每组处置' : '每条措施' : '每份文书'}）</dd></div><div><dt>取值方式</dt><dd>{visibleField.mode}</dd></div><div><dt>配置状态</dt><dd>{selected && metadataStatus(selected)}{selected?.draft ? ' · 已生效配置仍保留' : ''}</dd></div></dl>
+        </>}
+      </section>
+      <section className="hn-drawer-section"><h3>使用与入库规则</h3><div className="hn-metadata-form-grid"><label className="hn-switch-field"><span>作为标签维度</span><input type="checkbox" role="switch" checked={!!visibleField.asTag} disabled={!editing || !isDirectory(visibleField)} onChange={e => updateForm({ asTag: e.target.checked })} /></label><label className="hn-switch-field"><span>入库必填并阻断</span><input type="checkbox" role="switch" checked={!!visibleField.blocking} disabled={!editing} onChange={e => updateForm({ blocking: e.target.checked })} /></label></div>{!isDirectory(visibleField) && <p className="hn-metadata-source-help">原文、格式或系统关联字段不自动生成标签目录。</p>}</section>
+      {(['definition', 'rule', 'usage'] as const).map((key) => <section className="hn-drawer-section" key={key}><h3>{{ definition: '业务定义', rule: '抽取与匹配规则', usage: '应用位置' }[key]}</h3>{editing ? <label className="ufsp-field-block"><textarea aria-label={{ definition: '业务定义', rule: '抽取与匹配规则', usage: '应用位置' }[key]} value={visibleField[key]} onChange={(event) => updateForm({ [key]: event.target.value })} /></label> : <p className="hn-metadata-rule-text">{visibleField[key] || '—'}</p>}</section>)}
+      {drawer.kind !== 'add' ? <section className="hn-drawer-section"><h3>取值来源</h3><p>{visibleField.source}</p>{visibleField.mode === '固定目录' || visibleField.mode === '可扩展目录' ? <p className="hn-metadata-source-help">{visibleField.mode === '固定目录' ? '仅使用已确认目录值；无法匹配时待确认，不自动新增。' : '优先匹配正式值与别名；新概念进入候选审核。'} 正式值在此字段对应的标签目录中统一维护。</p> : null}{(visibleField.examples.length || tags.some(t => t.fieldCode === visibleField.code && t.status === '已生效')) ? <><div className="hn-metadata-example-label">当前取值</div><div className="hn-value-list">{(isDirectory(visibleField) ? tags.filter(t => t.fieldCode === visibleField.code && t.status === '已生效').map(t => t.name) : visibleField.examples).map((value) => <span key={value}>{value}</span>)}</div></> : null}</section> : null}
+    </Drawer></div> : null}
+    {discardOpen ? <div className="case-modal-mask hn-metadata-discard"><section className="hn-standard-upload" role="dialog" aria-modal="true" aria-labelledby="hn-metadata-discard-title"><header className="case-modal-head"><h2 id="hn-metadata-discard-title">放弃未保存的修改？</h2></header><div className="hn-standard-upload-body">本次修改尚未保存为草稿，关闭后将不予保留。</div><footer className="case-modal-actions"><button className="ufsp-btn" onClick={() => setDiscardOpen(false)}>继续编辑</button><button className="ufsp-btn ufsp-btn-primary" onClick={() => { setDiscardOpen(false); setDirty(false); setDrawer(null); setForm(null); }}>放弃修改</button></footer></section></div> : null}
+  </div>;
+}
+
+
+function TagEditor({ id, seed, onClose, onNotice, onResolved, onNavigate }: NoticeProps & { id?: string; seed?: Partial<TagValue>; onClose: () => void; onResolved?: (value: string) => void }) {
+  const { fields, tags, cases } = useGovernance();
+  const existing = tags.find(t => t.id === id);
+  const [form, setForm] = useState<TagValue>(() => existing ? { ...existing, aliases: [...existing.aliases] } : {
+    id: newId(), fieldCode: seed?.fieldCode || fields.find(f => f.asTag && f.status === '已生效')?.code || '',
+    name: '', definition: '', aliases: [], status: '待生效', review: '草稿', evidence: '', bindings: [], ...seed,
+  });
+  const [target, setTarget] = useState(''); const [reason, setReason] = useState('');
+  const [confirmation, setConfirmation] = useState<null | (() => void)>(null);
+  const field = fields.find(f => f.code === form.fieldCode);
+  const official = existing?.status === '已生效';
+  const stopped = existing?.status === '已停用';
+  const options = tags.filter(t => t.fieldCode === form.fieldCode && t.status === '已生效' && t.id !== form.id);
+  const save = (publish: boolean) => {
+    if (!form.name.trim() || !form.definition.trim() || !form.evidence.trim()) return onNotice('请填写名称、定义和来源依据');
+    if (!field?.asTag || field.status !== '已生效') return onNotice('请先启用所属元数据的标签维度');
+    if (!official && field.mode === '固定目录') return onNotice('固定目录不能新增自由标签，请在元数据规则建议中提交标准调整依据');
+    const duplicate = tags.find(t => t.id !== form.id && t.fieldCode === form.fieldCode && t.status === '已生效' && [t.name, ...t.aliases].some(n => [form.name.trim(), ...form.aliases].includes(n)));
+    if (duplicate) return onNotice('与已生效值或别名重复：' + duplicate.name + '，请并入现有标签');
+    updateGovernance(s => ({ ...s, tags: existing ? s.tags.map(t => t.id === form.id ? { ...form, name: form.name.trim() } : t) : [...s.tags, { ...form, name: form.name.trim(), review: '待确认' }] }));
+    if (publish && !official) {
+      const error = resolveCandidate(form.id, 'publish');
+      if (error) return onNotice(error);
+      onResolved?.(form.name.trim());
+    } else recordFeedback('标签', form.name, official ? '调整定义或别名：' + form.evidence : '新增候选：' + form.evidence);
+    onNotice(publish ? '标签已生效，关联案例仍需校验后入库' : official ? '标签说明已更新，历史案例保留' : '建议已保存，可在标签管理继续处理'); onClose();
+  };
+  const decide = (action: 'reject' | 'merge') => {
+    if (action === 'merge' && !target) return onNotice('请选择要采用的现有标签');
+    if (!existing && action === 'reject') return onNotice('请先保存建议');
+    if (action === 'reject' && !reason.trim()) return onNotice('请填写退回原因');
+    if (!existing) updateGovernance(s => ({ ...s, tags: [...s.tags, { ...form, name: form.name || options.find(t => t.id === target)!.name }] }));
+    const error = resolveCandidate(form.id, action, reason.trim(), target);
+    if (error) return onNotice(error);
+    if (action === 'merge') onResolved?.(options.find(t => t.id === target)!.name);
+    onNotice(action === 'merge' ? '已采用现有标签，关联未入库案例可继续处理' : '建议已退回，原因已同步关联案例'); onClose();
+  };
+  return <div className="hn-metadata-dialog"><Drawer title={official ? '维护标签' : '确认标签建议'} subtitle={field?.name} onClose={onClose} actions={<>
+    <button className="ufsp-btn" onClick={onClose}>取消</button>
+    {stopped ? <button className="ufsp-btn ufsp-btn-primary" onClick={() => { updateGovernance(s => ({ ...s, tags: s.tags.map(t => t.id === form.id ? { ...t, status: '已生效' } : t) })); onClose(); }}>重新启用</button> : official ? <><button className="ufsp-btn ufsp-btn-secondary" onClick={() => setConfirmation(() => () => { updateGovernance(s => ({ ...s, tags: s.tags.map(t => t.id === form.id ? { ...t, status: '已停用' } : t) })); onNotice('已停用，历史引用保留'); onClose(); })}>停用</button><button className="ufsp-btn ufsp-btn-primary" onClick={() => save(false)}>保存</button></> : <>
+      {existing && <button className="ufsp-btn" onClick={() => decide('reject')}>退回</button>}
+      <button className="ufsp-btn ufsp-btn-secondary" onClick={() => save(false)}>仅保存建议</button>
+      <button className="ufsp-btn ufsp-btn-primary" onClick={() => setConfirmation(() => () => { setConfirmation(null); save(true); })}>{onResolved ? '新增并用于当前字段' : '确认生效'}</button>
+    </>}
+  </>}>
+    {!official && <><section className="hn-drawer-section hn-tag-proposal"><h3>建议标签 <span className="case-badge is-warning">{form.review}</span></h3><strong>{form.name || '尚未填写建议名称'}</strong><p>{form.definition || '请先比较现有值；确需新增时补充定义和来源依据。'}</p><h4>原文 / 标准依据</h4><blockquote>{form.evidence || '尚未补充依据'}</blockquote></section>
+    <section className="hn-drawer-section hn-tag-existing"><h3>优先采用现有标签</h3><label className="ufsp-field-block"><span>{field?.name}的已生效值</span><select aria-label="选择现有标签" value={target} onChange={e => setTarget(e.target.value)}><option value="">请选择</option>{options.map(t => <option value={t.id} key={t.id}>{t.name}</option>)}</select></label>{target && <p>{options.find(t => t.id === target)?.definition || '该值已在正式目录中生效'}</p>}<button className="ufsp-btn ufsp-btn-secondary" disabled={!target} onClick={() => decide('merge')}>采用现有标签并返回</button></section></>}
+    <details className="hn-tag-definition" open={official || !form.name ? true : undefined}><summary>{official ? '标签定义' : '确需新增：完善标签定义'}</summary><section className="hn-drawer-section"><div className="hn-metadata-form-grid">
+      <label className="ufsp-field-block"><span>所属元数据</span><select value={form.fieldCode} disabled={!!existing || !!seed?.fieldCode} onChange={e => setForm({ ...form, fieldCode: e.target.value })}>{fields.filter(f => f.asTag && f.status === '已生效').map(f => <option key={f.code} value={f.code}>{f.name}</option>)}</select></label>
+      <label className="ufsp-field-block"><span>取值方式</span><input readOnly value={field?.mode || '—'} /></label>
+      <label className="ufsp-field-block hn-field-wide"><span>标签名称</span><input value={form.name} readOnly={official || stopped} onChange={e => setForm({ ...form, name: e.target.value })} /></label>
+      <label className="ufsp-field-block hn-field-wide"><span>业务定义</span><textarea value={form.definition} onChange={e => setForm({ ...form, definition: e.target.value })} /></label>
+      <label className="ufsp-field-block hn-field-wide"><span>别名（每行一个）</span><textarea value={form.aliases.join('\n')} onChange={e => setForm({ ...form, aliases: e.target.value.split('\n').filter(Boolean) })} /></label>
+      <label className="ufsp-field-block hn-field-wide"><span>原文或标准依据</span><textarea value={form.evidence} onChange={e => setForm({ ...form, evidence: e.target.value })} /></label>
+    </div></section></details>
+    {!official && <section className="hn-drawer-section"><label className="ufsp-field-block"><span>处理说明 / 退回原因</span><textarea value={reason} onChange={e => setReason(e.target.value)} /></label><p className="hn-upload-footnote">采用现有值或确认新增后回填关联字段；案例仍需校验入库。仅保存建议不会采用该值。</p></section>}
+    {form.bindings.length > 0 && <section className="hn-drawer-section"><h3>关联案例</h3>{[...new Set(form.bindings.map(b => b.caseId))].map(caseId => <p key={caseId}><button className="case-title-link" onClick={() => { updateGovernance(s => ({ ...s, focusCase: caseId })); onNavigate?.('entry'); }}>{cases.find(c => c.id === caseId)?.title || caseId}</button></p>)}</section>}
+    {field?.mode === '固定目录' && <button className="case-title-link" onClick={() => { recordFeedback('元数据', field.code, form.evidence || '固定目录待核对'); onNavigate?.('metadata', field.code); }}>提交标准调整依据</button>}
+  </Drawer>{confirmation && <ConfirmAction title={official ? '停用此标签？' : '确认标签生效？'} onClose={() => setConfirmation(null)} onConfirm={confirmation}>请核对现有值和依据。此操作不直接覆盖已入库案例；关联未入库案例继续校验。</ConfirmAction>}</div>;
+}
+
+export function SmartTagManagement({ onNotice, onNavigate }: NoticeProps) {
+  const { fields, tags, cases, focusField } = useGovernance();
+  const [tab, setTab] = useState('已生效'); const [catalog, setCatalog] = useState(focusField || '全部标签');
+  const [query, setQuery] = useState(''); const [page, setPage] = useState(1);
+  const [editor, setEditor] = useState<{ id?: string; seed?: Partial<TagValue> } | null>(null);
+  const enabled = fields.filter(f => f.asTag && f.status === '已生效');
+  const available = tags.filter(t => enabled.some(f => f.code === t.fieldCode));
+  const inTab = available.filter(t => tab === '全部' || t.status === tab);
+  const rows = inTab.filter(t => (catalog === '全部标签' || t.fieldCode === catalog || fields.find(f => f.code === t.fieldCode)?.group === catalog) && [t.name, t.fieldCode, ...t.aliases].join(' ').includes(query.trim()));
+  const items: Array<[string, number, boolean?, string?]> = [['全部标签', inTab.length]];
+  METADATA_GROUPS.forEach(group => {
+    const groupFields = enabled.filter(f => f.group === group);
+    if (groupFields.length) items.push([group, inTab.filter(t => groupFields.some(f => f.code === t.fieldCode)).length, false, group]);
+    groupFields.forEach(f => items.push([f.name, inTab.filter(t => t.fieldCode === f.code).length, true, f.code]));
+  });
+  useEffect(() => { if (focusField) { setCatalog(focusField); setTab('全部'); updateGovernance(s => ({ ...s, focusField: '' })); } }, [focusField]);
+  return <div className="case-workspace hn-module-page hn-standard-management-page">
+    <div className="case-tabs">{['已生效', '待生效', '已停用', '全部'].map(name => <button key={name} className={tab === name ? 'is-active' : ''} onClick={() => { setTab(name); setPage(1); }}>{name} ({available.filter(t => name === '全部' || t.status === name).length})</button>)}</div>
+    <div className="hn-split-workspace"><Catalog title="标签维度" items={items} active={catalog} onChange={v => { setCatalog(v); setPage(1); }} /><section className="hn-list-region">
+      <div className="case-list-toolbar"><div className="case-toolbar-left"><button className="ufsp-btn ufsp-btn-primary" onClick={() => setEditor({ seed: { fieldCode: enabled.find(f => f.code === catalog)?.code || enabled.find(f => f.mode === '可扩展目录')?.code } })}><RawIcon svg={actionAddIconSvg} />新增</button><button className="ufsp-btn ufsp-btn-secondary" onClick={() => exportCsv('标签目录', [['标签名称', '所属字段', '状态', '引用量'], ...rows.map(t => [t.name, t.fieldCode, t.status, String(tagUsage(t, cases))])])}><RawIcon svg={actionExportIconSvg} />导出</button></div><StandardSearchTools query={query} onQuery={v => { setQuery(v); setPage(1); }} onNotice={onNotice} /></div>
+      <div className="case-table-wrap"><table className="case-table hn-standard-table hn-tag-standard-table"><thead><tr><th className="case-col-check">序号</th><th>标签名称</th><th>所属元数据</th><th>取值方式</th><th>别名</th><th>已入库引用</th><th>关联建议案例</th><th>状态</th><th className="case-col-actions">操作</th></tr></thead><tbody>{rows.slice((page - 1) * 20, page * 20).map((tag, index) => <tr key={tag.id}><td className="case-col-check">{(page - 1) * 20 + index + 1}</td><td><button className="case-title-link" onClick={() => setEditor({ id: tag.id })}>{tag.name}</button></td><td><button className="case-title-link" onClick={() => onNavigate?.('metadata', tag.fieldCode)}>{fields.find(f => f.code === tag.fieldCode)?.name}</button></td><td>{fields.find(f => f.code === tag.fieldCode)?.mode}</td><td title={tag.aliases.join('、')}>{tag.aliases.length}</td><td>{tagUsage(tag, cases)}</td><td>{new Set(tag.bindings.map(b => b.caseId)).size}</td><td><span className={'case-badge ' + (tag.status === '已生效' ? 'is-success' : 'is-warning')} title={tag.reason}>{tag.status === '待生效' ? tag.review : tag.status}</span></td><td className="case-col-actions"><button onClick={() => setEditor({ id: tag.id })}>{tag.status === '待生效' ? '处理' : '详情'}</button></td></tr>)}</tbody></table>{!rows.length && <div className="hn-metadata-empty">暂无符合条件的标签</div>}</div><Pagination total={rows.length} page={page} onPage={setPage} />
+    </section></div>{editor && <TagEditor {...editor} onClose={() => setEditor(null)} onNotice={onNotice} onNavigate={onNavigate} />}
+  </div>;
+}
+
+export function SearchFeedbackDialog({ subject, evidence, onClose, onNotice }: NoticeProps & { subject: string; evidence: string; onClose: () => void }) {
+  const [kind, setKind] = useState('结果不相关'); const [detail, setDetail] = useState('');
+  return <Drawer title="检索反馈" onClose={onClose} actions={<><button className="ufsp-btn" onClick={onClose}>取消</button><button className="ufsp-btn ufsp-btn-primary" onClick={() => { if (!detail.trim()) return onNotice('请补充问题说明'); recordFeedback('检索', subject, kind + '；' + detail.trim() + '；' + evidence); onNotice('反馈已保存到本地反馈记录，不会立即改变检索规则'); onClose(); }}>保存反馈</button></>}><section className="hn-drawer-section"><h3>{subject}</h3><label className="ufsp-field-block"><span>反馈类型</span><select value={kind} onChange={e => setKind(e.target.value)}>{['结果不相关', '遗漏相关案例', '元数据错误', '命中片段不完整', '结果有帮助'].map(v => <option key={v}>{v}</option>)}</select></label><label className="ufsp-field-block"><span>问题说明与建议</span><textarea value={detail} onChange={e => setDetail(e.target.value)} /></label></section></Drawer>;
+}
+
+function GovernanceAdvice({ onNotice, onField }: NoticeProps & { onField: (code: string) => void }) {
+  const { feedback, advice, fields } = useGovernance();
+  const [view, setView] = useState<'建议' | '反馈记录'>('建议');
+  const [selected, setSelected] = useState<string | null>(null);
+  const generate = () => {
+    const fresh = feedback.filter(f => !f.analyzed);
+    if (!fresh.length) return onNotice('没有尚未分析的反馈');
+    // 本地演示分组；不伪装为真实 LLM 结论。
+    const groups = new Map<string, typeof fresh>();
+    fresh.forEach(f => { const key = fields.some(field => field.code === f.subject) ? f.subject : f.module; groups.set(key, [...(groups.get(key) || []), f]); });
+    updateGovernance(s => ({ ...s, feedback: s.feedback.map(f => fresh.some(v => v.id === f.id) ? { ...f, analyzed: true } : f), advice: [...s.advice, ...[...groups].map(([key, values]) => ({ id: newId(), fieldCode: fields.find(f => f.code === key)?.code || '', title: '核对' + key + '相关反馈', evidenceIds: values.map(f => f.id), content: '请结合以下反馈核对问题原因，确认属于个案错误、目录缺项还是通用规则问题，再决定是否调整配置。', status: '待确认' as const }))] }));
+    onNotice('已按来源分组展示待分析材料；本地原型未调用 LLM');
+  };
+  const current = advice.find(a => a.id === selected);
+  return <section className="hn-list-region"><div className="case-list-toolbar"><div className="case-toolbar-left"><button className="ufsp-btn ufsp-btn-primary" onClick={generate}>分析新增反馈 ({feedback.filter(f => !f.analyzed).length})</button><button className="ufsp-btn ufsp-btn-secondary" onClick={() => setView(view === '建议' ? '反馈记录' : '建议')}>{view === '建议' ? '查看反馈记录' : '查看建议'}</button></div></div>
+    <div className="case-table-wrap"><table className="case-table hn-standard-table"><thead><tr><th>{view === '建议' ? '建议事项' : '反馈对象'}</th><th>来源 / 依据</th><th>状态</th><th>操作</th></tr></thead><tbody>{view === '建议' ? advice.map(a => <tr key={a.id}><td>{a.title}</td><td>{a.evidenceIds.length} 条反馈</td><td>{a.status}</td><td><button className="case-title-link" onClick={() => setSelected(a.id)}>处理</button></td></tr>) : feedback.map(f => <tr key={f.id}><td>{f.module} · {f.subject}</td><td title={f.evidence}>{f.evidence}</td><td>{f.analyzed ? '已归入分析批次' : '未分析'}</td><td>{f.at}</td></tr>)}</tbody></table>{(view === '建议' ? !advice.length : !feedback.length) && <div className="hn-metadata-empty">暂无记录</div>}</div>
+    {current && <Drawer title="处理规则建议" onClose={() => setSelected(null)} actions={<><button className="ufsp-btn" onClick={() => { updateGovernance(s => ({ ...s, advice: s.advice.map(a => a.id === current.id ? { ...a, status: '不采用' } : a) })); setSelected(null); }}>不采用</button>{current.fieldCode && <button className="ufsp-btn ufsp-btn-primary" onClick={() => { setSelected(null); onField(current.fieldCode); }}>核对字段配置</button>}</>}><section className="hn-drawer-section"><h3>{current.title}</h3><p>{current.content}</p></section><section className="hn-drawer-section"><h3>来源依据</h3>{feedback.filter(f => current.evidenceIds.includes(f.id)).map(f => <p key={f.id}>{f.subject}：{f.evidence}</p>)}</section></Drawer>}
+  </section>;
 }
