@@ -1,7 +1,7 @@
 import { useSyncExternalStore } from 'react';
 
 // 湖南原型共享会话数据；不写入真实知识库，刷新页面恢复初始场景。
-export type CaseSubject = { role: string; name: string };
+export type CaseSubject = { role: string; name: string; kind?: string; unitType?: string; personType?: string };
 export type CasePolicyBasis = { name: string; clauses?: string };
 export type CaseIssue = {
   id: string; title: string; domain: string; aspect: string; type: string; nature: string;
@@ -10,7 +10,7 @@ export type CaseIssue = {
 };
 export type CaseDecisionGroup = {
   grade?: string;
-  actions: Array<{ type: string; target: string; content: string; measure?: string }>;
+  actions: Array<{ type: string; target: string; content: string; measure?: string; category?: '处理' | '处罚' }>;
   bases: CasePolicyBasis[];
   relatedIssueIds: string[];
 };
@@ -24,9 +24,18 @@ export type IngestionRow = {
   status: '已入库' | '未入库'; detailStatus: '已入库' | '待人工处理' | '处理中' | '处理失败' | '等待目录确认'; result: string;
   qualityIssues: Array<{ field: string; current: string; suggestion: string; confidence: string; reason: string }>;
   subjects?: CaseSubject[]; issues?: CaseIssue[]; decisions?: CaseDecisionGroup[];
+  inspectionYear?: string; inspectionName?: string; suggestions?: Record<string, string>;
   version?: number; versions?: Array<{ version: number; at: string; reason: string; snapshot: string }>; savedDraft?: string; localFileUrl?: string;
 };
 
+// 2026-09-04 统计表表头及历年实际值；目录样例不代替客户确认的湖南认定标准。
+export const DOCUMENT_TYPES = ['行政处罚决定书', '行政处理决定书', '整改通知书', '整改通知', '财政检查报告', '财政检查结论书', '行政处罚事项告知书', '行政处罚告知书', '监管关注函', '通知', '通报', '报告', '请示'];
+export const UNIT_TYPES = ['行政事业单位', '会计师事务所', '资产评估机构', '代理记账机构', '国有企业', '一般企业', '政府采购采购人', '政府采购供应商', '政府采购代理机构'];
+export const PERSON_TYPES = ['注册会计师', '资产评估师', '政府采购评审专家', '其他人员'];
+export const HANDLING_TYPES = ['责令整改', '追缴资金', '扣减资金'];
+export const PENALTY_TYPES = ['警告', '罚款', '没收违法所得', '暂停执业', '吊销执业许可', '吊销注册会计师证书'];
+export const isPenaltyDocument = (type: string) => type.includes('处罚');
+export const isNoticeDocument = (type: string) => type.includes('告知书');
 export const DOMAIN_NAMES = [
   '预算管理', '信息公开', '国库管理', '债务管控', '滥发钱物', '私设小金库', '采购管理',
   '资产管理', '财务会计管理', '票据管理', '项目管理', '监督管理', '内部控制',
@@ -204,7 +213,7 @@ export type MetadataField = MetadataEdit & {
   code: string; group: string; type: string; count: '单值' | '多值'; mode: MetadataMode;
   source: string; examples: string[]; status: '已生效' | '草稿' | '已停用'; asTag?: boolean; blocking?: boolean; version?: number; draft?: MetadataEdit & { asTag?: boolean; blocking?: boolean };
 };
-export const METADATA_GROUPS = ['文书基本信息', '关联主体', '问题认定', '处理决定'];
+export const METADATA_GROUPS = ['文书基本信息', '主体信息', '问题认定', '处理决定'];
 export const METADATA_MODES: MetadataMode[] = ['固定目录', '可扩展目录', '原文提取', '格式约束', '系统关联'];
 export const metadataField = (field: Omit<MetadataField, 'status' | 'type' | 'count' | 'examples'> & Partial<Pick<MetadataField, 'status' | 'type' | 'count' | 'examples'>>): MetadataField => ({
   type: '文本', count: '单值', status: '草稿', examples: [], ...field,
@@ -213,35 +222,42 @@ export const metadataField = (field: Omit<MetadataField, 'status' | 'type' | 'co
 // 与入库页目标结构对齐的本地配置，不代表当前 Dify 字段或标准目录已经升级。
 // 每行的单/多值描述当前对象，而不是整份文书；完整问题和处置关系留在业务数据中。
 const METADATA_FIELDS: MetadataField[] = [
-  metadataField({ code: 'document_title', name: '文书标题', group: '文书基本信息', mode: '原文提取', source: '文书原文', status: '已生效',
+  metadataField({ code: 'inspection_year', name: '所属检查年度', group: '文书基本信息', type: '整数', mode: '格式约束', source: '统计表／文书原文', definition: '检查项目所属年度，不等同于发文年度。', rule: '原文或表格明确记载时填写，不从发文年度推定。', usage: '检查项目筛选' }),
+  metadataField({ code: 'inspection_name', name: '所属检查名称', group: '文书基本信息', mode: '原文提取', source: '统计表／文书原文', definition: '检查项目名称或原表描述。', rule: '保留原表名称，不把长段工作依据自动改成正式项目名称。', usage: '检查项目定位' }),
+  metadataField({ code: 'subject_kind', name: '主体类型', group: '主体信息', mode: '固定目录', source: '统计表：单位1、个人2', examples: ['单位', '个人'], definition: '当前主体为单位或个人。', rule: '据原文和源表编码匹配；未确认时留空，不仅凭名称推断。', usage: '主体字段联动' }),
+  metadataField({ code: 'unit_type', name: '单位类型', group: '主体信息', mode: '可扩展目录', source: '统计表：单位性质', examples: UNIT_TYPES, definition: '单位的业务类型。', rule: '主体为单位时填写；供应商或代理机构等含混值需核验，不强行拆定。', usage: '主体筛选' }),
+  metadataField({ code: 'person_type', name: '个人类型', group: '主体信息', mode: '可扩展目录', source: '统计表：个人类型', examples: PERSON_TYPES, definition: '个人的业务身份类型。', rule: '主体为个人时填写，所属机构另列，不混入个人名称。', usage: '主体筛选' }),
+  metadataField({ code: 'penalty_type', name: '处罚类型', group: '处理决定', mode: '可扩展目录', source: '统计表：处罚类型', examples: PENALTY_TYPES, definition: '每项处罚措施的类型。', rule: '一项措施一条；告知书中的措施为拟处罚。金额、期限、证书号码保留在措施明细，不作为标签。', usage: '处罚措施筛选' }),
+
+  metadataField({ code: 'document_title', name: '文书名称', group: '文书基本信息', mode: '原文提取', source: '文书原文', status: '已生效',
     definition: '文书正式、完整的标题。', rule: '按原文提取，不以文件名或自行总结的标题替代；缺失时保留为空并提示核验。', usage: '入库详情、检索标题', examples: ['行政处罚决定书'] }),
   metadataField({ code: 'document_no', name: '文号', group: '文书基本信息', mode: '原文提取', source: '文书原文', status: '已生效',
     definition: '文书正式文号，保留原文格式。', rule: '不得改写括号、年份或编号；无文号的材料允许为空，不用文件编号代替。', usage: '精确检索、详情、辅助查重', examples: ['湘财行罚〔2022〕2号'] }),
   metadataField({ code: 'document_type', name: '文书类型', group: '文书基本信息', mode: '可扩展目录', source: '文书类型正式目录', status: '已生效',
-    definition: '文书实际文种。', rule: '先提取原文文种，再匹配正式值与别名；无法匹配时提出候选，不直接新增正式值。', usage: '检索筛选、列表、统计', examples: ['行政处罚决定书', '检查报告', '整改通知书'] }),
+    definition: '文书实际文种。', rule: '先提取原文文种，再匹配正式值与别名；无法匹配时提出候选，不直接新增正式值。', usage: '检索筛选、列表、统计', examples: DOCUMENT_TYPES }),
   metadataField({ code: 'year', name: '所属年度', group: '文书基本信息', type: '整数', mode: '格式约束', source: '发文日期／正式文号', status: '已生效',
     definition: '该文书所属的发文年度，不是检查涉及的业务年度。', rule: '优先取正式发文日期中的年份；日期缺失时参考文号年份；两者冲突需核验。', usage: '年度筛选、列表', examples: ['2022'] }),
   metadataField({ code: 'issue_date', name: '发文日期', group: '文书基本信息', type: '日期', mode: '格式约束', source: '文书正式落款', status: '已生效',
     definition: '文书正式发文日期。', rule: '统一为 YYYY-MM-DD；不把检查日期、上传日期当作发文日期；无法确定返回空值。', usage: '时间排序、日期筛选', examples: ['2022-01-20'] }),
-  metadataField({ code: 'related_unit', name: '主要相关单位／当事人', group: '文书基本信息', mode: '原文提取', source: '文书原文', status: '已生效',
+  metadataField({ code: 'related_unit', name: '主要主体名称（汇总）', group: '主体信息', mode: '系统关联', source: '文书原文', status: '已生效',
     definition: '与文书直接相关的主要被检查单位、被处理单位或当事人。', rule: '不得误取发文机关；多个主体在关联主体中完整记录，没有明确主次时不强行挑选。', usage: '单位检索、文书摘要' }),
-  metadataField({ code: 'subject_role', name: '主体角色', group: '关联主体', mode: '可扩展目录', source: '主体角色正式目录',
+  metadataField({ code: 'subject_role', name: '主体角色', group: '主体信息', mode: '可扩展目录', source: '主体角色正式目录',
     definition: '每个关联主体在当前文书中的身份。', rule: '依据原文关系匹配角色，不依据名称猜测；同一主体有多个明确角色时分别记录。', usage: '主体关系展示、主体核验', examples: ['被检查单位', '当事人', '所属机构'] }),
-  metadataField({ code: 'subject_name', name: '主体名称', group: '关联主体', mode: '原文提取', source: '文书原文',
+  metadataField({ code: 'subject_name', name: '主体名称', group: '主体信息', mode: '原文提取', source: '文书原文',
     definition: '每条主体记录中的单位或个人名称。', rule: '保留原文名称，与对应主体角色成组保存，不把多个人名或单位拼成一个主体。', usage: '关联主体、原文核验' }),
   metadataField({ code: 'problem_summary', name: '问题概述', group: '问题认定', mode: '原文提取', source: '当前问题事实',
     definition: '对当前问题事实的简短概述，用于阅读定位。', rule: '依据当前问题概括，不补充原文没有的事实；不直接复制标准问题类型作为概述。', usage: '问题标题、问题目录' }),
   metadataField({ code: 'problem_facts', name: '具体问题事实', group: '问题认定', type: '长文本', count: '多值', mode: '原文提取', source: '文书原文与位置',
     definition: '当前问题下的一条或多条具体事实。', rule: '保留原始表述、金额、时间和原文定位；不混入其他问题或模型推断。', usage: '事实核验、认定标准匹配、深度分析' }),
-  metadataField({ code: 'supervision_domain', name: '监督领域', group: '问题认定', mode: '固定目录', source: '基础认定标准 · 板块',
-    definition: '当前问题所属板块，统一称为监督领域。', rule: '从已确认的 13 个板块匹配；结合问题事实和适用标准选择，不用旧 7 类替代；不匹配时留空待确认。', usage: '领域目录、检索筛选；文书级按问题汇总', examples: DOMAIN_NAMES }),
-  metadataField({ code: 'problem_aspect', name: '方面', group: '问题认定', mode: '固定目录', source: '基础认定标准 · 方面',
+  metadataField({ code: 'supervision_domain', name: '监督领域', group: '问题认定', mode: '固定目录', source: '四川基础认定标准（参考）· 板块',
+    definition: '当前问题所属板块，统一称为监督领域。', rule: '当前仅提供四川参考板块演示，湖南标准待客户确认；不能据此自动作出湖南正式认定。', usage: '领域目录、检索筛选；文书级按问题汇总', examples: DOMAIN_NAMES }),
+  metadataField({ code: 'problem_aspect', name: '方面', group: '问题认定', mode: '固定目录', source: '四川基础认定标准（参考）· 方面',
     definition: '当前监督领域下的问题方面。', rule: '只在匹配板块对应的方面中选择；和问题类型的父子关系保持一致。', usage: '问题认定、分组统计', examples: ['收入管理', '预决算公开', '债券管理'] }),
-  metadataField({ code: 'violation_type', name: '问题类型', group: '问题认定', mode: '固定目录', source: '基础认定标准 · 问题类型',
+  metadataField({ code: 'violation_type', name: '问题类型', group: '问题认定', mode: '固定目录', source: '四川基础认定标准（参考）· 问题类型',
     definition: '当前问题匹配的正式问题分类，不是问题事实摘要。', rule: '先保留事实，再匹配标准条目及别名；一个事实涉及多个独立问题时拆分记录；无匹配项只提出待确认建议，不改写正式标准。', usage: '问题认定、检索筛选；文书级聚合多项', examples: ['虚增财政收入', '应收未收财政收入', '未及时上缴财政收入'] }),
-  metadataField({ code: 'problem_nature', name: '问题性质', group: '问题认定', mode: '固定目录', source: '基础认定标准 · 问题性质',
+  metadataField({ code: 'problem_nature', name: '问题性质', group: '问题认定', mode: '固定目录', source: '四川基础认定标准（参考）· 问题性质',
     definition: '当前问题依据适用认定标准形成的问题性质，与处罚阶次不同。', rule: '核对标准适用条件和当前事实；证据不足时留空待确认，不能仅凭问题名称赋予性质。', usage: '问题认定、分类核验', examples: ['严重', '较严重', '一般'] }),
-  metadataField({ code: 'responsibility_subject', name: '责任主体', group: '问题认定', count: '多值', mode: '固定目录', source: '基础认定标准 · 责任角色',
+  metadataField({ code: 'responsibility_subject', name: '责任主体', group: '问题认定', count: '多值', mode: '固定目录', source: '四川基础认定标准（参考）· 责任角色',
     definition: '当前问题涉及的责任角色，不是具体单位名称。', rule: '结合原文责任关系核对标准角色；不得把标准列出的全部可能角色直接当成本案责任主体。', usage: '问题认定、责任关系核验', examples: ['省级部门主责', '财政厅主责', '市县主责'] }),
   metadataField({ code: 'violation_basis', name: '违规认定依据', group: '问题认定', type: '长文本', count: '多值', mode: '原文提取', source: '原文明确引用的依据',
     definition: '原文用于认定当前问题违反规定的文件名称和条款。', rule: '名称与条款成组保留，并关联当前问题；不得补写文书未引用的依据，也不与处罚依据混淆。', usage: '问题依据核验、深度分析' }),
@@ -251,8 +267,8 @@ const METADATA_FIELDS: MetadataField[] = [
     definition: '当前问题匹配到的标准条目引用。', rule: '使用匹配结果中的标准标识及条目，不由模型虚构标准编号；未确认结果不得标为已匹配。', usage: '标准原文追溯、匹配核验' }),
   metadataField({ code: 'standard_version', name: '认定标准版本', group: '问题认定', mode: '系统关联', source: '所引用标准的版本记录',
     definition: '本次认定实际使用的标准版本。', rule: '从被引用标准记录读取，与条目引用同时保存；标准升级不得静默覆盖原认定记录。', usage: '版本追溯、存量影响分析' }),
-  metadataField({ code: 'handling_method', name: '处理方式', group: '处理决定', mode: '可扩展目录', source: '处理方式正式目录', status: '已生效',
-    definition: '每条处理措施的标准类型；一组处置可含多条措施。', rule: '提取原文明示的处理方式再匹配目录；不得把已责令整改当作已完成整改。', usage: '处理决定、检索聚合筛选', examples: ['警告', '罚款', '责令整改'] }),
+  metadataField({ code: 'handling_method', name: '处理类型', group: '处理决定', mode: '可扩展目录', source: '处理方式正式目录', status: '已生效',
+    definition: '每条处理措施的标准类型；一组处置可含多条措施。', rule: '提取原文明示的处理方式再匹配目录；不得把已责令整改当作已完成整改。', usage: '处理决定、检索聚合筛选', examples: HANDLING_TYPES }),
   metadataField({ code: 'handling_target', name: '处理对象', group: '处理决定', mode: '原文提取', source: '文书原文／关联主体',
     definition: '每条处理措施针对的具体单位或个人。', rule: '逐条关联处理对象；未明确时不默认适用于全部主体。', usage: '处置对象核验' }),
   metadataField({ code: 'handling_content', name: '处理内容', group: '处理决定', type: '长文本', mode: '原文提取', source: '文书处理决定原文',
@@ -280,7 +296,16 @@ export const newId = () => Math.random().toString(36).slice(2, 10);
 export const nowText = () => new Date().toLocaleString('zh-CN', { hour12: false });
 export const isDirectory = (field?: MetadataField) => !!field && ['固定目录', '可扩展目录'].includes(field.mode);
 const initialFields = METADATA_FIELDS.map(field => ({ ...field, status: '已生效' as const, version: 1, asTag: isDirectory(field), blocking: ['document_title', 'problem_facts'].includes(field.code) }));
-const initialCases: IngestionRow[] = INGESTION_ROWS.map(row => ({ ...row, version: 1, subjects: resolveCaseSubjects(row), issues: resolveCaseIssues(row), decisions: resolveCaseDecisions(row), versions: [] }));
+const initialCases: IngestionRow[] = INGESTION_ROWS.map(row => ({
+  ...row, version: 1,
+  subjects: resolveCaseSubjects(row).map(subject => ({ ...subject, kind: subject.role === '当事人' ? '个人' : '单位',
+    personType: row.id === 'I02' && subject.role === '当事人' ? '注册会计师' : '',
+    unitType: row.id === 'I02' && subject.role === '所属机构' ? '会计师事务所' : '' })),
+  issues: resolveCaseIssues(row), decisions: resolveCaseDecisions(row).map(g => ({ ...g, actions: g.actions.map(a => ({ ...a,
+    category: (isPenaltyDocument(row.type) && a.type !== '整改要求' ? '处罚' : '处理') as '处罚' | '处理',
+    type: a.type === '整改要求' ? '责令整改' : a.content === '给予警告' ? '警告' : a.content === '暂停执业' ? '暂停执业' : a.type === '处理要求' ? (a.content.includes('整改') ? '责令整改' : '') : a.type })) })),
+  versions: [],
+}));
 const initialTags: TagValue[] = [];
 const addSeed = (fieldCode: string, name: string, domain?: string, aspect?: string) => {
   if (!name || ['—', '待确认', '待识别'].includes(name) || initialTags.some(t => t.fieldCode === fieldCode && t.name === name)) return;
@@ -297,7 +322,7 @@ for (const row of initialCases) {
     addSeed('problem_nature', issue.nature);
     for (const role of issue.responsibility.split(/[、，]/)) addSeed('responsibility_subject', role);
   }
-  for (const action of (row.decisions || []).flatMap(d => d.actions)) addSeed('handling_method', action.type);
+  for (const action of (row.decisions || []).flatMap(d => d.actions)) addSeed(action.category === '处罚' ? 'penalty_type' : 'handling_method', action.type);
 }
 ['责令限期整改', '警告', '追回资金', '暂停执业'].forEach(n => addSeed('handling_method', n));
 const demoCase: IngestionRow = {
@@ -311,6 +336,44 @@ const demoCase: IngestionRow = {
 };
 initialCases.unshift(demoCase);
 initialTags.push({ id: 'candidate-payment', fieldCode: 'handling_method', name: '建立支付进度联审机制', definition: '建立资金支付与项目建设进度联合审核机制。', aliases: [], status: '待生效', review: '待确认', evidence: '专项资金支付整改通知书：建立支付进度联审机制，30日内完成。', bindings: [{ caseId: 'I15', path: 'decisions.0.actions.0.type' }] });
+// 来源更正：保留既有参考分类，但不伪造湖南已发布标准或版本。
+for (const c of initialCases) {
+  c.standardVersion = '四川参考资料（非湖南标准）';
+  c.standardRef = c.standardRef.replace('现行', '参考');
+  c.suggestions = {};
+  for (const issue of c.issues || []) {
+    issue.standardMatch.version = '四川参考资料（非湖南标准）';
+    issue.standardMatch.name = issue.standardMatch.name.replace('现行', '参考');
+  }
+  if (c.status === '未入库') {
+    c.qualityIssues = c.qualityIssues.filter(q => !['匹配认定标准', '问题性质'].includes(q.field));
+    c.issues?.forEach((issue, i) => {
+      for (const [code, key] of Object.entries({ supervision_domain: 'domain', problem_aspect: 'aspect', violation_type: 'type', problem_nature: 'nature' })) {
+        const value = issue[key as keyof CaseIssue];
+        if (typeof value === 'string' && value && !initialTags.some(t => t.fieldCode === code && t.status === '已生效' && t.name === value)) {
+          if (!['待确认', '待提取', '待识别', '—'].includes(value)) c.suggestions![`issues.${i}.${key}`] = value;
+          (issue as any)[key] = '';
+        }
+      }
+    });
+  }
+}
+// 表格来源演示：只展示源表已有信息，不编造问题事实、完整文书名称或法律依据。
+const sourceSamples = [
+  { id: 'X01', type: '行政处罚决定书', name: '湖南宏丰益联合会计师事务所（普通合伙）', no: '湘财行罚〔2026〕3号', date: '2026-04-09', sourceRow: 5,
+    actions: [{ category: '处罚' as const, type: '警告', content: '警告', target: '湖南宏丰益联合会计师事务所（普通合伙）' }, { category: '处罚' as const, type: '没收违法所得', content: '没收违法所得', measure: '0.6万元', target: '湖南宏丰益联合会计师事务所（普通合伙）' }] },
+  { id: 'X02', type: '行政处理决定书', name: '湖南英特有限责任会计师事务所', no: '湘财检〔2026〕3号', date: '2026-02-05', sourceRow: 35,
+    actions: [{ category: '处理' as const, type: '责令整改', content: '责令整改', target: '湖南英特有限责任会计师事务所' }] },
+];
+for (const sample of sourceSamples) initialCases.push({ ...initialCases[0], id: sample.id, title: '', type: sample.type, no: sample.no,
+  relatedUnit: sample.name, issueDate: sample.date, year: '2026', inspectionYear: '2025', inspectionName: '会计评估检查',
+  source: '统计表摘录', sourceId: `2026 工作表 · 第${sample.sourceRow}行`, fileName: '历年检查情况统计表2026.9.4.xlsx',
+  subjects: [{ role: '被处理处罚主体', kind: '单位', unitType: '会计师事务所', personType: '', name: sample.name }],
+  issues: [], decisions: [{ actions: sample.actions, bases: [], relatedIssueIds: [] }], suggestions: {},
+  domain: '', aspect: '', issueType: '', nature: '', manifestation: '', policyBasis: '', standardRef: '', standardVersion: '',
+  handlingMethod: sample.actions.map(a => a.type).join('｜'), status: '未入库', detailStatus: '待人工处理',
+  qualityIssues: [{ field: '原始文书', current: '仅有统计表', suggestion: '补充原文后核对文书名称和问题事实', confidence: '—', reason: '统计表未提供完整文书名称及问题事实，不能从处罚措施反推问题。' }],
+  time: '2026-09-08 10:30', metadataUpdatedAt: '2026-09-08 10:30', result: '待补充原始文书', versions: [] });
 let state: GovernanceState = { fields: initialFields, tags: initialTags, cases: initialCases, feedback: [], advice: [], focusField: '' };
 const listeners = new Set<() => void>();
 export const getGovernance = () => state;
@@ -331,6 +394,7 @@ export function setCasePath(row: IngestionRow, path: string, value: string): Ing
   if (/^issues\.\d+\.(domain|aspect|type|nature|responsibility)$/.test(path) && getCasePath(row, path) !== value) {
     next.issues[Number(parts[1])].standardMatch.status = '待确认';
   }
+  if (path.startsWith('subjects.')) next.relatedUnit = next.subjects?.[0]?.name || '';
   const first = next.issues?.[0];
   if (first) Object.assign(next, { domain: first.domain, aspect: first.aspect, issueType: first.type, nature: first.nature, responsibility: first.responsibility, manifestation: first.facts.join('；') });
   next.handlingMethod = next.decisions?.flatMap((d: CaseDecisionGroup) => d.actions.map(a => a.type || a.content)).join('｜') || '';
